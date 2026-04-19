@@ -1,3 +1,6 @@
-target
+/target
+**/*.rs.bak
+.patch-ts-backups/
+
 wr.sh
 coverage
