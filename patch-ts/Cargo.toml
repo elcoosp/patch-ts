@@ -1,0 +1,33 @@
+[package]
+name = "patch-ts"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <you@example.com>"]
+description = "Tree-sitter-backed patching CLI for AI agents"
+license = "MIT"
+repository = "https://github.com/your-org/patch-ts"
+readme = "README.md"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+tree-sitter = "0.25"
+tree-sitter-rust = "0.24"
+miette = { version = "7.6", features = ["fancy"] }
+thiserror = "2.0"
+line-index = "0.1"
+strsim = "0.11"
+tempfile = "3.24"
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+regex = "1.12"
+log = "0.4"
+env_logger = "0.11"
+flickzeug = "0.5"
+
+[dev-dependencies]
+assert_cmd = "2.1"
+cucumber = "0.22"
+rstest = "0.26"
+proptest = "1.7"
+criterion = "0.7"
