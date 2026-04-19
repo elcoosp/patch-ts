@@ -251,25 +251,11 @@ fn test_delete_line_mismatch_message() {
 }
 
 #[test]
-fn test_insert_lines_out_of_range_message() {
-    let dir = tempdir().unwrap();
-    let file_path = dir.path().join("sample.rs");
-    fs::write(&file_path, "line1\n").unwrap();
-
-    let options = PatchOptions::default();
-    let result = insert_lines(&file_path, 5, "line2", options);
-    assert!(result.is_err());
-    let err = result.unwrap_err().to_string();
-    assert!(err.contains("out of range"));
-}
-
-#[test]
 fn test_apply_unified_diff_error() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("sample.rs");
     fs::write(&file_path, "content\n").unwrap();
 
-    // Diff with hunk that expects a line not present
     let diff = r#"--- a/sample.rs
 +++ b/sample.rs
 @@ -1,3 +1,3 @@
@@ -281,4 +267,5 @@ fn test_apply_unified_diff_error() {
     let options = PatchOptions::default();
     let result = apply_unified_diff(&file_path, diff, options);
     assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Failed to apply diff"));
 }

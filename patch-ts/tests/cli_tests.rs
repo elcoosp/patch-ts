@@ -339,3 +339,29 @@ fn test_cli_file_not_found_json() {
     assert_eq!(json["success"], false);
     assert!(json["error"]["code"].as_str().unwrap().contains("error"));
 }
+
+#[test]
+fn test_cli_patch_syntax_error_json() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("test.rs");
+    fs::write(&file_path, "fn main() {}\n").unwrap();
+
+    let mut cmd = Command::cargo_bin("patch-ts").unwrap();
+    let output = cmd
+        .arg("patch")
+        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--line").arg("1")
+        .arg("--old").arg("fn main() {}")
+        .arg("--new").arg("fn main() {") // missing closing brace
+        .arg("--json")
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8(output).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(json["success"], false);
+    assert_eq!(json["error"]["code"], "patch_ts::syntax_error");
+}
