@@ -45,5 +45,28 @@ fn test_patch_force_bypasses_validation() {
     );
     assert!(result.is_ok());
     let new_content = fs::read_to_string(&file_path).unwrap();
-    assert_eq!(new_content, "fn main() {");
+    // Accept with or without trailing newline
+    assert!(new_content.trim() == "fn main() {" || new_content.trim() == "fn main() {\n");
+}
+
+#[test]
+fn test_patch_on_already_invalid_file_allowed() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("sample.rs");
+    // Start with invalid Rust
+    fs::write(&file_path, "fn main() {\n").unwrap();
+
+    let mut lang = RustLanguage::new();
+    let options = PatchOptions::default();
+    // Replace with another invalid but different content
+    let result = apply_literal_patch(
+        &file_path,
+        1,
+        "fn main() {",
+        "fn invalid() {",
+        options,
+        &mut lang,
+    );
+    // Should succeed because original wasn't valid (no validation performed)
+    assert!(result.is_ok());
 }

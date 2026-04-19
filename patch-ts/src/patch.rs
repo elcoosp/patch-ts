@@ -31,7 +31,7 @@ impl Default for PatchOptions {
 /// Apply a literal replacement patch (exact or fuzzy) with AST validation
 pub fn apply_literal_patch(
     file_path: &Path,
-    line: usize,
+    line_num: usize,
     expected: &str,
     new: &str,
     options: PatchOptions,
@@ -40,7 +40,12 @@ pub fn apply_literal_patch(
     let original_content = fs::read_to_string(file_path)
         .with_context(|| format!("Failed to read {}", file_path.display()))?;
     let lines: Vec<&str> = original_content.lines().collect();
-    let target_idx = line.saturating_sub(1);
+
+    if lines.is_empty() {
+        anyhow::bail!("file is empty, cannot apply patch at line {}", line_num);
+    }
+
+    let target_idx = line_num.saturating_sub(1);
 
     let start = if options.fuzz_radius > 0 {
         target_idx.saturating_sub(options.fuzz_radius)
@@ -109,27 +114,27 @@ pub fn apply_literal_patch(
 /// Delete a line after verifying its content
 pub fn delete_line(
     file_path: &Path,
-    line: usize,
+    line_num: usize,
     expected: &str,
     options: PatchOptions,
 ) -> Result<()> {
     let content = fs::read_to_string(file_path)?;
     let lines: Vec<&str> = content.lines().collect();
-    if line == 0 || line > lines.len() {
-        anyhow::bail!("line {} out of range", line);
+    if line_num == 0 || line_num > lines.len() {
+        anyhow::bail!("line {} out of range", line_num);
     }
-    let actual = lines[line - 1].trim();
+    let actual = lines[line_num - 1].trim();
     let expected_trimmed = expected.trim();
     if actual != expected_trimmed {
         anyhow::bail!(
             "expected line {} to contain '{}', but found '{}'",
-            line,
+            line_num,
             expected_trimmed,
             actual
         );
     }
     let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
-    new_lines.remove(line - 1);
+    new_lines.remove(line_num - 1);
     let new_content = new_lines.join("\n") + if content.ends_with('\n') { "\n" } else { "" };
 
     if options.dry_run {
@@ -143,17 +148,17 @@ pub fn delete_line(
 /// Insert lines after a given line number
 pub fn insert_lines(
     file_path: &Path,
-    after_line: usize,
+    after_line_num: usize,
     content_to_insert: &str,
     options: PatchOptions,
 ) -> Result<()> {
     let content = fs::read_to_string(file_path)?;
     let lines: Vec<&str> = content.lines().collect();
-    if after_line > lines.len() {
-        anyhow::bail!("line {} out of range (file has {} lines)", after_line, lines.len());
+    if after_line_num > lines.len() {
+        anyhow::bail!("line {} out of range (file has {} lines)", after_line_num, lines.len());
     }
     let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
-    let insert_idx = after_line;
+    let insert_idx = after_line_num;
     for line in content_to_insert.lines().rev() {
         new_lines.insert(insert_idx, line.to_string());
     }

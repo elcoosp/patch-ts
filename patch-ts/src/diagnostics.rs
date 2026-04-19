@@ -29,7 +29,7 @@ pub struct ContentMismatchError {
 }
 
 #[derive(Error, Debug, Diagnostic)]
-#[error("patch introduces syntax error")]
+#[error("patch introduces syntax error: {details}")]
 #[diagnostic(
     code(patch_ts::syntax_error),
     help("use --force to apply anyway, or run `patch-ts balance` to fix")
@@ -93,5 +93,46 @@ impl JsonDiagnostic {
             success: false,
             error: Some(error),
         }
+    }
+}
+
+/// Convert anyhow error to JSON
+pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
+    if let Some(diag) = err.downcast_ref::<SyntaxErrorDiagnostic>() {
+        return JsonError {
+            code: "patch_ts::syntax_error".to_string(),
+            message: diag.to_string(),
+            span: JsonSpan {
+                file: file.to_string(),
+                line: 1,
+                column: 1,
+            },
+            context: diag.details.clone(),
+            suggestion: Some("Run `patch-ts balance` to attempt automatic fix".to_string()),
+        };
+    }
+    if let Some(diag) = err.downcast_ref::<ContentMismatchError>() {
+        return JsonError {
+            code: "patch_ts::content_mismatch".to_string(),
+            message: diag.to_string(),
+            span: JsonSpan {
+                file: file.to_string(),
+                line: 1,
+                column: 1,
+            },
+            context: format!("expected '{}' but found '{}'", diag.expected, diag.actual),
+            suggestion: Some("try increasing --fuzz radius".to_string()),
+        };
+    }
+    JsonError {
+        code: "patch_ts::error".to_string(),
+        message: err.to_string(),
+        span: JsonSpan {
+            file: file.to_string(),
+            line: 0,
+            column: 0,
+        },
+        context: String::new(),
+        suggestion: None,
     }
 }

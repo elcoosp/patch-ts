@@ -31,3 +31,7 @@ cucumber = "0.22"
 rstest = "0.26"
 proptest = "1.7"
 criterion = "0.7"
+
+[[bench]]
+name = "patch_benchmark"
+harness = false

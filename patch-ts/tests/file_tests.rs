@@ -1,3 +1,4 @@
+use std::path::Path;
 use patch_ts::file::FileManager;
 use std::fs;
 use tempfile::tempdir;
@@ -47,4 +48,12 @@ fn test_no_backup_when_disabled() {
 
     let backup_path = dir.path().join("test.rs.bak");
     assert!(!backup_path.exists());
+}
+
+#[test]
+fn test_read_missing_file() {
+    let manager = FileManager::new(false);
+    let result = manager.read(Path::new("/definitely/not/a/real/file.rs"));
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Failed to read file"));
 }

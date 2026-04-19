@@ -4,13 +4,17 @@ use std::path::Path;
 use std::io::Read;
 
 use crate::ast::RustLanguage;
-use crate::diagnostics::JsonDiagnostic;
+use crate::diagnostics::{JsonDiagnostic, JsonError, anyhow_to_json};
 use crate::file::FileManager;
 use crate::patch::{apply_literal_patch, apply_unified_diff, delete_line, insert_lines, PatchOptions};
 use crate::repair::{balance_file, explain_error};
 
 #[derive(Parser)]
-#[command(name = "patch-ts", about = "Tree-sitter-aware patching tool for LLM agents")]
+#[command(
+    name = "patch-ts",
+    about = "Tree-sitter-aware patching tool for LLM agents",
+    after_help = "EXAMPLES:\n  patch-ts patch --file src/lib.rs --line 10 <<'EOF'\n  <<<\n  old line\n  ---\n  new line\n  EOF\n\n  patch-ts balance --file src/lib.rs --apply\n\n  patch-ts explain --file src/lib.rs --line 42"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -126,11 +130,28 @@ pub struct ExplainArgs {
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
 
-    match cli.command {
+    // Capture json flag and file before moving command
+    let (json, file) = match &cli.command {
+        Command::Patch(args) => (args.json, args.file.clone()),
+        Command::Balance(args) => (args.json, args.file.clone()),
+        Command::Explain(args) => (args.json, args.file.clone()),
+    };
+
+    let result = match cli.command {
         Command::Patch(args) => handle_patch(args),
         Command::Balance(args) => handle_balance(args),
         Command::Explain(args) => handle_explain(args),
+    };
+
+    if let Err(ref e) = result {
+        if json {
+            let json_err = anyhow_to_json(e, &file);
+            println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?);
+            std::process::exit(1);
+        }
     }
+
+    result
 }
 
 fn handle_patch(args: PatchArgs) -> Result<()> {
@@ -175,7 +196,7 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
 }
 
 fn handle_balance(args: BalanceArgs) -> Result<()> {
-    let lang = RustLanguage::new();
+    let mut lang = RustLanguage::new();
     let file_path = Path::new(&args.file);
     balance_file(file_path, args.function.as_deref(), !args.apply, &mut lang)?;
     if args.json {
@@ -185,13 +206,13 @@ fn handle_balance(args: BalanceArgs) -> Result<()> {
 }
 
 fn handle_explain(args: ExplainArgs) -> Result<()> {
-    let lang = RustLanguage::new();
+    let mut lang = RustLanguage::new();
     let file_path = Path::new(&args.file);
     let diag = explain_error(file_path, args.line, args.json, &mut lang)?;
     if let Some(diag) = diag {
         if args.json {
-            let json_err = crate::diagnostics::JsonError {
-                code: "E0001".to_string(),
+            let json_err = JsonError {
+                code: "patch_ts::syntax_error".to_string(),
                 message: diag.to_string(),
                 span: crate::diagnostics::JsonSpan {
                     file: args.file.clone(),
@@ -203,6 +224,7 @@ fn handle_explain(args: ExplainArgs) -> Result<()> {
             };
             println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?);
         } else {
+            // Use miette::Report on the concrete type, not a trait object
             eprintln!("{:?}", miette::Report::new(diag));
         }
     } else if args.json {
