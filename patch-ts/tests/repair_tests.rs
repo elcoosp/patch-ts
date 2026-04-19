@@ -66,3 +66,30 @@ fn test_explain_error_on_valid_line() {
     let diag = explain_error(&file_path, 1, false, &mut lang).unwrap();
     assert!(diag.is_none());
 }
+
+#[test]
+fn test_balance_unfixable() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("sample.rs");
+    // Missing quote is not fixable by simple delimiter removal
+    fs::write(&file_path, "fn main() { let x = \"unclosed; }\n").unwrap();
+
+    let mut lang = RustLanguage::new();
+    let result = balance_file(&file_path, None, false, &mut lang);
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("Could not identify extra delimiter"));
+}
+
+#[test]
+fn test_balance_removal_does_not_fix() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("sample.rs");
+    // A syntax error not caused by a single extra delimiter
+    fs::write(&file_path, "fn main() { let x = 1 }\n").unwrap(); // missing semicolon
+
+    let mut lang = RustLanguage::new();
+    let result = balance_file(&file_path, None, false, &mut lang);
+    // Either cannot identify extra delimiter or removal doesn't fix
+    assert!(result.is_err());
+}

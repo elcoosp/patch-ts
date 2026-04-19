@@ -51,3 +51,12 @@ fn test_explain_error() {
     let diag = diag.unwrap();
     assert!(diag.details.contains("extra") || diag.details.contains("unexpected") || diag.details.contains("closing brace"));
 }
+
+#[test]
+fn test_explain_error_on_non_error_line() {
+    let mut lang = RustLanguage::new();
+    let source = "fn main() {}\n";
+    let result = lang.parse(source);
+    let diag = lang.explain_error(&result, 1);
+    assert!(diag.is_none());
+}

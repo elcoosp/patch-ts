@@ -37,7 +37,7 @@ pub struct PatchArgs {
     pub file: String,
 
     /// Target line number (1-indexed)
-    #[arg(short, long, required_unless_present = "diff")]
+    #[arg(short, long, required_unless_present_any = ["diff", "delete", "after"])]
     pub line: Option<usize>,
 
     /// Search radius for fuzzy line matching
