@@ -9,6 +9,7 @@ repository = "https://github.com/your-org/patch-ts"
 readme = "README.md"
 
 [dependencies]
+syn = { version = "2.0", features = ["parsing", "printing", "full", "visit"] }
 clap = { version = "4.5", features = ["derive"] }
 tree-sitter = "0.25"
 tree-sitter-rust = "0.24"

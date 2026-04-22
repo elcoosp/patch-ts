@@ -148,3 +148,45 @@ impl Language for RustLanguage {
         None
     }
 }
+
+impl RustLanguage {
+    /// Find the byte range of a function body by name using `syn` for robust parsing.
+    /// Returns (start_byte, end_byte) if found and unique.
+    pub fn find_function_body_range(&self, source: &str, function_name: &str) -> Option<(usize, usize)> {
+        use syn::visit::Visit;
+        use syn::File;
+
+        struct FindFn<'a> {
+            target: &'a str,
+            range: Option<(usize, usize)>,
+        }
+
+        impl<'ast> Visit<'ast> for FindFn<'_> {
+            fn visit_item_fn(&mut self, f: &'ast syn::ItemFn) {
+                if f.sig.ident == self.target {
+                    if self.range.is_some() {
+                        // Ambiguous
+                        self.range = Some((0, 0));
+                    } else {
+                        let span = f.block.span();
+                        let start = span.start().byte;
+                        let end = span.end().byte;
+                        self.range = Some((start, end));
+                    }
+                }
+                // Continue visiting nested items
+                syn::visit::visit_item_fn(self, f);
+            }
+        }
+
+        let file = File::parse(source).ok()?;
+        let mut visitor = FindFn { target: function_name, range: None };
+        visitor.visit_file(&file);
+
+        match visitor.range {
+            Some((0, 0)) => None, // ambiguous
+            Some(range) => Some(range),
+            None => None,
+        }
+    }
+}
