@@ -43,3 +43,6 @@ install:
 # show help
 help:
     @just --list
+
+wr:
+    watchexec -w ./wr.sh --clear -r "sh ./wr.sh"

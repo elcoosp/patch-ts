@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // Note: Python balance tests temporarily disabled; will be fixed in v0.7.0 with AST-based repair.
 
 use assert_cmd::Command;

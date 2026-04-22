@@ -15,8 +15,8 @@ fn test_js_balance_removes_extra_brace() {
         .assert()
         .success();
 
-    let balanced = fs::read_to_string(&file_path).unwrap();
-    assert_eq!(balanced.trim_end(), "function main() {\n  console.log(\"hi\");\n}");
+    let _balanced = fs::read_to_string(&file_path).unwrap();
+    assert_eq!(_balanced.trim_end(), "function main() {\n  console.log(\"hi\");\n}");
 }
 
 #[test]
@@ -32,9 +32,9 @@ fn test_js_balance_inserts_missing_brace_disabled() {
         .assert()
         .success();
 
-    let balanced = fs::read_to_string(&file_path).unwrap();
+    let _balanced = fs::read_to_string(&file_path).unwrap();
     // TODO: missing brace insertion not yet reliable
-    // assert_eq!(balanced.trim_end(), "function main() {\n  console.log(\"hi\");\n}");
+    // assert_eq!(_balanced.trim_end(), "function main() {\n  console.log(\"hi\");\n}");
 }
 
 #[test]
@@ -69,8 +69,8 @@ fn test_jsx_balance() {
         .assert()
         .success();
 
-    let balanced = fs::read_to_string(&file_path).unwrap();
-    assert!(!balanced.contains("}\n}"));
+    let _balanced = fs::read_to_string(&file_path).unwrap();
+    assert!(!_balanced.contains("}\n}"));
 }
 
 #[test]
@@ -110,6 +110,6 @@ fn test_js_balance_removes_extra_paren() {
         .assert()
         .success();
 
-    let balanced = fs::read_to_string(&file_path).unwrap();
-    assert_eq!(balanced.trim_end(), "const x = (1 + 2);");
+    let _balanced = fs::read_to_string(&file_path).unwrap();
+    assert_eq!(_balanced.trim_end(), "const x = (1 + 2);");
 }

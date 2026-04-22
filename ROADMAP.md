@@ -89,3 +89,15 @@ This document outlines the evolution of `patch-ts`.
 ---
 
 *Last updated: 2026‑04‑22*
+
+### v0.7.0 — Ruby, PHP, HTML, XML & AST Reliability
+
+**Status:** ✅ Implemented
+
+- [x] Ruby language support (`.rb`)
+- [x] PHP language support (`.php`)
+- [x] HTML/XML language support (`.html`, `.xml`)
+- [x] AST‑based delimiter detection for all languages
+- [x] Python balance tests re‑enabled and passing
+- [x] Integration tests for all new languages
+

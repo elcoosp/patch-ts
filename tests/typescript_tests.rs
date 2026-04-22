@@ -15,8 +15,8 @@ fn test_ts_balance_removes_extra_brace() {
         .assert()
         .success();
 
-    let balanced = fs::read_to_string(&file_path).unwrap();
-    assert_eq!(balanced.trim_end(), "function main() {\n  console.log(\"hi\");\n}");
+    let _balanced = fs::read_to_string(&file_path).unwrap();
+    assert_eq!(_balanced.trim_end(), "function main() {\n  console.log(\"hi\");\n}");
 }
 
 #[test]
@@ -32,9 +32,9 @@ fn test_ts_balance_inserts_missing_paren() {
         .assert()
         .success();
 
-    let balanced = fs::read_to_string(&file_path).unwrap();
+    let _balanced = fs::read_to_string(&file_path).unwrap();
     // TODO: insertion point not yet reliable for this case
-    // assert_eq!(balanced.trim_end(), "const x = (1 + 2);");
+    // assert_eq!(_balanced.trim_end(), "const x = (1 + 2);");
 }
 
 #[test]
@@ -96,7 +96,6 @@ fn test_ts_explain_json() {
 
     let stdout = String::from_utf8(output).unwrap();
     let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    // With MISSING node detection, this should now detect the error
     assert_eq!(json["success"], false);
     assert_eq!(json["error"]["code"], "patch_ts::syntax_error");
 }
@@ -131,6 +130,6 @@ fn test_ts_balance_removes_extra_paren() {
         .assert()
         .success();
 
-    let balanced = fs::read_to_string(&file_path).unwrap();
-    assert_eq!(balanced.trim_end(), "const x = (1 + 2);");
+    let _balanced = fs::read_to_string(&file_path).unwrap();
+    assert_eq!(_balanced.trim_end(), "const x = (1 + 2);");
 }
