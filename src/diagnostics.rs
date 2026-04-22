@@ -65,6 +65,7 @@ pub struct JsonDiagnostic {
 }
 
 #[derive(serde::Serialize)]
+#[derive(Debug)]
 pub struct JsonError {
     pub code: String,
     pub message: String,
@@ -77,12 +78,14 @@ pub struct JsonError {
 }
 
 #[derive(serde::Serialize)]
+#[derive(Debug)]
 pub struct Candidate {
     pub line: usize,
     pub score: f64,
 }
 
 #[derive(serde::Serialize)]
+#[derive(Debug)]
 pub struct JsonSpan {
     pub file: String,
     pub line: usize,
@@ -174,4 +177,24 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
         best_match_line,
         candidates: None,
     }
+}
+
+/// JSON output for the balance command.
+#[derive(serde::Serialize)]
+#[derive(Debug)]
+pub struct BalanceResult {
+    pub success: bool,
+    pub actions: Vec<BalanceAction>,
+    pub error: Option<JsonError>,
+}
+
+#[derive(serde::Serialize)]
+#[derive(Debug)]
+pub struct BalanceAction {
+    #[serde(rename = "type")]
+    pub action_type: String, // "remove" or "insert"
+    pub delimiter: char,
+    pub line: usize,
+    pub column: usize,
+    pub message: String,
 }
