@@ -94,6 +94,152 @@ pub trait Language {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
+// ----------------------------------------------------------------------
+// Free functions for language-agnostic delimiter scanning and error checking
+// ----------------------------------------------------------------------
+
+fn has_error_node(node: Node) -> bool {
+    if node.is_error() {
+        return true;
+    }
+    for child in node.children(&mut node.walk()) {
+        if has_error_node(child) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Scan source with a simple state machine to find delimiter errors.
+/// Ignores delimiters inside string literals and comments.
+pub(crate) fn scan_delimiter_errors(source: &str, index: &LineIndex) -> Vec<DelimiterError> {
+    let mut errors = Vec::new();
+    let mut stack: Vec<(char, usize)> = Vec::new();
+
+    let chars: Vec<char> = source.chars().collect();
+    let mut i = 0;
+    let mut in_string = false;
+    let mut in_char = false;
+    let mut in_line_comment = false;
+    let mut in_block_comment = false;
+    let mut escape = false;
+
+    while i < chars.len() {
+        let c = chars[i];
+
+        if !in_string && !in_char && !in_line_comment && !in_block_comment {
+            if c == '/' && i + 1 < chars.len() {
+                if chars[i + 1] == '/' {
+                    in_line_comment = true;
+                    i += 2;
+                    continue;
+                } else if chars[i + 1] == '*' {
+                    in_block_comment = true;
+                    i += 2;
+                    continue;
+                }
+            }
+        }
+
+        if in_line_comment {
+            if c == '\n' {
+                in_line_comment = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        if in_block_comment {
+            if c == '*' && i + 1 < chars.len() && chars[i + 1] == '/' {
+                in_block_comment = false;
+                i += 2;
+            } else {
+                i += 1;
+            }
+            continue;
+        }
+
+        if in_string {
+            if escape {
+                escape = false;
+            } else if c == '\\' {
+                escape = true;
+            } else if c == '"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        if in_char {
+            if escape {
+                escape = false;
+            } else if c == '\\' {
+                escape = true;
+            } else if c == '\'' {
+                in_char = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        if c == '"' {
+            in_string = true;
+            i += 1;
+            continue;
+        }
+        if c == '\'' {
+            in_char = true;
+            i += 1;
+            continue;
+        }
+
+        let byte_pos = source[..i].len();
+        match c {
+            '(' | '[' | '{' => {
+                let close = match c {
+                    '(' => ')',
+                    '[' => ']',
+                    '{' => '}',
+                    _ => unreachable!(),
+                };
+                stack.push((close, byte_pos));
+            }
+            ')' | ']' | '}' => {
+                if let Some((expected, open_byte)) = stack.pop() {
+                    if expected != c {
+                        errors.push(DelimiterError::Extra {
+                            span: Span::from_byte_range(byte_pos, byte_pos + 1, index),
+                            delimiter: c,
+                        });
+                        stack.push((expected, open_byte));
+                    }
+                } else {
+                    errors.push(DelimiterError::Extra {
+                        span: Span::from_byte_range(byte_pos, byte_pos + 1, index),
+                        delimiter: c,
+                    });
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+
+    for (expected, open_byte) in stack {
+        errors.push(DelimiterError::Missing {
+            expected,
+            insert_at: Span::from_byte_range(open_byte, open_byte + 1, index),
+        });
+    }
+
+    errors
+}
+
+// ----------------------------------------------------------------------
+// RustLanguage
+// ----------------------------------------------------------------------
+
 pub struct RustLanguage {
     parser: Parser,
 }
@@ -106,18 +252,6 @@ impl RustLanguage {
             .set_language(&language.into())
             .expect("failed to load Rust grammar");
         Self { parser }
-    }
-
-    fn has_error_node(&self, node: Node) -> bool {
-        if node.is_error() {
-            return true;
-        }
-        for child in node.children(&mut node.walk()) {
-            if self.has_error_node(child) {
-                return true;
-            }
-        }
-        false
     }
 
     fn find_extra_in_node(&self, node: Node, index: &LineIndex, source: &str) -> Option<Span> {
@@ -133,130 +267,6 @@ impl RustLanguage {
             }
         }
         None
-    }
-
-    fn scan_delimiter_errors(&self, source: &str, index: &LineIndex) -> Vec<DelimiterError> {
-        let mut errors = Vec::new();
-        let mut stack: Vec<(char, usize)> = Vec::new();
-
-        let chars: Vec<char> = source.chars().collect();
-        let mut i = 0;
-        let mut in_string = false;
-        let mut in_char = false;
-        let mut in_line_comment = false;
-        let mut in_block_comment = false;
-        let mut escape = false;
-
-        while i < chars.len() {
-            let c = chars[i];
-
-            if !in_string && !in_char && !in_line_comment && !in_block_comment {
-                if c == '/' && i + 1 < chars.len() {
-                    if chars[i + 1] == '/' {
-                        in_line_comment = true;
-                        i += 2;
-                        continue;
-                    } else if chars[i + 1] == '*' {
-                        in_block_comment = true;
-                        i += 2;
-                        continue;
-                    }
-                }
-            }
-
-            if in_line_comment {
-                if c == '\n' {
-                    in_line_comment = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            if in_block_comment {
-                if c == '*' && i + 1 < chars.len() && chars[i + 1] == '/' {
-                    in_block_comment = false;
-                    i += 2;
-                } else {
-                    i += 1;
-                }
-                continue;
-            }
-
-            if in_string {
-                if escape {
-                    escape = false;
-                } else if c == '\\' {
-                    escape = true;
-                } else if c == '"' {
-                    in_string = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            if in_char {
-                if escape {
-                    escape = false;
-                } else if c == '\\' {
-                    escape = true;
-                } else if c == '\'' {
-                    in_char = false;
-                }
-                i += 1;
-                continue;
-            }
-
-            if c == '"' {
-                in_string = true;
-                i += 1;
-                continue;
-            }
-            if c == '\'' {
-                in_char = true;
-                i += 1;
-                continue;
-            }
-
-            let byte_pos = source[..i].len();
-            match c {
-                '(' | '[' | '{' => {
-                    let close = match c {
-                        '(' => ')',
-                        '[' => ']',
-                        '{' => '}',
-                        _ => unreachable!(),
-                    };
-                    stack.push((close, byte_pos));
-                }
-                ')' | ']' | '}' => {
-                    if let Some((expected, open_byte)) = stack.pop() {
-                        if expected != c {
-                            errors.push(DelimiterError::Extra {
-                                span: Span::from_byte_range(byte_pos, byte_pos + 1, index),
-                                delimiter: c,
-                            });
-                            stack.push((expected, open_byte));
-                        }
-                    } else {
-                        errors.push(DelimiterError::Extra {
-                            span: Span::from_byte_range(byte_pos, byte_pos + 1, index),
-                            delimiter: c,
-                        });
-                    }
-                }
-                _ => {}
-            }
-            i += 1;
-        }
-
-        for (expected, open_byte) in stack {
-            errors.push(DelimiterError::Missing {
-                expected,
-                insert_at: Span::from_byte_range(open_byte, open_byte + 1, index),
-            });
-        }
-
-        errors
     }
 
     pub fn find_function_body_range(&self, source: &str, function_name: &str) -> Option<(usize, usize)> {
@@ -329,7 +339,7 @@ impl Language for RustLanguage {
     }
 
     fn is_valid(&self, result: &ParseResult) -> bool {
-        !self.has_error_node(result.tree.root_node())
+        !has_error_node(result.tree.root_node())
     }
 
     fn find_extra_delimiter(&self, result: &ParseResult) -> Option<Span> {
@@ -357,7 +367,7 @@ impl Language for RustLanguage {
     }
 
     fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
-        self.scan_delimiter_errors(result.text(), &result.index)
+        scan_delimiter_errors(result.text(), &result.index)
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
