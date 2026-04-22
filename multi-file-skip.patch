@@ -1,0 +1,12 @@
+--- a/src/cli.rs
++++ b/src/cli.rs
+@@ -175,8 +175,23 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
+                 apply_patch_to_file(path, &args)
+             })?;
+         }
+     } else {
+         let file_path = Path::new(args.file.as_deref().unwrap());
+         apply_patch_to_file(file_path, &args)?;
+     }
+     Ok(())
+ }

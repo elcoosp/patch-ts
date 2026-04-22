@@ -187,14 +187,43 @@ fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
 fn handle_patch(args: PatchArgs) -> Result<()> {
     if let Some(pattern) = &args.files {
         let paths = expand_files(pattern)?;
+        let mut any_success = false;
+        let mut errors = Vec::new();
+        let process = |path: &std::path::Path| -> Result<(), anyhow::Error> {
+            match apply_patch_to_file(path, &args) {
+                Ok(()) => { any_success = true; Ok(()) }
+                Err(e) => {
+                    let msg = e.to_string();
+                    if msg.contains("no match found") || msg.contains("ambiguous match") {
+                        eprintln!("Skipping {}: {}", path.display(), msg);
+                        Ok(())
+                    } else {
+                        Err(e)
+                    }
+                }
+            }
+        };
         if args.serial {
-            for path in paths {
-                apply_patch_to_file(&path, &args)?;
+            for path in &paths {
+                if let Err(e) = process(path) {
+                    errors.push((path.clone(), e));
+                }
             }
         } else {
-            paths.par_iter().try_for_each(|path| {
-                apply_patch_to_file(path, &args)
-            })?;
+            use rayon::prelude::*;
+            let results: Vec<_> = paths.par_iter().map(|path| (path, process(path))).collect();
+            for (path, res) in results {
+                match res {
+                    Ok(()) => {}
+                    Err(e) => errors.push((path.clone(), e)),
+                }
+            }
+        }
+        if !errors.is_empty() {
+            return Err(errors.remove(0).1);
+        }
+        if !any_success {
+            anyhow::bail!("No files were successfully patched");
         }
     } else {
         let file_path = Path::new(args.file.as_deref().unwrap());
