@@ -1,11 +1,14 @@
+use crate::ast::DelimiterError;
 use anyhow::Result;
+use line_index::LineIndex;
 use std::fs;
 use std::path::Path;
-use crate::ast::DelimiterError;
-use line_index::LineIndex;
+use std::path::PathBuf;
 
 use crate::ast::Language;
-use crate::diagnostics::{SyntaxErrorDiagnostic, BalanceResult, BalanceAction, JsonError, JsonSpan};
+use crate::diagnostics::{
+    BalanceAction, BalanceResult, JsonError, JsonSpan, SyntaxErrorDiagnostic,
+};
 
 /// Determine the optimal insertion span for a missing delimiter based on parent context.
 fn compute_insertion_span(
@@ -14,7 +17,11 @@ fn compute_insertion_span(
     _index: &LineIndex,
 ) -> crate::ast::Span {
     match error {
-        DelimiterError::Missing { insert_at, parent_kind, .. } => {
+        DelimiterError::Missing {
+            insert_at,
+            parent_kind,
+            ..
+        } => {
             if let Some(kind) = parent_kind {
                 if kind == "block" || kind == "function_body" || kind == "statement_block" {
                     return insert_at.clone();
@@ -59,7 +66,10 @@ pub fn balance_file(
             .as_any_mut()
             .downcast_mut::<crate::ast::RustLanguage>()
             .ok_or_else(|| anyhow::anyhow!("Function scoping only supported for Rust"))?;
-        if rust_lang.find_function_body_range(&original_content, func_name).is_none() {
+        if rust_lang
+            .find_function_body_range(&original_content, func_name)
+            .is_none()
+        {
             anyhow::bail!("Function '{}' not found or ambiguous", func_name);
         }
     }
@@ -76,7 +86,12 @@ pub fn balance_file(
             if dry_run {
                 println!("File is already valid; no changes needed.");
             }
-            return Ok(BalanceResult { success: true, actions: vec![], rolled_back: vec![], error: None });
+            return Ok(BalanceResult {
+                success: true,
+                actions: vec![],
+                rolled_back: vec![],
+                error: None,
+            });
         } else {
             anyhow::bail!("File has syntax errors but no delimiter errors were identified");
         }
@@ -127,7 +142,11 @@ pub fn balance_file(
                 column: span.start_column,
                 message: format!("Removed extra '{}'", delimiter),
             },
-            DelimiterError::Missing { expected, insert_at, .. } => BalanceAction {
+            DelimiterError::Missing {
+                expected,
+                insert_at,
+                ..
+            } => BalanceAction {
                 action_type: "insert".to_string(),
                 delimiter: *expected,
                 line: insert_at.end_line,
@@ -138,10 +157,12 @@ pub fn balance_file(
         actions.push(action);
 
         if dry_run {
-            println!("Would {} at {}:{}",
+            println!(
+                "Would {} at {}:{}",
                 actions.last().unwrap().message,
                 actions.last().unwrap().line,
-                actions.last().unwrap().column);
+                actions.last().unwrap().column
+            );
         }
     }
 
@@ -155,7 +176,11 @@ pub fn balance_file(
             error: Some(JsonError {
                 code: "patch_ts::balance_incomplete".to_string(),
                 message: err.to_string(),
-                span: JsonSpan { file: file_path.to_string_lossy().to_string(), line: 0, column: 0 },
+                span: JsonSpan {
+                    file: file_path.to_string_lossy().to_string(),
+                    line: 0,
+                    column: 0,
+                },
                 context: String::new(),
                 suggestion: Some("Manual intervention required".to_string()),
                 best_score: None,
@@ -169,7 +194,12 @@ pub fn balance_file(
         fs::write(file_path, current_content)?;
     }
 
-    Ok(BalanceResult { success: true, actions, rolled_back, error: None })
+    Ok(BalanceResult {
+        success: true,
+        actions,
+        rolled_back,
+        error: None,
+    })
 }
 
 fn find_delimiter_errors_in_function(
@@ -227,4 +257,32 @@ pub fn explain_error(
     let content = fs::read_to_string(file_path)?;
     let parse_result = language.parse(&content);
     Ok(language.explain_error(&parse_result, line))
+}
+
+// Parallel balance for multiple files
+pub fn balance_files(
+    files: &[PathBuf],
+    function_name: Option<&str>,
+    dry_run: bool,
+    language: &mut dyn Language,
+) -> Result<Vec<BalanceResult>> {
+    use rayon::prelude::*;
+    files
+        .par_iter()
+        .map(|file| balance_file(file, function_name, dry_run, language))
+        .collect()
+}
+
+// Parallel balance for multiple files
+pub fn balance_files(
+    files: &[PathBuf],
+    function_name: Option<&str>,
+    dry_run: bool,
+    language: &mut dyn Language,
+) -> Result<Vec<BalanceResult>> {
+    use rayon::prelude::*;
+    files
+        .par_iter()
+        .map(|file| balance_file(file, function_name, dry_run, language))
+        .collect()
 }
