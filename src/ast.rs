@@ -52,13 +52,14 @@ pub enum DelimiterError {
     Missing {
         expected: char,
         insert_at: Span,
+        parent_kind: Option<String>,
     },
 }
 
 pub struct ParseResult {
     pub tree: Tree,
     pub source: String,
-    index: LineIndex,
+    pub index: LineIndex,
 }
 
 impl ParseResult {
@@ -93,10 +94,12 @@ pub trait Language {
     fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic>;
     fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError>;
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+    /// Return a human-readable diagnostic message for a delimiter error.
+    fn diagnostic_message(&self, error: &DelimiterError) -> String;
 }
 
 // ----------------------------------------------------------------------
-// Free functions for language-agnostic delimiter scanning
+// Free functions
 // ----------------------------------------------------------------------
 
 fn has_error_node(node: Node) -> bool {
@@ -111,7 +114,6 @@ fn has_error_node(node: Node) -> bool {
     false
 }
 
-/// Original scanner that detects both extra and missing delimiters (used for Rust).
 pub(crate) fn scan_delimiter_errors_full(source: &str, index: &LineIndex) -> Vec<DelimiterError> {
     let mut errors = Vec::new();
     let mut stack: Vec<(char, usize)> = Vec::new();
@@ -226,18 +228,17 @@ pub(crate) fn scan_delimiter_errors_full(source: &str, index: &LineIndex) -> Vec
         i += 1;
     }
 
-    // Any remaining open delimiters are missing
     for (expected, open_byte) in stack {
         errors.push(DelimiterError::Missing {
             expected,
             insert_at: Span::from_byte_range(open_byte, open_byte + 1, index),
+            parent_kind: None,
         });
     }
 
     errors
 }
 
-/// Scanner that only finds extra delimiters (used with MISSING query for TS/JS).
 pub(crate) fn scan_extra_delimiter_errors(source: &str, index: &LineIndex) -> Vec<DelimiterError> {
     let mut errors = Vec::new();
     let mut stack: Vec<(char, usize)> = Vec::new();
@@ -375,6 +376,8 @@ fn find_missing_delimiters(root: Node, source: &str, index: &LineIndex, lang: tr
     while let Some(m) = matches.next() {
         for capture in m.captures {
             let node = capture.node;
+            let parent = node.parent();
+            let parent_kind = parent.map(|p| p.kind().to_string());
             let delimiter = match capture.index {
                 0 => ')',
                 1 => '}',
@@ -384,6 +387,7 @@ fn find_missing_delimiters(root: Node, source: &str, index: &LineIndex, lang: tr
             errors.push(DelimiterError::Missing {
                 expected: delimiter,
                 insert_at: Span::from_node(node, index),
+                parent_kind,
             });
         }
     }
@@ -522,12 +526,18 @@ impl Language for RustLanguage {
     }
 
     fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
-        // Rust uses the full scanner (detects both extra and missing)
         scan_delimiter_errors_full(result.text(), &result.index)
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn diagnostic_message(&self, error: &DelimiterError) -> String {
+        match error {
+            DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter),
+            DelimiterError::Missing { expected, .. } => format!("Missing '{}'", expected),
+        }
     }
 }
 
@@ -594,6 +604,25 @@ impl Language for TypeScriptLanguage {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
+
+    fn diagnostic_message(&self, error: &DelimiterError) -> String {
+        match error {
+            DelimiterError::Missing { expected, parent_kind, .. } => {
+                if let Some(kind) = parent_kind {
+                    match kind.as_str() {
+                        "function_body" => format!("Missing '{}' for function body", expected),
+                        "block" => format!("Missing '{}' for block", expected),
+                        "arguments" => format!("Missing '{}' for function arguments", expected),
+                        "parenthesized_expression" => format!("Missing '{}' for expression", expected),
+                        _ => format!("Missing '{}'", expected),
+                    }
+                } else {
+                    format!("Missing '{}'", expected)
+                }
+            }
+            DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter),
+        }
+    }
 }
 
 // ----------------------------------------------------------------------
@@ -658,5 +687,24 @@ impl Language for JavaScriptLanguage {
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
+    }
+
+    fn diagnostic_message(&self, error: &DelimiterError) -> String {
+        match error {
+            DelimiterError::Missing { expected, parent_kind, .. } => {
+                if let Some(kind) = parent_kind {
+                    match kind.as_str() {
+                        "function_body" => format!("Missing '{}' for function body", expected),
+                        "block" => format!("Missing '{}' for block", expected),
+                        "arguments" => format!("Missing '{}' for function arguments", expected),
+                        "parenthesized_expression" => format!("Missing '{}' for expression", expected),
+                        _ => format!("Missing '{}'", expected),
+                    }
+                } else {
+                    format!("Missing '{}'", expected)
+                }
+            }
+            DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter),
+        }
     }
 }

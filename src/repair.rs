@@ -2,20 +2,41 @@ use anyhow::Result;
 use std::fs;
 use std::path::Path;
 use crate::ast::DelimiterError;
+use line_index::LineIndex;
 
 use crate::ast::Language;
 use crate::diagnostics::{SyntaxErrorDiagnostic, BalanceResult, BalanceAction, JsonError, JsonSpan};
 
-pub fn apply_repair(content: &str, error: &DelimiterError) -> String {
+/// Determine the optimal insertion span for a missing delimiter based on parent context.
+fn compute_insertion_span(
+    error: &DelimiterError,
+    _content: &str,
+    _index: &LineIndex,
+) -> crate::ast::Span {
+    match error {
+        DelimiterError::Missing { insert_at, parent_kind, .. } => {
+            if let Some(kind) = parent_kind {
+                if kind == "block" || kind == "function_body" || kind == "statement_block" {
+                    return insert_at.clone();
+                }
+            }
+            insert_at.clone()
+        }
+        _ => unreachable!(),
+    }
+}
+
+pub fn apply_repair(content: &str, error: &DelimiterError, index: &LineIndex) -> String {
     match error {
         DelimiterError::Extra { span, .. } => {
             let mut new_content = content.to_string();
             new_content.replace_range(span.start_byte..span.end_byte, "");
             new_content
         }
-        DelimiterError::Missing { expected, insert_at } => {
+        DelimiterError::Missing { expected, .. } => {
+            let span = compute_insertion_span(error, content, index);
             let mut new_content = content.to_string();
-            let insert_byte = insert_at.end_byte;
+            let insert_byte = span.end_byte;
             new_content.insert(insert_byte, *expected);
             new_content
         }
@@ -29,10 +50,10 @@ pub fn balance_file(
     language: &mut dyn Language,
 ) -> Result<BalanceResult> {
     let original_content = fs::read_to_string(file_path)?;
-    let mut current_content = original_content.clone();
-    const MAX_ITERATIONS: usize = 10;
-    let mut actions: Vec<BalanceAction> = Vec::new();
+    let parse_result = language.parse(&original_content);
+    let index = &parse_result.index;
 
+    // Validate function existence upfront (Rust only)
     if let Some(func_name) = function_name {
         let rust_lang = language
             .as_any_mut()
@@ -43,31 +64,42 @@ pub fn balance_file(
         }
     }
 
-    for iteration in 0..MAX_ITERATIONS {
-        let parse_result = language.parse(&current_content);
+    // Collect all errors
+    let errors = if let Some(func_name) = function_name {
+        find_delimiter_errors_in_function(language, &parse_result, func_name)?
+    } else {
+        language.find_delimiter_errors(&parse_result)
+    };
+
+    if errors.is_empty() {
         if language.is_valid(&parse_result) {
-            if iteration == 0 {
-                if dry_run {
-                    println!("File is already valid; no changes needed.");
-                }
-                return Ok(BalanceResult { success: true, actions: vec![], error: None });
+            if dry_run {
+                println!("File is already valid; no changes needed.");
             }
-            break;
-        }
-
-        let errors = if let Some(func_name) = function_name {
-            find_delimiter_errors_in_function(language, &parse_result, func_name)?
+            return Ok(BalanceResult { success: true, actions: vec![], error: None });
         } else {
-            language.find_delimiter_errors(&parse_result)
-        };
-
-        if errors.is_empty() {
-            anyhow::bail!("Could not identify any delimiter errors to fix");
+            anyhow::bail!("File has syntax errors but no delimiter errors were identified");
         }
+    }
 
-        let error = &errors[0];
-        current_content = apply_repair(&current_content, error);
+    // Sort errors by descending start byte to avoid offset shifts
+    let mut sorted_errors = errors.clone();
+    sorted_errors.sort_by(|a, b| {
+        let span_a = match a {
+            DelimiterError::Extra { span, .. } => span,
+            DelimiterError::Missing { insert_at, .. } => insert_at,
+        };
+        let span_b = match b {
+            DelimiterError::Extra { span, .. } => span,
+            DelimiterError::Missing { insert_at, .. } => insert_at,
+        };
+        span_b.start_byte.cmp(&span_a.start_byte)
+    });
 
+    let mut current_content = original_content.clone();
+    let mut actions = Vec::new();
+
+    for error in &sorted_errors {
         let action = match error {
             DelimiterError::Extra { span, delimiter } => BalanceAction {
                 action_type: "remove".to_string(),
@@ -76,7 +108,7 @@ pub fn balance_file(
                 column: span.start_column,
                 message: format!("Removed extra '{}'", delimiter),
             },
-            DelimiterError::Missing { expected, insert_at } => BalanceAction {
+            DelimiterError::Missing { expected, insert_at, .. } => BalanceAction {
                 action_type: "insert".to_string(),
                 delimiter: *expected,
                 line: insert_at.end_line,
@@ -92,11 +124,13 @@ pub fn balance_file(
                 actions.last().unwrap().line,
                 actions.last().unwrap().column);
         }
+
+        current_content = apply_repair(&current_content, error, index);
     }
 
     let final_parse = language.parse(&current_content);
     if !language.is_valid(&final_parse) {
-        let err = anyhow::anyhow!("Repair loop completed but file is still invalid");
+        let err = anyhow::anyhow!("Repair completed but file is still invalid");
         return Ok(BalanceResult {
             success: false,
             actions,

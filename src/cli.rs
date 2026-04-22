@@ -234,13 +234,13 @@ fn handle_explain(args: ExplainArgs) -> Result<()> {
         if args.json {
             let json_err = JsonError {
                 code: "patch_ts::syntax_error".to_string(),
-                message: diag.to_string(),
+                message: diag.details.clone(),
                 span: crate::diagnostics::JsonSpan {
                     file: args.file.clone(),
                     line: args.line,
                     column: 1,
                 },
-                context: diag.details.clone(),
+                context: String::new(),
                 suggestion: Some("Run `patch-ts balance` to attempt automatic fix".to_string()),
                 best_score: None,
                 best_match_line: None,
@@ -307,6 +307,6 @@ mod tests {
         let result = detect_language(Path::new("file.txt"));
         assert!(result.is_err());
         let err = result.err().unwrap().to_string();
-        assert!(err.contains("Unsupported file extension"), "{}", err);
+        assert!(err.contains("Unsupported file extension"));
     }
 }
