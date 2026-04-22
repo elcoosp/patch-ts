@@ -245,6 +245,9 @@ impl_language!(CLanguage, tree_sitter_c::LANGUAGE);
 impl_language!(CppLanguage, tree_sitter_cpp::LANGUAGE);
 impl_language!(JavaLanguage, tree_sitter_java::LANGUAGE);
 impl_language!(CSharpLanguage, tree_sitter_c_sharp::LANGUAGE);
+impl_language!(SwiftLanguage, tree_sitter_swift::LANGUAGE);
+impl_language!(ScalaLanguage, tree_sitter_scala::LANGUAGE);
+impl_language!(ZigLanguage, tree_sitter_zig::LANGUAGE);
 
 // Rust-specific extra methods
 impl RustLanguage {
@@ -283,14 +286,3 @@ impl RustLanguage {
         found_range
     }
 }
-
-// ----------------------------------------------------------------------
-// Kotlin, Swift, Scala, Zig Language Implementations (via macro)
-// ----------------------------------------------------------------------
-
-impl_language!(KotlinLanguage, tree_sitter_kotlin::LANGUAGE);
-impl_language!(SwiftLanguage, tree_sitter_swift::LANGUAGE);
-impl_language!(ScalaLanguage, tree_sitter_scala::LANGUAGE);
-impl_language!(ZigLanguage, tree_sitter_zig::LANGUAGE);
-
-// Rust-specific extra methods (already defined above)
