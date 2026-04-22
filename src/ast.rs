@@ -374,3 +374,125 @@ impl Language for RustLanguage {
         self
     }
 }
+
+// ----------------------------------------------------------------------
+// TypeScriptLanguage
+// ----------------------------------------------------------------------
+
+pub struct TypeScriptLanguage {
+    parser: Parser,
+}
+
+impl TypeScriptLanguage {
+    pub fn new() -> Self {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())
+            .expect("failed to load TypeScript grammar");
+        Self { parser }
+    }
+}
+
+impl Language for TypeScriptLanguage {
+    fn parse(&mut self, source: &str) -> ParseResult {
+        let tree = self.parser.parse(source, None).unwrap();
+        let index = LineIndex::new(source);
+        ParseResult {
+            tree,
+            source: source.to_string(),
+            index,
+        }
+    }
+
+    fn is_valid(&self, result: &ParseResult) -> bool {
+        !has_error_node(result.tree.root_node())
+    }
+
+    fn find_extra_delimiter(&self, _result: &ParseResult) -> Option<Span> {
+        None // Not implemented for TS; rely on scanner
+    }
+
+    fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> {
+        let node = result.node_at_line(line)?;
+        if node.is_error() {
+            let text = node.utf8_text(result.text().as_bytes()).unwrap_or("");
+            let details = format!("Syntax error: unexpected '{}'", text);
+            let span = Span::from_node(node, &result.index);
+            return Some(SyntaxErrorDiagnostic {
+                src: NamedSource::new("input", result.text().to_string()),
+                error_span: (span.start_byte, span.end_byte - span.start_byte).into(),
+                details,
+            });
+        }
+        None
+    }
+
+    fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
+        scan_delimiter_errors(result.text(), &result.index)
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+// ----------------------------------------------------------------------
+// JavaScriptLanguage
+// ----------------------------------------------------------------------
+
+pub struct JavaScriptLanguage {
+    parser: Parser,
+}
+
+impl JavaScriptLanguage {
+    pub fn new() -> Self {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_javascript::LANGUAGE.into())
+            .expect("failed to load JavaScript grammar");
+        Self { parser }
+    }
+}
+
+impl Language for JavaScriptLanguage {
+    fn parse(&mut self, source: &str) -> ParseResult {
+        let tree = self.parser.parse(source, None).unwrap();
+        let index = LineIndex::new(source);
+        ParseResult {
+            tree,
+            source: source.to_string(),
+            index,
+        }
+    }
+
+    fn is_valid(&self, result: &ParseResult) -> bool {
+        !has_error_node(result.tree.root_node())
+    }
+
+    fn find_extra_delimiter(&self, _result: &ParseResult) -> Option<Span> {
+        None
+    }
+
+    fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> {
+        let node = result.node_at_line(line)?;
+        if node.is_error() {
+            let text = node.utf8_text(result.text().as_bytes()).unwrap_or("");
+            let details = format!("Syntax error: unexpected '{}'", text);
+            let span = Span::from_node(node, &result.index);
+            return Some(SyntaxErrorDiagnostic {
+                src: NamedSource::new("input", result.text().to_string()),
+                error_span: (span.start_byte, span.end_byte - span.start_byte).into(),
+                details,
+            });
+        }
+        None
+    }
+
+    fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
+        scan_delimiter_errors(result.text(), &result.index)
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
