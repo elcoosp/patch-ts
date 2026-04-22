@@ -259,30 +259,15 @@ pub fn explain_error(
     Ok(language.explain_error(&parse_result, line))
 }
 
-// Parallel balance for multiple files
+// Serial (non-parallel) multi-file balance (parallel deferred to v1.0.0)
 pub fn balance_files(
     files: &[PathBuf],
     function_name: Option<&str>,
     dry_run: bool,
     language: &mut dyn Language,
 ) -> Result<Vec<BalanceResult>> {
-    use rayon::prelude::*;
     files
-        .par_iter()
-        .map(|file| balance_file(file, function_name, dry_run, language))
-        .collect()
-}
-
-// Parallel balance for multiple files
-pub fn balance_files(
-    files: &[PathBuf],
-    function_name: Option<&str>,
-    dry_run: bool,
-    language: &mut dyn Language,
-) -> Result<Vec<BalanceResult>> {
-    use rayon::prelude::*;
-    files
-        .par_iter()
+        .iter()
         .map(|file| balance_file(file, function_name, dry_run, language))
         .collect()
 }

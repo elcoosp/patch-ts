@@ -65,31 +65,6 @@ This document outlines the evolution of `patch-ts`.
 
 ---
 
-### v0.7.0 — Robust Batch Repair & Additional Languages
-
-**Goal:** Improve batch repair edge cases and add more languages.
-
-- [ ] **Full overlapping error support** – Handle complex overlapping scenarios perfectly.
-- [ ] **Ruby support** – Integrate `tree-sitter-ruby`.
-- [ ] **PHP support** – Integrate `tree-sitter-php`.
-- [ ] **HTML/XML support** – Delimiter repair for tags.
-
----
-
-### v1.0.0 — Stability & Ecosystem
-
-**Goal:** Solidify the tool as a reliable part of the AI‑assisted development workflow.
-
-- [ ] **Multi‑file patches**
-- [ ] **Configuration file** (`patch-ts.toml`)
-- [ ] **Integration examples** for LLMs
-- [ ] **CI‑friendly exit codes**
-- [ ] **Publish on crates.io**
-
----
-
-*Last updated: 2026‑04‑22*
-
 ### v0.7.0 — Ruby, PHP, HTML, XML & AST Reliability
 
 **Status:** ✅ Implemented
@@ -101,6 +76,7 @@ This document outlines the evolution of `patch-ts`.
 - [x] Python balance tests re‑enabled and passing
 - [x] Integration tests for all new languages
 
+---
 
 ### v0.8.0 — C, C++, Java, C# & Rollback Validation
 
@@ -112,5 +88,54 @@ This document outlines the evolution of `patch-ts`.
 - [x] C# language support (`.cs`)
 - [x] Rollback validation for overlapping repairs
 - [x] Integration tests for all new languages
-- [x] Performance optimizations
 
+---
+
+### v0.9.0 — Swift, Scala, Zig & Advanced Features
+
+**Status:** ✅ Implemented
+
+- [x] Swift language support (`.swift`)
+- [x] Scala language support (`.scala`)
+- [x] Zig language support (`.zig`)
+- [x] Configuration file support (`patch-ts.toml`)
+- [x] Watch mode foundation (`notify` watcher)
+- [x] TUI foundation (`ratatui` diff viewer)
+- [x] Multi‑file balance support (serial)
+
+---
+
+### v1.0.0 — Stability, Performance & Ecosystem
+
+**Goal:** Production‑ready release with polished features and broad adoption.
+
+- [ ] **Parallel processing** – Enable `rayon` for multi‑file operations with thread‑safe language instances.
+- [ ] **Multi‑file patches** – Apply a single patch across multiple files.
+- [ ] **Plugin system** – Allow custom repair strategies via WASM or dynamic libraries.
+- [ ] **Language Server Protocol integration** – Provide real‑time diagnostics and code actions.
+- [ ] **Comprehensive documentation** – Include guides for AI agent integration.
+- [ ] **Publish on crates.io** – Official package release.
+- [ ] **Homebrew and Scoop formulas** – Easy installation for macOS and Windows.
+
+---
+
+### v1.1.0 — Interactive & Collaborative Features
+
+**Goal:** Enhance user experience with real‑time collaboration and richer interfaces.
+
+- [ ] **TUI improvements** – Syntax‑highlighted diffs, side‑by‑side view, inline editing.
+- [ ] **Watch mode enhancements** – Debouncing, ignore patterns, event hooks.
+- [ ] **Remote patch sources** – Fetch patches from URLs or git repositories.
+- [ ] **Patch history and undo** – Track applied patches and revert if needed.
+
+---
+
+### Future Ideas
+
+- **Machine learning‑based repair** – Train a small model to predict correct fixes.
+- **Git integration** – Apply patches directly to staged changes or commits.
+- **WebAssembly playground** – Try patch‑ts in the browser.
+
+---
+
+*Last updated: 2026‑04‑22*
