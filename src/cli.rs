@@ -3,7 +3,7 @@ use anyhow::Result;
 use std::path::Path;
 use std::io::Read;
 
-use crate::ast::{Language, RustLanguage, TypeScriptLanguage, JavaScriptLanguage};
+use crate::ast::{Language, RustLanguage, TypeScriptLanguage, JavaScriptLanguage, PythonLanguage, GoLanguage};
 use crate::diagnostics::{JsonDiagnostic, JsonError, anyhow_to_json};
 use crate::file::FileManager;
 use crate::patch::{apply_literal_patch, apply_unified_diff, delete_line, insert_lines, apply_marker_patch, PatchOptions};
@@ -165,8 +165,10 @@ fn detect_language(file_path: &Path) -> Result<Box<dyn Language>> {
         Some("rs") => Ok(Box::new(RustLanguage::new())),
         Some("ts") | Some("tsx") | Some("mts") | Some("cts") => Ok(Box::new(TypeScriptLanguage::new())),
         Some("js") | Some("jsx") | Some("mjs") | Some("cjs") => Ok(Box::new(JavaScriptLanguage::new())),
+        Some("py") | Some("pyi") => Ok(Box::new(PythonLanguage::new())),
+        Some("go") => Ok(Box::new(GoLanguage::new())),
         _ => anyhow::bail!(
-            "Unsupported file extension. Supported: .rs, .ts, .tsx, .js, .jsx, .mts, .cts, .mjs, .cjs"
+            "Unsupported file extension. Supported: .rs, .ts, .tsx, .js, .jsx, .py, .pyi, .go"
         ),
     }
 }
@@ -270,7 +272,7 @@ fn parse_heredoc(input: &str) -> Result<(String, String)> {
 mod tests {
     use super::*;
     use std::path::Path;
-    use crate::ast::{RustLanguage, TypeScriptLanguage, JavaScriptLanguage};
+    use crate::ast::{RustLanguage, TypeScriptLanguage, JavaScriptLanguage, PythonLanguage, GoLanguage};
 
     #[test]
     fn test_detect_language_rust() {
@@ -300,6 +302,24 @@ mod tests {
     fn test_detect_language_javascript_jsx() {
         let mut lang = detect_language(Path::new("component.jsx")).unwrap();
         assert!(lang.as_any_mut().is::<JavaScriptLanguage>());
+    }
+
+    #[test]
+    fn test_detect_language_python() {
+        let mut lang = detect_language(Path::new("script.py")).unwrap();
+        assert!(lang.as_any_mut().is::<PythonLanguage>());
+    }
+
+    #[test]
+    fn test_detect_language_python_pyi() {
+        let mut lang = detect_language(Path::new("stub.pyi")).unwrap();
+        assert!(lang.as_any_mut().is::<PythonLanguage>());
+    }
+
+    #[test]
+    fn test_detect_language_go() {
+        let mut lang = detect_language(Path::new("main.go")).unwrap();
+        assert!(lang.as_any_mut().is::<GoLanguage>());
     }
 
     #[test]
