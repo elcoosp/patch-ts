@@ -1,3 +1,4 @@
+use crate::ast::DelimiterError;
 use miette::{Diagnostic, NamedSource, SourceSpan};
 use thiserror::Error;
 
@@ -185,6 +186,7 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
 pub struct BalanceResult {
     pub success: bool,
     pub actions: Vec<BalanceAction>,
+    #[serde(skip)] pub rolled_back: Vec<DelimiterError>,
     pub error: Option<JsonError>,
 }
 

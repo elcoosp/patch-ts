@@ -1,6 +1,6 @@
 [package]
 name = "patch-ts"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2024"
 authors = ["Your Name <you@example.com>"]
 description = "Tree-sitter-backed patching CLI for AI agents"
@@ -20,6 +20,10 @@ tree-sitter-ruby = "0.23"
 tree-sitter-php = "0.23"
 tree-sitter-html = "0.23"
 tree-sitter-xml = "0.7"
+tree-sitter-c = "0.23"
+tree-sitter-cpp = "0.23"
+tree-sitter-java = "0.23"
+tree-sitter-c-sharp = "0.23"
 miette = { version = "7.6", features = ["fancy"] }
 thiserror = "2.0"
 line-index = "0.1"

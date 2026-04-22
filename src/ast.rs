@@ -187,7 +187,7 @@ fn has_error_node(node: Node) -> bool {
 }
 
 // ----------------------------------------------------------------------
-// Language Implementations
+// Language Implementations (via macro)
 // ----------------------------------------------------------------------
 
 macro_rules! impl_language {
@@ -241,6 +241,10 @@ impl_language!(RubyLanguage, tree_sitter_ruby::LANGUAGE);
 impl_language!(PHPLanguage, tree_sitter_php::LANGUAGE_PHP);
 impl_language!(HtmlLanguage, tree_sitter_html::LANGUAGE);
 impl_language!(XmlLanguage, tree_sitter_xml::LANGUAGE_XML);
+impl_language!(CLanguage, tree_sitter_c::LANGUAGE);
+impl_language!(CppLanguage, tree_sitter_cpp::LANGUAGE);
+impl_language!(JavaLanguage, tree_sitter_java::LANGUAGE);
+impl_language!(CSharpLanguage, tree_sitter_c_sharp::LANGUAGE);
 
 // Rust-specific extra methods
 impl RustLanguage {
@@ -279,14 +283,3 @@ impl RustLanguage {
         found_range
     }
 }
-
-// ----------------------------------------------------------------------
-// C, C++, Java, C# Language Implementations (via macro)
-// ----------------------------------------------------------------------
-
-impl_language!(CLanguage, tree_sitter_c::LANGUAGE);
-impl_language!(CppLanguage, tree_sitter_cpp::LANGUAGE);
-impl_language!(JavaLanguage, tree_sitter_java::LANGUAGE);
-impl_language!(CSharpLanguage, tree_sitter_c_sharp::LANGUAGE);
-
-// Rust-specific extra methods (already defined above)

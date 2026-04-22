@@ -76,31 +76,50 @@ pub fn balance_file(
             if dry_run {
                 println!("File is already valid; no changes needed.");
             }
-            return Ok(BalanceResult { success: true, actions: vec![], error: None });
+            return Ok(BalanceResult { success: true, actions: vec![], rolled_back: vec![], error: None });
         } else {
             anyhow::bail!("File has syntax errors but no delimiter errors were identified");
         }
     }
 
-    // Sort errors by descending start byte to avoid offset shifts
+    // Sort errors by descending start byte to minimize offset interference
     let mut sorted_errors = errors.clone();
     sorted_errors.sort_by(|a, b| {
-        let span_a = match a {
-            DelimiterError::Extra { span, .. } => span,
-            DelimiterError::Missing { insert_at, .. } => insert_at,
-        };
-        let span_b = match b {
-            DelimiterError::Extra { span, .. } => span,
-            DelimiterError::Missing { insert_at, .. } => insert_at,
-        };
+        let span_a = a.span();
+        let span_b = b.span();
         span_b.start_byte.cmp(&span_a.start_byte)
     });
 
     let mut current_content = original_content.clone();
     let mut actions = Vec::new();
+    let mut rolled_back = Vec::new();
+    let mut offset_shift: isize = 0;
 
     for error in &sorted_errors {
-        let action = match error {
+        // Store state before repair
+        let before_content = current_content.clone();
+        let before_parse = language.parse(&before_content);
+        let before_error_count = language.find_delimiter_errors(&before_parse).len();
+
+        // Create a mutable copy of the error with adjusted span
+        let mut adjusted_error = error.clone();
+        *adjusted_error.span_mut() = error.span().shift(offset_shift);
+
+        // Apply repair
+        current_content = apply_repair(&current_content, &adjusted_error, index);
+        let after_parse = language.parse(&current_content);
+        let after_error_count = language.find_delimiter_errors(&after_parse).len();
+
+        // Validate: rollback if error count increased
+        if after_error_count > before_error_count {
+            current_content = before_content;
+            rolled_back.push(error.clone());
+            continue;
+        }
+
+        // Update offset and record successful action
+        offset_shift += error.delta();
+        let action = match &adjusted_error {
             DelimiterError::Extra { span, delimiter } => BalanceAction {
                 action_type: "remove".to_string(),
                 delimiter: *delimiter,
@@ -124,8 +143,6 @@ pub fn balance_file(
                 actions.last().unwrap().line,
                 actions.last().unwrap().column);
         }
-
-        current_content = apply_repair(&current_content, error, index);
     }
 
     let final_parse = language.parse(&current_content);
@@ -134,6 +151,7 @@ pub fn balance_file(
         return Ok(BalanceResult {
             success: false,
             actions,
+            rolled_back,
             error: Some(JsonError {
                 code: "patch_ts::balance_incomplete".to_string(),
                 message: err.to_string(),
@@ -151,7 +169,7 @@ pub fn balance_file(
         fs::write(file_path, current_content)?;
     }
 
-    Ok(BalanceResult { success: true, actions, error: None })
+    Ok(BalanceResult { success: true, actions, rolled_back, error: None })
 }
 
 fn find_delimiter_errors_in_function(
@@ -173,10 +191,7 @@ fn find_delimiter_errors_in_function(
     let filtered: Vec<DelimiterError> = all_errors
         .into_iter()
         .filter(|e| {
-            let span = match e {
-                DelimiterError::Extra { span, .. } => span,
-                DelimiterError::Missing { insert_at, .. } => insert_at,
-            };
+            let span = e.span();
             span.start_byte <= end_byte && span.end_byte >= start_byte
         })
         .collect();

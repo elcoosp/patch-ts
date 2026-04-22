@@ -5,7 +5,8 @@ use std::io::Read;
 
 use crate::ast::{
     Language, RustLanguage, TypeScriptLanguage, JavaScriptLanguage,
-    PythonLanguage, GoLanguage, RubyLanguage, PHPLanguage, HtmlLanguage, XmlLanguage
+    PythonLanguage, GoLanguage, RubyLanguage, PHPLanguage, HtmlLanguage, XmlLanguage,
+    CLanguage, CppLanguage, JavaLanguage, CSharpLanguage
 };
 use crate::diagnostics::{JsonDiagnostic, JsonError, anyhow_to_json};
 use crate::file::FileManager;
@@ -88,7 +89,11 @@ fn detect_language(file_path: &Path) -> Result<Box<dyn Language>> {
         Some("php") => Ok(Box::new(PHPLanguage::new())),
         Some("html") | Some("htm") => Ok(Box::new(HtmlLanguage::new())),
         Some("xml") => Ok(Box::new(XmlLanguage::new())),
-        _ => anyhow::bail!("Unsupported file extension. Supported: .rs, .ts, .tsx, .js, .jsx, .py, .pyi, .go, .rb, .php, .html, .htm, .xml"),
+        Some("c") | Some("h") => Ok(Box::new(CLanguage::new())),
+        Some("cpp") | Some("cc") | Some("cxx") | Some("hpp") => Ok(Box::new(CppLanguage::new())),
+        Some("java") => Ok(Box::new(JavaLanguage::new())),
+        Some("cs") => Ok(Box::new(CSharpLanguage::new())),
+        _ => anyhow::bail!("Unsupported file extension. Supported: .rs, .ts, .tsx, .js, .jsx, .py, .pyi, .go, .rb, .php, .html, .htm, .xml, .c, .h, .cpp, .cc, .cxx, .hpp, .java, .cs"),
     }
 }
 
@@ -165,7 +170,7 @@ fn parse_heredoc(input: &str) -> Result<(String, String)> {
 mod tests {
     use super::*;
     use std::path::Path;
-    use crate::ast::{RustLanguage, TypeScriptLanguage, JavaScriptLanguage, PythonLanguage, GoLanguage, RubyLanguage, PHPLanguage, HtmlLanguage, XmlLanguage};
+    use crate::ast::{RustLanguage, TypeScriptLanguage, JavaScriptLanguage, PythonLanguage, GoLanguage, RubyLanguage, PHPLanguage, HtmlLanguage, XmlLanguage, CLanguage, CppLanguage, JavaLanguage, CSharpLanguage};
     #[test] fn test_detect_language_rust() { let mut lang = detect_language(Path::new("main.rs")).unwrap(); assert!(lang.as_any_mut().is::<RustLanguage>()); }
     #[test] fn test_detect_language_typescript() { let mut lang = detect_language(Path::new("app.ts")).unwrap(); assert!(lang.as_any_mut().is::<TypeScriptLanguage>()); }
     #[test] fn test_detect_language_javascript() { let mut lang = detect_language(Path::new("script.js")).unwrap(); assert!(lang.as_any_mut().is::<JavaScriptLanguage>()); }
@@ -175,5 +180,9 @@ mod tests {
     #[test] fn test_detect_language_php() { let mut lang = detect_language(Path::new("index.php")).unwrap(); assert!(lang.as_any_mut().is::<PHPLanguage>()); }
     #[test] fn test_detect_language_html() { let mut lang = detect_language(Path::new("page.html")).unwrap(); assert!(lang.as_any_mut().is::<HtmlLanguage>()); }
     #[test] fn test_detect_language_xml() { let mut lang = detect_language(Path::new("data.xml")).unwrap(); assert!(lang.as_any_mut().is::<XmlLanguage>()); }
+    #[test] fn test_detect_language_c() { let mut lang = detect_language(Path::new("main.c")).unwrap(); assert!(lang.as_any_mut().is::<CLanguage>()); }
+    #[test] fn test_detect_language_cpp() { let mut lang = detect_language(Path::new("main.cpp")).unwrap(); assert!(lang.as_any_mut().is::<CppLanguage>()); }
+    #[test] fn test_detect_language_java() { let mut lang = detect_language(Path::new("Main.java")).unwrap(); assert!(lang.as_any_mut().is::<JavaLanguage>()); }
+    #[test] fn test_detect_language_cs() { let mut lang = detect_language(Path::new("Program.cs")).unwrap(); assert!(lang.as_any_mut().is::<CSharpLanguage>()); }
     #[test] fn test_detect_language_unknown() { assert!(detect_language(Path::new("file.txt")).is_err()); }
 }

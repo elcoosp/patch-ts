@@ -101,3 +101,16 @@ This document outlines the evolution of `patch-ts`.
 - [x] Python balance tests re‑enabled and passing
 - [x] Integration tests for all new languages
 
+
+### v0.8.0 — C, C++, Java, C# & Rollback Validation
+
+**Status:** ✅ Implemented
+
+- [x] C language support (`.c`, `.h`)
+- [x] C++ language support (`.cpp`, `.cc`, `.cxx`, `.hpp`)
+- [x] Java language support (`.java`)
+- [x] C# language support (`.cs`)
+- [x] Rollback validation for overlapping repairs
+- [x] Integration tests for all new languages
+- [x] Performance optimizations
+
