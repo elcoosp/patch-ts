@@ -279,3 +279,14 @@ impl RustLanguage {
         found_range
     }
 }
+
+// ----------------------------------------------------------------------
+// C, C++, Java, C# Language Implementations (via macro)
+// ----------------------------------------------------------------------
+
+impl_language!(CLanguage, tree_sitter_c::LANGUAGE);
+impl_language!(CppLanguage, tree_sitter_cpp::LANGUAGE);
+impl_language!(JavaLanguage, tree_sitter_java::LANGUAGE);
+impl_language!(CSharpLanguage, tree_sitter_c_sharp::LANGUAGE);
+
+// Rust-specific extra methods (already defined above)
