@@ -16,6 +16,11 @@ pub struct PatchOptions {
     pub similarity_threshold: f64,
     pub no_auto_repair: bool,
     pub marker: Option<String>,
+    pub plugin: Option<String>,
+    pub plugin: Option<String>,
+    pub plugin: Option<String>,
+    pub plugin: Option<String>,
+    pub plugin: Option<String>,
 }
 
 impl Default for PatchOptions {
@@ -28,6 +33,11 @@ impl Default for PatchOptions {
             similarity_threshold: 0.9,
             no_auto_repair: false,
             marker: None,
+            plugin: None,
+            plugin: None,
+            plugin: None,
+            plugin: None,
+            plugin: None,
         }
     }
 }

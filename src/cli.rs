@@ -61,6 +61,16 @@ pub struct PatchArgs {
     pub marker: Option<String>,
     #[arg(long)]
     pub serial: bool,
+    #[arg(long)]
+    pub plugin: Option<String>,
+    #[arg(long)]
+    pub plugin: Option<String>,
+    #[arg(long)]
+    pub plugin: Option<String>,
+    #[arg(long)]
+    pub plugin: Option<String>,
+    #[arg(long)]
+    pub plugin: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -79,6 +89,16 @@ pub struct BalanceArgs {
     pub json: bool,
     #[arg(long)]
     pub serial: bool,
+    #[arg(long)]
+    pub plugin: Option<String>,
+    #[arg(long)]
+    pub plugin: Option<String>,
+    #[arg(long)]
+    pub plugin: Option<String>,
+    #[arg(long)]
+    pub plugin: Option<String>,
+    #[arg(long)]
+    pub plugin: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -151,6 +171,11 @@ fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
         fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force,
         no_backup: args.no_backup, similarity_threshold: 0.9,
         no_auto_repair: args.no_auto_repair, marker: args.marker.clone(),
+        plugin: args.plugin.clone(),
+        plugin: args.plugin.clone(),
+        plugin: args.plugin.clone(),
+        plugin: args.plugin.clone(),
+        plugin: args.plugin.clone(),
     };
 
     if args.diff {
