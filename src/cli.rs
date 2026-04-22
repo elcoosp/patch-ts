@@ -6,7 +6,8 @@ use std::io::Read;
 use crate::ast::{
     Language, RustLanguage, TypeScriptLanguage, JavaScriptLanguage,
     PythonLanguage, GoLanguage, RubyLanguage, PHPLanguage, HtmlLanguage, XmlLanguage,
-    CLanguage, CppLanguage, JavaLanguage, CSharpLanguage
+    CLanguage, CppLanguage, JavaLanguage, CSharpLanguage,
+    KotlinLanguage, SwiftLanguage, ScalaLanguage, ZigLanguage,
 };
 use crate::diagnostics::{JsonDiagnostic, JsonError, anyhow_to_json};
 use crate::file::FileManager;
@@ -93,7 +94,11 @@ fn detect_language(file_path: &Path) -> Result<Box<dyn Language>> {
         Some("cpp") | Some("cc") | Some("cxx") | Some("hpp") => Ok(Box::new(CppLanguage::new())),
         Some("java") => Ok(Box::new(JavaLanguage::new())),
         Some("cs") => Ok(Box::new(CSharpLanguage::new())),
-        _ => anyhow::bail!("Unsupported file extension. Supported: .rs, .ts, .tsx, .js, .jsx, .py, .pyi, .go, .rb, .php, .html, .htm, .xml, .c, .h, .cpp, .cc, .cxx, .hpp, .java, .cs"),
+        Some("kt") | Some("kts") => Ok(Box::new(KotlinLanguage::new())),
+        Some("swift") => Ok(Box::new(SwiftLanguage::new())),
+        Some("scala") => Ok(Box::new(ScalaLanguage::new())),
+        Some("zig") => Ok(Box::new(ZigLanguage::new())),
+        _ => anyhow::bail!("Unsupported file extension. Supported: .rs, .ts, .tsx, .js, .jsx, .py, .pyi, .go, .rb, .php, .html, .htm, .xml, .c, .h, .cpp, .cc, .cxx, .hpp, .java, .cs, .kt, .kts, .swift, .scala, .zig"),
     }
 }
 
@@ -170,7 +175,12 @@ fn parse_heredoc(input: &str) -> Result<(String, String)> {
 mod tests {
     use super::*;
     use std::path::Path;
-    use crate::ast::{RustLanguage, TypeScriptLanguage, JavaScriptLanguage, PythonLanguage, GoLanguage, RubyLanguage, PHPLanguage, HtmlLanguage, XmlLanguage, CLanguage, CppLanguage, JavaLanguage, CSharpLanguage};
+    use crate::ast::{
+        RustLanguage, TypeScriptLanguage, JavaScriptLanguage, PythonLanguage, GoLanguage,
+        RubyLanguage, PHPLanguage, HtmlLanguage, XmlLanguage, CLanguage, CppLanguage,
+        JavaLanguage, CSharpLanguage, KotlinLanguage, SwiftLanguage, ScalaLanguage, ZigLanguage
+    };
+
     #[test] fn test_detect_language_rust() { let mut lang = detect_language(Path::new("main.rs")).unwrap(); assert!(lang.as_any_mut().is::<RustLanguage>()); }
     #[test] fn test_detect_language_typescript() { let mut lang = detect_language(Path::new("app.ts")).unwrap(); assert!(lang.as_any_mut().is::<TypeScriptLanguage>()); }
     #[test] fn test_detect_language_javascript() { let mut lang = detect_language(Path::new("script.js")).unwrap(); assert!(lang.as_any_mut().is::<JavaScriptLanguage>()); }
@@ -184,5 +194,9 @@ mod tests {
     #[test] fn test_detect_language_cpp() { let mut lang = detect_language(Path::new("main.cpp")).unwrap(); assert!(lang.as_any_mut().is::<CppLanguage>()); }
     #[test] fn test_detect_language_java() { let mut lang = detect_language(Path::new("Main.java")).unwrap(); assert!(lang.as_any_mut().is::<JavaLanguage>()); }
     #[test] fn test_detect_language_cs() { let mut lang = detect_language(Path::new("Program.cs")).unwrap(); assert!(lang.as_any_mut().is::<CSharpLanguage>()); }
+    #[test] fn test_detect_language_kotlin() { let mut lang = detect_language(Path::new("Main.kt")).unwrap(); assert!(lang.as_any_mut().is::<KotlinLanguage>()); }
+    #[test] fn test_detect_language_swift() { let mut lang = detect_language(Path::new("main.swift")).unwrap(); assert!(lang.as_any_mut().is::<SwiftLanguage>()); }
+    #[test] fn test_detect_language_scala() { let mut lang = detect_language(Path::new("Main.scala")).unwrap(); assert!(lang.as_any_mut().is::<ScalaLanguage>()); }
+    #[test] fn test_detect_language_zig() { let mut lang = detect_language(Path::new("main.zig")).unwrap(); assert!(lang.as_any_mut().is::<ZigLanguage>()); }
     #[test] fn test_detect_language_unknown() { assert!(detect_language(Path::new("file.txt")).is_err()); }
 }
