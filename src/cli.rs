@@ -211,9 +211,19 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
 fn handle_balance(args: BalanceArgs) -> Result<()> {
     let mut lang = RustLanguage::new();
     let file_path = Path::new(&args.file);
-    balance_file(file_path, args.function.as_deref(), !args.apply, args.json, &mut lang)?;
+    let result = balance_file(file_path, args.function.as_deref(), !args.apply, &mut lang)?;
     if args.json {
-        println!("{}", serde_json::to_string(&JsonDiagnostic::success())?);
+        // If the operation was successful and no JSON was printed internally, print the result
+        if result.success {
+            println!("{}", serde_json::to_string(&result)?);
+        } else {
+            // Error already captured in result.error, but we still print the full result
+            println!("{}", serde_json::to_string(&result)?);
+            // Exit with error code
+            if let Some(err) = result.error {
+                anyhow::bail!("{}", err.message);
+            }
+        }
     }
     Ok(())
 }

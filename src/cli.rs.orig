@@ -6,7 +6,7 @@ use std::io::Read;
 use crate::ast::RustLanguage;
 use crate::diagnostics::{JsonDiagnostic, JsonError, anyhow_to_json};
 use crate::file::FileManager;
-use crate::patch::{apply_literal_patch, apply_unified_diff, delete_line, insert_lines, PatchOptions};
+use crate::patch::{apply_literal_patch, apply_unified_diff, delete_line, insert_lines, apply_marker_patch, PatchOptions};
 use crate::repair::{balance_file, explain_error};
 
 #[derive(Parser)]
@@ -37,7 +37,7 @@ pub struct PatchArgs {
     pub file: String,
 
     /// Target line number (1-indexed)
-    #[arg(short, long, required_unless_present_any = ["diff", "delete", "after"])]
+    #[arg(short, long, required_unless_present_any = ["diff", "delete", "after", "marker"])]
     pub line: Option<usize>,
 
     /// Search radius for fuzzy line matching
@@ -45,11 +45,11 @@ pub struct PatchArgs {
     pub fuzz: usize,
 
     /// Expected content (single line; alternative to heredoc)
-    #[arg(long, requires = "new")]
+    #[arg(long)]
     pub old: Option<String>,
 
     /// New content (single line; alternative to heredoc)
-    #[arg(long, requires = "old")]
+    #[arg(long)]
     pub new: Option<String>,
 
     /// Read patch from stdin as unified diff
@@ -91,6 +91,7 @@ pub struct PatchArgs {
     #[arg(long)]
     pub no_auto_repair: bool,
 
+    /// Target a patch using a marker comment (e.g., // PATCH-ME: id)
     #[arg(long, conflicts_with = "line")]
     pub marker: Option<String>,
 }
@@ -169,6 +170,8 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
         force: args.force,
         no_backup: args.no_backup,
         similarity_threshold: 0.9,
+        no_auto_repair: args.no_auto_repair,
+        marker: args.marker.clone(),
     };
 
     let file_path = Path::new(&args.file);
@@ -187,10 +190,14 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
         let line = args.line.ok_or_else(|| anyhow::anyhow!("--line required"))?;
         apply_literal_patch(file_path, line, old, new, options, &mut lang)?;
     } else if let Some(line) = args.line {
+        // Heredoc: read expected and new from stdin
         let mut buffer = String::new();
         std::io::stdin().read_to_string(&mut buffer)?;
         let (expected, new) = parse_heredoc(&buffer)?;
         apply_literal_patch(file_path, line, &expected, &new, options, &mut lang)?;
+    } else if let Some(marker) = args.marker {
+        let new = args.new.as_deref().or(args.content.as_deref()).ok_or_else(|| anyhow::anyhow!("--new or --content required with --marker"))?;
+        apply_marker_patch(file_path, &marker, new, options)?;
     } else {
         anyhow::bail!("No patch operation specified");
     }
@@ -204,7 +211,7 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
 fn handle_balance(args: BalanceArgs) -> Result<()> {
     let mut lang = RustLanguage::new();
     let file_path = Path::new(&args.file);
-    balance_file(file_path, args.function.as_deref(), !args.apply, &mut lang)?;
+    balance_file(file_path, args.function.as_deref(), !args.apply, args.json, &mut lang)?;
     if args.json {
         println!("{}", serde_json::to_string(&JsonDiagnostic::success())?);
     }
@@ -227,10 +234,12 @@ fn handle_explain(args: ExplainArgs) -> Result<()> {
                 },
                 context: diag.details.clone(),
                 suggestion: Some("Run `patch-ts balance` to attempt automatic fix".to_string()),
+                best_score: None,
+                best_match_line: None,
+                candidates: None,
             };
             println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?);
         } else {
-            // Use miette::Report on the concrete type, not a trait object
             eprintln!("{:?}", miette::Report::new(diag));
         }
     } else if args.json {

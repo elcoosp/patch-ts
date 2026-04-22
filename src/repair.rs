@@ -4,7 +4,7 @@ use std::path::Path;
 use crate::ast::DelimiterError;
 
 use crate::ast::Language;
-use crate::diagnostics::SyntaxErrorDiagnostic;
+use crate::diagnostics::{SyntaxErrorDiagnostic, BalanceResult, BalanceAction, JsonError, JsonSpan};
 
 pub fn apply_repair(content: &str, error: &DelimiterError) -> String {
     match error {
@@ -26,12 +26,12 @@ pub fn balance_file(
     file_path: &Path,
     function_name: Option<&str>,
     dry_run: bool,
-    json_output: bool,
     language: &mut dyn Language,
-) -> Result<()> {
+) -> Result<BalanceResult> {
     let original_content = fs::read_to_string(file_path)?;
     let mut current_content = original_content.clone();
     const MAX_ITERATIONS: usize = 10;
+    let mut actions: Vec<BalanceAction> = Vec::new();
 
     if let Some(func_name) = function_name {
         let rust_lang = language
@@ -47,10 +47,10 @@ pub fn balance_file(
         let parse_result = language.parse(&current_content);
         if language.is_valid(&parse_result) {
             if iteration == 0 {
-                if !json_output && dry_run {
+                if dry_run {
                     println!("File is already valid; no changes needed.");
                 }
-                return Ok(());
+                return Ok(BalanceResult { success: true, actions: vec![], error: None });
             }
             break;
         }
@@ -65,30 +65,59 @@ pub fn balance_file(
             anyhow::bail!("Could not identify any delimiter errors to fix");
         }
 
-        current_content = apply_repair(&current_content, &errors[0]);
+        let error = &errors[0];
+        current_content = apply_repair(&current_content, error);
 
-        if !json_output && dry_run {
-            let action = match &errors[0] {
-                DelimiterError::Extra { span, delimiter } => {
-                    format!("Would remove extra '{}' at {}:{}", delimiter, span.start_line, span.start_column)
-                }
-                DelimiterError::Missing { expected, insert_at } => {
-                    format!("Would insert missing '{}' at {}:{}", expected, insert_at.end_line, insert_at.end_column)
-                }
-            };
-            println!("{}", action);
+        let action = match error {
+            DelimiterError::Extra { span, delimiter } => BalanceAction {
+                action_type: "remove".to_string(),
+                delimiter: *delimiter,
+                line: span.start_line,
+                column: span.start_column,
+                message: format!("Removed extra '{}'", delimiter),
+            },
+            DelimiterError::Missing { expected, insert_at } => BalanceAction {
+                action_type: "insert".to_string(),
+                delimiter: *expected,
+                line: insert_at.end_line,
+                column: insert_at.end_column,
+                message: format!("Inserted missing '{}'", expected),
+            },
+        };
+        actions.push(action);
+
+        if dry_run {
+            println!("Would {} at {}:{}",
+                actions.last().unwrap().message,
+                actions.last().unwrap().line,
+                actions.last().unwrap().column);
         }
     }
 
     let final_parse = language.parse(&current_content);
     if !language.is_valid(&final_parse) {
-        anyhow::bail!("Repair loop completed but file is still invalid");
+        let err = anyhow::anyhow!("Repair loop completed but file is still invalid");
+        return Ok(BalanceResult {
+            success: false,
+            actions,
+            error: Some(JsonError {
+                code: "patch_ts::balance_incomplete".to_string(),
+                message: err.to_string(),
+                span: JsonSpan { file: file_path.to_string_lossy().to_string(), line: 0, column: 0 },
+                context: String::new(),
+                suggestion: Some("Manual intervention required".to_string()),
+                best_score: None,
+                best_match_line: None,
+                candidates: None,
+            }),
+        });
     }
 
     if !dry_run {
         fs::write(file_path, current_content)?;
     }
-    Ok(())
+
+    Ok(BalanceResult { success: true, actions, error: None })
 }
 
 fn find_delimiter_errors_in_function(
@@ -107,7 +136,6 @@ fn find_delimiter_errors_in_function(
         .ok_or_else(|| anyhow::anyhow!("Function '{}' not found or ambiguous", function_name))?;
 
     let all_errors = language.find_delimiter_errors(parse_result);
-
     let filtered: Vec<DelimiterError> = all_errors
         .into_iter()
         .filter(|e| {
@@ -118,7 +146,6 @@ fn find_delimiter_errors_in_function(
             span.start_byte <= end_byte && span.end_byte >= start_byte
         })
         .collect();
-
 
     if filtered.is_empty() {
         anyhow::bail!("No delimiter errors found in function '{}'", function_name);

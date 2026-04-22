@@ -12,7 +12,7 @@ fn test_balance_removes_extra_brace() {
     fs::write(&file_path, "fn main() {\n    println!(\"hi\");\n}\n}\n").unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, false, &mut lang);
+    let result = balance_file(&file_path, None, false, &mut lang);
     assert!(result.is_ok());
     let balanced = fs::read_to_string(&file_path).unwrap();
     assert_eq!(balanced.trim_end(), "fn main() {\n    println!(\"hi\");\n}");
@@ -26,7 +26,7 @@ fn test_balance_on_valid_file_does_nothing() {
     fs::write(&file_path, content).unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, false, &mut lang);
+    let result = balance_file(&file_path, None, false, &mut lang);
     assert!(result.is_ok());
     let new_content = fs::read_to_string(&file_path).unwrap();
     assert_eq!(new_content, content);
@@ -52,7 +52,7 @@ fn test_balance_no_extra_delimiter_found() {
     fs::write(&file_path, "fn main() { let x = \"unclosed; }\n").unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, false, &mut lang);
+    let result = balance_file(&file_path, None, false, &mut lang);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Could not identify any delimiter errors"));
 }
@@ -75,7 +75,7 @@ fn test_balance_unfixable() {
     fs::write(&file_path, "fn main() { let x: = 1; }\n").unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, false, &mut lang);
+    let result = balance_file(&file_path, None, false, &mut lang);
     assert!(result.is_err());
 }
 
@@ -86,7 +86,7 @@ fn test_balance_removal_does_not_fix() {
     fs::write(&file_path, "fn main() { let x: = 1; }\n").unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, false, &mut lang);
+    let result = balance_file(&file_path, None, false, &mut lang);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("Could not identify any delimiter errors") || err.contains("did not fix"));
@@ -144,7 +144,6 @@ fn test_apply_repair_missing() {
 fn test_balance_function_scoped() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("sample.rs");
-    // Missing closing brace inside foo's body, extra parenthesis in bar
     let content = r#"
 fn foo() {
     if true {
@@ -158,13 +157,11 @@ fn bar() {
     fs::write(&file_path, content).unwrap();
 
     let mut lang = RustLanguage::new();
-    balance_file(&file_path, Some("foo"), false, false, &mut lang).unwrap();
+    balance_file(&file_path, Some("foo"), false, &mut lang).unwrap();
     let balanced = fs::read_to_string(&file_path).unwrap();
 
-    // foo's missing brace should be fixed
     assert!(balanced.contains("if true {"));
     assert!(balanced.contains("let x = 1;"));
-    // bar's extra paren should remain unchanged
 }
 
 #[test]
@@ -178,7 +175,7 @@ fn foo() { let y = (3 + 4; }
     fs::write(&file_path, content).unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, Some("foo"), false, false, &mut lang);
+    let result = balance_file(&file_path, Some("foo"), false, &mut lang);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("ambiguous"));
 }
@@ -191,7 +188,7 @@ fn test_balance_function_not_found() {
     fs::write(&file_path, content).unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, Some("nonexistent"), false, false, &mut lang);
+    let result = balance_file(&file_path, Some("nonexistent"), false, &mut lang);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("not found"));
 }

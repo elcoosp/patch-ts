@@ -1,7 +1,6 @@
 use line_index::{LineIndex, TextSize};
 use miette::NamedSource;
 use tree_sitter::{Node, Parser, Tree};
-use tree_sitter::StreamingIterator;
 
 use crate::diagnostics::SyntaxErrorDiagnostic;
 
