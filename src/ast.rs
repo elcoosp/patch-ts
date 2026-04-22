@@ -1,6 +1,7 @@
 use line_index::{LineIndex, TextSize};
 use miette::NamedSource;
-use tree_sitter::{Node, Parser, Tree};
+use tree_sitter::{Node, Parser, Tree, Query, QueryCursor};
+use tree_sitter::StreamingIterator;
 
 use crate::diagnostics::SyntaxErrorDiagnostic;
 
@@ -95,7 +96,7 @@ pub trait Language {
 }
 
 // ----------------------------------------------------------------------
-// Free functions for language-agnostic delimiter scanning and error checking
+// Free functions for language-agnostic delimiter scanning
 // ----------------------------------------------------------------------
 
 fn has_error_node(node: Node) -> bool {
@@ -110,9 +111,8 @@ fn has_error_node(node: Node) -> bool {
     false
 }
 
-/// Scan source with a simple state machine to find delimiter errors.
-/// Ignores delimiters inside string literals and comments.
-pub(crate) fn scan_delimiter_errors(source: &str, index: &LineIndex) -> Vec<DelimiterError> {
+/// Original scanner that detects both extra and missing delimiters (used for Rust).
+pub(crate) fn scan_delimiter_errors_full(source: &str, index: &LineIndex) -> Vec<DelimiterError> {
     let mut errors = Vec::new();
     let mut stack: Vec<(char, usize)> = Vec::new();
 
@@ -226,11 +226,166 @@ pub(crate) fn scan_delimiter_errors(source: &str, index: &LineIndex) -> Vec<Deli
         i += 1;
     }
 
+    // Any remaining open delimiters are missing
     for (expected, open_byte) in stack {
         errors.push(DelimiterError::Missing {
             expected,
             insert_at: Span::from_byte_range(open_byte, open_byte + 1, index),
         });
+    }
+
+    errors
+}
+
+/// Scanner that only finds extra delimiters (used with MISSING query for TS/JS).
+pub(crate) fn scan_extra_delimiter_errors(source: &str, index: &LineIndex) -> Vec<DelimiterError> {
+    let mut errors = Vec::new();
+    let mut stack: Vec<(char, usize)> = Vec::new();
+
+    let chars: Vec<char> = source.chars().collect();
+    let mut i = 0;
+    let mut in_string = false;
+    let mut in_char = false;
+    let mut in_line_comment = false;
+    let mut in_block_comment = false;
+    let mut escape = false;
+
+    while i < chars.len() {
+        let c = chars[i];
+
+        if !in_string && !in_char && !in_line_comment && !in_block_comment {
+            if c == '/' && i + 1 < chars.len() {
+                if chars[i + 1] == '/' {
+                    in_line_comment = true;
+                    i += 2;
+                    continue;
+                } else if chars[i + 1] == '*' {
+                    in_block_comment = true;
+                    i += 2;
+                    continue;
+                }
+            }
+        }
+
+        if in_line_comment {
+            if c == '\n' {
+                in_line_comment = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        if in_block_comment {
+            if c == '*' && i + 1 < chars.len() && chars[i + 1] == '/' {
+                in_block_comment = false;
+                i += 2;
+            } else {
+                i += 1;
+            }
+            continue;
+        }
+
+        if in_string {
+            if escape {
+                escape = false;
+            } else if c == '\\' {
+                escape = true;
+            } else if c == '"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        if in_char {
+            if escape {
+                escape = false;
+            } else if c == '\\' {
+                escape = true;
+            } else if c == '\'' {
+                in_char = false;
+            }
+            i += 1;
+            continue;
+        }
+
+        if c == '"' {
+            in_string = true;
+            i += 1;
+            continue;
+        }
+        if c == '\'' {
+            in_char = true;
+            i += 1;
+            continue;
+        }
+
+        let byte_pos = source[..i].len();
+        match c {
+            '(' | '[' | '{' => {
+                let close = match c {
+                    '(' => ')',
+                    '[' => ']',
+                    '{' => '}',
+                    _ => unreachable!(),
+                };
+                stack.push((close, byte_pos));
+            }
+            ')' | ']' | '}' => {
+                if let Some((expected, open_byte)) = stack.pop() {
+                    if expected != c {
+                        errors.push(DelimiterError::Extra {
+                            span: Span::from_byte_range(byte_pos, byte_pos + 1, index),
+                            delimiter: c,
+                        });
+                        stack.push((expected, open_byte));
+                    }
+                } else {
+                    errors.push(DelimiterError::Extra {
+                        span: Span::from_byte_range(byte_pos, byte_pos + 1, index),
+                        delimiter: c,
+                    });
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+
+    errors
+}
+
+fn find_missing_delimiters(root: Node, source: &str, index: &LineIndex, lang: tree_sitter::Language) -> Vec<DelimiterError> {
+    let mut errors = Vec::new();
+
+    let query_str = r#"
+    (MISSING ")") @missing_paren
+    (MISSING "}") @missing_brace
+    (MISSING "]") @missing_bracket
+    "#;
+
+    let query = match Query::new(&lang, query_str) {
+        Ok(q) => q,
+        Err(_) => return errors,
+    };
+
+    let mut cursor = QueryCursor::new();
+    let mut matches = cursor.matches(&query, root, source.as_bytes());
+
+    while let Some(m) = matches.next() {
+        for capture in m.captures {
+            let node = capture.node;
+            let delimiter = match capture.index {
+                0 => ')',
+                1 => '}',
+                2 => ']',
+                _ => continue,
+            };
+            errors.push(DelimiterError::Missing {
+                expected: delimiter,
+                insert_at: Span::from_node(node, index),
+            });
+        }
     }
 
     errors
@@ -317,7 +472,7 @@ impl RustLanguage {
 
             let range = (open_byte, close_byte);
             if found_range.is_some() {
-                return None; // ambiguous
+                return None;
             }
             found_range = Some(range);
             start = abs_pos + 1;
@@ -367,7 +522,8 @@ impl Language for RustLanguage {
     }
 
     fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
-        scan_delimiter_errors(result.text(), &result.index)
+        // Rust uses the full scanner (detects both extra and missing)
+        scan_delimiter_errors_full(result.text(), &result.index)
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -409,14 +565,14 @@ impl Language for TypeScriptLanguage {
     }
 
     fn find_extra_delimiter(&self, _result: &ParseResult) -> Option<Span> {
-        None // Not implemented for TS; rely on scanner
+        None
     }
 
     fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> {
         let node = result.node_at_line(line)?;
-        if node.is_error() {
+        if node.is_error() || node.has_error() {
             let text = node.utf8_text(result.text().as_bytes()).unwrap_or("");
-            let details = format!("Syntax error: unexpected '{}'", text);
+            let details = format!("Syntax error near '{}'", text);
             let span = Span::from_node(node, &result.index);
             return Some(SyntaxErrorDiagnostic {
                 src: NamedSource::new("input", result.text().to_string()),
@@ -428,7 +584,11 @@ impl Language for TypeScriptLanguage {
     }
 
     fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
-        scan_delimiter_errors(result.text(), &result.index)
+        let mut errors = scan_extra_delimiter_errors(result.text(), &result.index);
+        let root = result.tree.root_node();
+        let missing = find_missing_delimiters(root, result.text(), &result.index, tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into());
+        errors.extend(missing);
+        errors
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -475,9 +635,9 @@ impl Language for JavaScriptLanguage {
 
     fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> {
         let node = result.node_at_line(line)?;
-        if node.is_error() {
+        if node.is_error() || node.has_error() {
             let text = node.utf8_text(result.text().as_bytes()).unwrap_or("");
-            let details = format!("Syntax error: unexpected '{}'", text);
+            let details = format!("Syntax error near '{}'", text);
             let span = Span::from_node(node, &result.index);
             return Some(SyntaxErrorDiagnostic {
                 src: NamedSource::new("input", result.text().to_string()),
@@ -489,7 +649,11 @@ impl Language for JavaScriptLanguage {
     }
 
     fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
-        scan_delimiter_errors(result.text(), &result.index)
+        let mut errors = scan_extra_delimiter_errors(result.text(), &result.index);
+        let root = result.tree.root_node();
+        let missing = find_missing_delimiters(root, result.text(), &result.index, tree_sitter_javascript::LANGUAGE.into());
+        errors.extend(missing);
+        errors
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
