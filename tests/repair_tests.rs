@@ -90,3 +90,20 @@ fn test_balance_removal_does_not_fix() {
     let err = result.unwrap_err().to_string();
     assert!(err.contains("Could not identify extra delimiter") || err.contains("did not fix"));
 }
+
+#[test]
+fn test_quick_balance_fixes_extra_brace() {
+    use patch_ts::repair::quick_balance;
+    let mut lang = RustLanguage::new();
+    let content = "fn main() {\n    println!(\"hi\");\n}\n}\n";
+    let fixed = quick_balance(content, &mut lang).unwrap();
+    assert_eq!(fixed.trim_end(), "fn main() {\n    println!(\"hi\");\n}");
+}
+
+#[test]
+fn test_quick_balance_returns_none_if_unfixable() {
+    use patch_ts::repair::quick_balance;
+    let mut lang = RustLanguage::new();
+    let content = "fn main() { let x: = 1; }\n";
+    assert!(quick_balance(content, &mut lang).is_none());
+}

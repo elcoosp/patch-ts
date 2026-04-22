@@ -1,4 +1,4 @@
-use patch_ts::ast::{Language, RustLanguage};
+use patch_ts::ast::RustLanguage;
 use patch_ts::patch::{apply_literal_patch, PatchOptions};
 use std::fs;
 use tempfile::tempdir;

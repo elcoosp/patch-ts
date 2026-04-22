@@ -1,43 +1,30 @@
-# `patch-ts`
+# patch-ts
 
-**Tree‑sitter‑backed patching CLI for AI agents—safe, structural, and scriptable.**
-
-[![Crates.io](https://img.shields.io/crates/v/patch-ts)](https://crates.io/crates/patch-ts)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-
-`patch-ts` replaces brittle `sed`‑based patching in AI‑assisted coding workflows. It accepts line‑based edit commands from an LLM, verifies expected content before modification, validates the result with a Rust syntax tree, and provides actionable diagnostics when things go wrong. When a patch leaves the code structurally broken, `patch-ts` can **repair** unbalanced delimiters and explain syntax errors with AST‑level context.
-
-> **Why this exists:** LLMs often output patch commands using line numbers from compiler errors. `sed -i '234s/old/new/'` fails silently if the file changed, and it can't detect or fix brace mismatches. `patch-ts` adds a safety net and a feedback loop that helps the AI converge on a correct fix.
-
----
+Tree-sitter-aware patching CLI for AI agents and developers.  
+Safely apply patches to Rust source files with fuzzy matching, auto-repair, and marker-based targeting.
 
 ## Features
 
-- **Line‑based patch commands** with heredoc‑style expected/actual blocks—no regex escaping nightmares.
-- **Fuzzy matching** (`--fuzz N`) locates the intended line even when the file has drifted.
-- **Tree‑sitter validation** aborts edits that introduce syntax errors (unless `--force`).
-- **Structural repair** commands:
-  - `patch-ts balance` – automatically fix extra/missing braces, parens, or brackets.
-  - `patch-ts explain` – show AST context and likely cause of a syntax error at a given line.
-- **Dry‑run** mode (`--dry-run`) outputs a unified diff without modifying the file.
-- **Atomic writes** and automatic `.bak` backups.
-- **LLM‑friendly diagnostics** with source snippets and suggestions (optional JSON output).
-
----
+- **AST‑aware patching** – Validates syntax after each patch (Rust only currently).
+- **Fuzzy matching** – Locates target lines/blocks even if line numbers have drifted or whitespace differs.
+- **Auto‑repair** – Automatically fixes simple syntax errors (e.g., extra braces) introduced by a patch.
+- **Marker‑based targeting** – Replace AST nodes anchored by `// PATCH-ME: <id>` comments.
+- **Multiple patch methods**:
+  - Exact or fuzzy literal replacement (single‑ or multi‑line)
+  - Delete a line after content verification
+  - Insert lines after a given line
+  - Apply unified diffs (with optional fuzzy context)
+- **JSON output** for easy integration with tools and agents.
+- **Dry‑run mode** to preview changes without modifying files.
+- **Automatic backups** (can be disabled).
 
 ## Installation
 
-### From crates.io (requires Rust)
-
 ```bash
-cargo install patch-ts
+cargo install --path .
 ```
 
-### Pre‑built binaries
-
-Download the latest release for your platform from the [Releases](https://github.com/your-org/patch-ts/releases) page.
-
-### From source
+Or build from source:
 
 ```bash
 git clone https://github.com/your-org/patch-ts
@@ -45,127 +32,200 @@ cd patch-ts
 cargo build --release
 ```
 
----
-
-## Quick Start
-
-### 1. Apply a type annotation fix (safe replace)
+## Usage
 
 ```bash
-patch-ts --file src/state.rs --line 234 <<'EOF'
+patch-ts <COMMAND> [OPTIONS]
+```
+
+### Commands
+
+| Command   | Description |
+|-----------|-------------|
+| `patch`   | Apply a patch to a file using one of several methods. |
+| `balance` | Detect and fix unbalanced delimiters (e.g., extra `}`). |
+| `explain` | Explain a syntax error at a given line. |
+| `help`    | Print help information. |
+
+## The `patch` Command
+
+Applies changes to a Rust source file. You must specify **one** of the following operation types:
+
+### 1. Literal Replacement (exact or fuzzy)
+
+Replace a specific line or block of lines.
+
+```bash
+patch-ts patch --file <FILE> --line <LINE> --old <EXPECTED> --new <NEW> [OPTIONS]
+```
+
+- `--line` : Target line number (1‑indexed).  
+- `--old`  : Expected current content (single line, or multi‑line with `\n`).  
+- `--new`  : Replacement content.  
+- `--fuzz` : Search radius for fuzzy matching (default: 5).  
+
+**Heredoc alternative** (for multi‑line content):
+
+```bash
+patch-ts patch --file src/lib.rs --line 10 <<'EOF'
 <<<
-cx.spawn(|cx| async move {
+fn old() {
+    println!("old");
+}
 ---
-cx.spawn(|cx: /* Type */| async move {
+fn new() {
+    println!("new");
+}
 EOF
 ```
 
-- The tool verifies line 234 exactly matches the block after `<<<`.
-- If the content matches, it replaces it with the block after `---` and validates the AST.
-- If the expected content isn't found, it prints a diff and aborts.
-
-### 2. Delete an extra closing brace (with verification)
+### 2. Delete a Line
 
 ```bash
-patch-ts --file src/state.rs --delete 260 --expect "        }"
+patch-ts patch --file <FILE> --delete <LINE> --expect <EXPECTED_CONTENT> [OPTIONS]
 ```
 
-- Only deletes line 260 if its trimmed content is exactly `}`.
-- AST validation prevents deleting a brace that would unbalance the file.
+Verifies that line `<LINE>` contains `<EXPECTED_CONTENT>` (exact match, trimmed) before deleting it.
 
-### 3. Auto‑balance mismatched delimiters
+### 3. Insert After a Line
 
 ```bash
-patch-ts balance --file src/state.rs --dry-run
+patch-ts patch --file <FILE> --after <LINE> --content <NEW_CONTENT> [OPTIONS]
 ```
 
-- Detects extra or missing braces, parens, or brackets.
-- Outputs the proposed fix. Remove `--dry-run` to apply.
+Inserts `<NEW_CONTENT>` (can be multi‑line) immediately after line `<LINE>`.
 
-### 4. Explain a confusing compiler error
+### 4. Apply Unified Diff
 
 ```bash
-patch-ts explain --file src/state.rs --line 566
+patch-ts patch --file <FILE> --diff [--fuzz <N>] < diff.patch
 ```
 
-Output:
+Reads a unified diff from stdin and applies it. If `--fuzz` is provided and the exact context doesn't match, `patch-ts` will attempt to locate the block using fuzzy token matching (currently limited; falls back to `flickzeug` exact apply).
 
-```
-Line 566: `}`
+### 5. Marker‑Based Replacement
 
-AST context:
-- This closing brace is at the top level of the file.
-- The preceding function `RouterState::navigate` ends at line 565.
-- No opening brace matches this closing brace.
-
-Likely cause:
-  An extra `}` was inserted earlier, causing the parser to treat the remainder
-  of the file as outside any function. The actual extra brace is likely before
-  line 566.
-
-Suggestion:
-  Run `patch-ts balance --function navigate` to automatically remove the extra brace.
+```bash
+patch-ts patch --file <FILE> --marker <ID> --new <NEW_CONTENT> [OPTIONS]
 ```
 
----
+Finds a comment `// PATCH-ME: <ID>` (or `/* PATCH-ME: <ID> */`) and replaces the **next AST node** (e.g., function, struct) with `<NEW_CONTENT>`.  
+Useful when line numbers are unstable.
 
-## Command Reference
+### Common Options for `patch`
 
-| Command                           | Description |
-|-----------------------------------|-------------|
-| `patch-ts --file <FILE> --line <N> [--fuzz N] <<'EOF' ...` | Replace a block of lines with verification. |
-| `patch-ts --file <FILE> --delete <N> --expect <CONTENT>` | Delete a line after verifying its content. |
-| `patch-ts --file <FILE> --after <N> --content <TEXT>` | Insert text after a line. |
-| `patch-ts --diff <<'EOF' ...` | Apply a unified diff (like `git apply`). |
-| `patch-ts balance --file <FILE> [--function <NAME>] [--dry-run]` | Fix unbalanced delimiters. |
-| `patch-ts explain --file <FILE> --line <N> [--json]` | Show AST‑based diagnosis of a syntax error. |
-| `patch-ts --help` | Show all options. |
+| Option              | Description |
+|---------------------|-------------|
+| `--fuzz <N>`        | Search radius for fuzzy line matching (default: 5). |
+| `--dry-run`         | Print the resulting file content instead of writing. |
+| `--force`           | Skip AST validation (apply even if syntax error). |
+| `--no-backup`       | Do not create a `.bak` backup file. |
+| `--no-auto-repair`  | Disable automatic repair of simple syntax errors. |
+| `--json`            | Output JSON diagnostics instead of human‑readable text. |
 
-All patch commands support:
-- `--dry-run` – preview changes without writing.
-- `--no-backup` – skip creating a `.bak` file.
-- `--force` – skip AST validation (use with caution).
+## The `balance` Command
 
----
+Attempts to fix unbalanced delimiters by removing an extra `}`.
 
-## How It Works
+```bash
+patch-ts balance --file <FILE> [--apply] [--no-backup] [--json]
+```
 
-`patch-ts` uses **[tree-sitter](https://tree-sitter.github.io/)** to parse Rust source code into a concrete syntax tree. Before writing any change, it:
+- `--apply` : Actually modify the file (default is dry‑run, prints what would be removed).
+- `--function <NAME>` : (Reserved for future scoping).
 
-1. **Applies the edit in‑memory** to a temporary buffer.
-2. **Parses the buffer** and compares the new AST against the original.
-3. **Aborts** if new `ERROR` nodes appear (or if the expected content wasn't found).
-4. **Writes atomically** via a tempfile + rename, with an optional `.bak` backup.
+## The `explain` Command
 
-The `balance` command analyzes `ERROR` nodes to identify delimiter mismatches and proposes minimal deletions/insertions. `explain` walks the AST to provide context about an error location.
+Provides a human‑readable (or JSON) explanation of a syntax error at a given line.
 
-This architecture ensures that even when an LLM mis‑predicts line numbers, the tool fails safely with actionable feedback—enabling a collaborative, iterative patching loop.
+```bash
+patch-ts explain --file <FILE> --line <LINE> [--json]
+```
 
----
+## JSON Output
 
-## Why Not `sed`?
+When `--json` is used, `patch-ts` prints a JSON object to stdout.  
+Success response:
 
-| Problem                               | `sed`                           | `patch-ts`                                      |
-|---------------------------------------|---------------------------------|-------------------------------------------------|
-| Line numbers shift                    | Silent corruption               | Fuzz search or abort with clear mismatch        |
-| Accidental syntax break               | Undetected                      | AST validation prevents write (unless `--force`) |
-| Unbalanced braces after bad patch     | Manual fix required             | `balance` command auto‑repairs                  |
-| LLM needs context to correct          | Only raw error from compiler    | `explain` gives AST‑level guidance              |
-| Multi‑line replace with escaping      | Painful                         | Heredoc literal blocks                          |
+```json
+{ "success": true, "error": null }
+```
 
----
+Error response:
 
-## Contributing
+```json
+{
+  "success": false,
+  "error": {
+    "code": "patch_ts::syntax_error",
+    "message": "patch introduces syntax error: ...",
+    "span": { "file": "src/main.rs", "line": 42, "column": 1 },
+    "context": "Extra closing brace detected.",
+    "suggestion": "Run `patch-ts balance` to attempt automatic fix",
+    "best_score": null,
+    "best_match_line": null,
+    "candidates": null
+  }
+}
+```
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.  
-The project is built with Rust, `tree-sitter`, and `clap`.
+- `best_score` and `best_match_line` may be populated for fuzzy match failures.
+- `suggestion` provides actionable advice.
 
----
+## Fuzzy Matching Details
+
+- **Single‑line**: Uses normalized Levenshtein distance after trimming and collapsing whitespace.  
+- **Multi‑line block**: Tokenizes code using tree‑sitter and computes Jaccard similarity between token sets.  
+- If multiple candidates have the same score, the operation fails with an ambiguity error (increase context or use `--marker`).
+
+## Auto‑Repair
+
+If a patch introduces a syntax error (and the original file was valid), `patch-ts` will attempt `quick_balance()` – removing a single extra delimiter (e.g., `}`). If successful, a warning is printed and the repaired content is written. Disable with `--no-auto-repair`.
+
+## Examples
+
+### Fuzzy replace after line drift
+
+```bash
+# File has moved, but we know the expected content
+patch-ts patch --file src/lib.rs --line 42 --old "let x = 1;" --new "let x = 2;" --fuzz 10
+```
+
+### Insert a new function after a marker
+
+```rust
+// src/lib.rs
+// PATCH-ME: add_new_function
+fn existing() {}
+```
+
+```bash
+patch-ts patch --file src/lib.rs --marker add_new_function --new "fn added() { println!(\"new\"); }"
+```
+
+### Apply a diff with fuzzy context
+
+```bash
+git diff | patch-ts patch --file src/lib.rs --diff --fuzz 3
+```
+
+### Fix an extra brace automatically
+
+```bash
+patch-ts balance --file src/lib.rs --apply
+```
+
+## Exit Codes
+
+- `0` – Success.
+- `1` – Error (patch failed, validation error, etc.).
+
+## Limitations
+
+- Currently only Rust is supported (tree‑sitter‑rust).
+- Fuzzy diff apply is a stub; full hunk parsing is not yet implemented.
+- `balance` only handles simple extra delimiter cases.
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
-
----
-
-*Built for the AI‑assisted coding era. Let your LLM patch fearlessly.*
+MIT

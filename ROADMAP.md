@@ -2,37 +2,20 @@
 
 ## `patch-ts` Roadmap
 
-This document outlines the planned evolution of `patch-ts` beyond the initial v0.1.0 release. Priorities are informed by the codebase review and alignment with the original specification.
+This document outlines the evolution of `patch-ts`. Priorities are informed by the codebase review and alignment with the original specification.
 
 ---
 
-### v0.1.0 (Released) — Core Functionality
+### v0.2.0 (Current) — Fuzzy Matching & Auto‑Repair
 
-- [x] Safe patch application with content verification
-- [x] Fuzzy line matching (`--fuzz`)
-- [x] AST validation using Tree-sitter
-- [x] `balance` command (remove extra `}`)
-- [x] `explain` command with human/JSON output
-- [x] Atomic writes and `.bak` backups
-- [x] Comprehensive test suite
+**Status:** Implemented
 
----
-
-### v0.2.0 — Diagnostics & Polish
-
-**Goal:** Improve accuracy of JSON diagnostics and round out v0.1 feature edges.
-
-- [ ] **Accurate JSON spans**  
-  Extract precise `line` and `column` from `miette::Diagnostic` types (`ContentMismatchError`, `SyntaxErrorDiagnostic`) instead of placeholder values.
-
-- [ ] **Enhanced heredoc parsing**  
-  Support trailing whitespace, Windows line endings, and more flexible separator detection.
-
-- [ ] **Improved error messages**  
-  Include context lines in `ContentMismatchError` reports, and show diff-like output for mismatches.
-
-- [ ] **Documentation updates**  
-  Add a "Limitations & Heuristics" section to README explaining `balance`'s current scope.
+- [x] **Fuzzy single‑line matching** – `fuzzy_match_line` with whitespace normalization and similarity threshold.
+- [x] **Fuzzy multi‑line block matching** – `find_best_block_match` using tree‑sitter tokenization and Jaccard similarity.
+- [x] **Auto‑repair on syntax error** – `quick_balance` attempts to fix extra delimiters when a patch introduces a syntax error.
+- [x] **Marker‑based targeting** – `--marker` flag replaces the AST node following a `// PATCH-ME: <id>` comment.
+- [x] **Enhanced JSON diagnostics** – `JsonError` now includes `suggestion`, `best_score`, `best_match_line`, and `candidates` fields.
+- [x] **Fuzzy flag for unified diffs** – `--fuzz` is allowed with `--diff` (stub for future fuzzy hunk application).
 
 ---
 
@@ -50,7 +33,7 @@ This document outlines the planned evolution of `patch-ts` beyond the initial v0
   Iteratively fix multiple unbalanced delimiters in a single run.
 
 - [ ] **`--function` scoping**  
-  Implement Tree-sitter query to restrict `balance` to a specific function body.
+  Implement Tree‑sitter query to restrict `balance` to a specific function body.
 
 ---
 
@@ -99,5 +82,4 @@ This document outlines the planned evolution of `patch-ts` beyond the initial v0
 
 ---
 
-*Last updated: 2026-04-19*  
-*Based on codebase review of commit `8a5edab`.*
+*Last updated: 2026‑04‑22*

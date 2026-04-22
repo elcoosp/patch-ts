@@ -365,3 +365,97 @@ fn test_cli_patch_syntax_error_json() {
     assert_eq!(json["success"], false);
     assert_eq!(json["error"]["code"], "patch_ts::syntax_error");
 }
+
+#[test]
+fn test_cli_patch_fuzzy_single_line() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("test.rs");
+    fs::write(&file_path, "line1\nline2\nline3\nline4\n").unwrap();
+
+    let mut cmd = Command::cargo_bin("patch-ts").unwrap();
+    cmd.arg("patch")
+        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--line").arg("2")
+        .arg("--old").arg("line3")
+        .arg("--new").arg("new line3")
+        .arg("--fuzz").arg("2")
+        .assert()
+        .success();
+
+    let content = fs::read_to_string(&file_path).unwrap();
+    assert_eq!(content, "line1\nline2\nnew line3\nline4\n");
+}
+
+#[test]
+fn test_cli_marker_patch() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("test.rs");
+    fs::write(&file_path, r#"
+// PATCH-ME: replace
+fn old() {}
+"#).unwrap();
+
+    let mut cmd = Command::cargo_bin("patch-ts").unwrap();
+    cmd.arg("patch")
+        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--marker").arg("replace")
+        .arg("--new").arg("fn new() {}")
+        .assert()
+        .success();
+
+    let content = fs::read_to_string(&file_path).unwrap();
+    assert!(content.contains("fn new()"));
+    assert!(!content.contains("fn old()"));
+}
+
+#[test]
+fn test_cli_json_output_with_suggestion() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("test.rs");
+    fs::write(&file_path, "line1\nlineX\nline3\n").unwrap();
+
+    let mut cmd = Command::cargo_bin("patch-ts").unwrap();
+    let output = cmd
+        .arg("patch")
+        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--line").arg("2")
+        .arg("--old").arg("line2")
+        .arg("--new").arg("new")
+        .arg("--fuzz").arg("2")
+        .arg("--json")
+        .assert()
+        .failure()
+        .get_output()
+        .stdout
+        .clone();
+
+    let json: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(json["success"], false);
+    assert!(json["error"]["suggestion"].as_str().unwrap().contains("--fuzz"));
+}
+
+#[test]
+fn test_cli_diff_with_fuzz_flag_allowed() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("test.rs");
+    fs::write(&file_path, "line1\nline2\nline3\n").unwrap();
+
+    let diff = r#"--- a/test.rs
++++ b/test.rs
+@@ -1,3 +1,3 @@
+ line1
+-line2
++new line2
+ line3
+"#;
+    let mut cmd = Command::cargo_bin("patch-ts").unwrap();
+    cmd.arg("patch")
+        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--diff")
+        .arg("--fuzz").arg("2")  // Ensure fuzz is allowed with diff
+        .write_stdin(diff)
+        .assert()
+        .success();
+    let content = fs::read_to_string(&file_path).unwrap();
+    assert_eq!(content, "line1\nnew line2\nline3\n");
+}

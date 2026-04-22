@@ -53,3 +53,21 @@ pub fn explain_error(
     let parse_result = language.parse(&content);
     Ok(language.explain_error(&parse_result, line))
 }
+
+/// Attempt to fix unbalanced delimiters by removing an extra delimiter.
+/// Returns Some(fixed_content) if successful, None otherwise.
+pub fn quick_balance(content: &str, language: &mut dyn Language) -> Option<String> {
+    let parse_result = language.parse(content);
+    if language.is_valid(&parse_result) {
+        return Some(content.to_string());
+    }
+    let extra_span = language.find_extra_delimiter(&parse_result)?;
+    let mut new_content = content.to_string();
+    new_content.replace_range(extra_span.start_byte..extra_span.end_byte, "");
+    let new_parse = language.parse(&new_content);
+    if language.is_valid(&new_parse) {
+        Some(new_content)
+    } else {
+        None
+    }
+}

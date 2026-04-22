@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
-use strsim::normalized_levenshtein;
+use crate::matching::{fuzzy_match_line, find_best_block_match};
 
 use crate::ast::Language;
 use crate::diagnostics::SyntaxErrorDiagnostic;
@@ -14,6 +14,8 @@ pub struct PatchOptions {
     pub force: bool,
     pub no_backup: bool,
     pub similarity_threshold: f64,
+    pub no_auto_repair: bool,
+    pub marker: Option<String>,
 }
 
 impl Default for PatchOptions {
@@ -24,11 +26,13 @@ impl Default for PatchOptions {
             force: false,
             no_backup: false,
             similarity_threshold: 0.9,
+            no_auto_repair: false,
+            marker: None,
         }
     }
 }
 
-/// Apply a literal replacement patch (exact or fuzzy) with AST validation
+/// Apply a literal replacement patch (exact or fuzzy) with AST validation and optional auto-repair
 pub fn apply_literal_patch(
     file_path: &Path,
     line_num: usize,
@@ -47,42 +51,32 @@ pub fn apply_literal_patch(
 
     let target_idx = line_num.saturating_sub(1);
 
-    let start = if options.fuzz_radius > 0 {
-        target_idx.saturating_sub(options.fuzz_radius)
-    } else {
-        target_idx
-    };
-    let end = if options.fuzz_radius > 0 {
-        (target_idx + options.fuzz_radius).min(lines.len().saturating_sub(1))
-    } else {
-        target_idx
-    };
-    let end = end.min(lines.len().saturating_sub(1));
-
-    let mut best_match = None;
-    let mut best_score = 0.0;
-    for i in start..=end {
-        let actual = lines[i];
-        let score = normalized_levenshtein(expected, actual);
-        if score > best_score {
-            best_score = score;
-            best_match = Some(i);
+    let match_idx = if options.fuzz_radius > 0 {
+        if expected.contains('\n') {
+            let block_match = find_best_block_match(
+                &lines,
+                expected,
+                options.fuzz_radius,
+                options.similarity_threshold,
+            )?;
+            block_match.start_index
+        } else {
+            let line_match = fuzzy_match_line(
+                &lines,
+                line_num,
+                expected,
+                options.fuzz_radius,
+                options.similarity_threshold,
+            )?;
+            line_match.index
         }
-    }
-
-    let match_idx = best_match.ok_or_else(|| anyhow::anyhow!("no lines in range"))?;
-    if best_score < options.similarity_threshold {
-        anyhow::bail!(
-            "no match found with similarity >= {} (best was {:.2} at line {})",
-            options.similarity_threshold,
-            best_score,
-            match_idx + 1
-        );
-    }
+    } else {
+        target_idx
+    };
 
     let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
     new_lines[match_idx] = new.to_string();
-    let new_content = new_lines.join("\n") + if original_content.ends_with('\n') { "\n" } else { "" };
+    let mut new_content = new_lines.join("\n") + if original_content.ends_with('\n') { "\n" } else { "" };
 
     // AST validation (unless --force)
     if !options.force {
@@ -93,13 +87,31 @@ pub fn apply_literal_patch(
         let is_valid = language.is_valid(&new_parse);
 
         if was_valid && !is_valid {
-            let diag = language.explain_error(&new_parse, 1)
-                .unwrap_or_else(|| SyntaxErrorDiagnostic {
-                    src: NamedSource::new(file_path.to_string_lossy(), new_content.clone()),
-                    error_span: (0, 0).into(),
-                    details: "Unknown syntax error".to_string(),
-                });
-            anyhow::bail!(diag);
+            // Attempt auto-repair if enabled
+            if !options.no_auto_repair {
+                if let Some(fixed_content) = crate::repair::quick_balance(&new_content, language) {
+                    eprintln!("Warning: Patch introduced syntax error but was auto-repaired.");
+                    new_content = fixed_content;
+                } else {
+                    // Auto-repair failed, bail with diagnostic
+                    let diag = language.explain_error(&new_parse, 1)
+                        .unwrap_or_else(|| SyntaxErrorDiagnostic {
+                            src: NamedSource::new(file_path.to_string_lossy(), new_content.clone()),
+                            error_span: (0, 0).into(),
+                            details: "Unknown syntax error".to_string(),
+                        });
+                    anyhow::bail!(diag);
+                }
+            } else {
+                // Auto-repair disabled, fail with error
+                let diag = language.explain_error(&new_parse, 1)
+                    .unwrap_or_else(|| SyntaxErrorDiagnostic {
+                        src: NamedSource::new(file_path.to_string_lossy(), new_content.clone()),
+                        error_span: (0, 0).into(),
+                        details: "Unknown syntax error".to_string(),
+                    });
+                anyhow::bail!(diag);
+            }
         }
     }
 
@@ -198,6 +210,26 @@ pub fn apply_unified_diff(
         println!("{}", current_content);
     } else {
         fs::write(file_path, current_content)?;
+    }
+    Ok(())
+}
+
+use crate::marker::replace_marker_node;
+
+/// Apply a patch targeted by a marker comment.
+pub fn apply_marker_patch(
+    file_path: &Path,
+    marker_id: &str,
+    new_content: &str,
+    options: PatchOptions,
+) -> Result<()> {
+    let original = fs::read_to_string(file_path)?;
+    let patched = replace_marker_node(&original, marker_id, new_content)?;
+
+    if options.dry_run {
+        println!("{}", patched);
+    } else {
+        fs::write(file_path, patched)?;
     }
     Ok(())
 }
