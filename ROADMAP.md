@@ -6,9 +6,9 @@ This document outlines the evolution of `patch-ts`. Priorities are informed by t
 
 ---
 
-### v0.2.0 (Current) — Fuzzy Matching & Auto‑Repair
+### v0.2.0 — Fuzzy Matching & Auto‑Repair
 
-**Status:** Implemented
+**Status:** ✅ Implemented
 
 - [x] **Fuzzy single‑line matching** – `fuzzy_match_line` with whitespace normalization and similarity threshold.
 - [x] **Fuzzy multi‑line block matching** – `find_best_block_match` using tree‑sitter tokenization and Jaccard similarity.
@@ -21,19 +21,13 @@ This document outlines the evolution of `patch-ts`. Priorities are informed by t
 
 ### v0.3.0 — Repair Engine Expansion
 
-**Goal:** Make `balance` more comprehensive and useful.
+**Status:** ✅ Implemented
 
-- [ ] **Support all delimiter types**  
-  Detect and fix extra/missing `(`, `[`, and `{`.
-
-- [ ] **Insert missing delimiters**  
-  Currently only removal is implemented; add insertion at the correct location.
-
-- [ ] **Multi‑error repair**  
-  Iteratively fix multiple unbalanced delimiters in a single run.
-
-- [ ] **`--function` scoping**  
-  Implement Tree‑sitter query to restrict `balance` to a specific function body.
+- [x] **Support all delimiter types** – Detect and fix extra/missing `(`, `[`, and `{`.
+- [x] **Insert missing delimiters** – Insertion logic implemented alongside removal.
+- [x] **Multi‑error repair** – Iterative repair loop fixes multiple errors in one run.
+- [x] **`--function` scoping** – Restrict `balance` repairs to a named function body.
+- [x] **JSON output for balance** – Structured `BalanceResult` with action details.
 
 ---
 
@@ -41,14 +35,17 @@ This document outlines the evolution of `patch-ts`. Priorities are informed by t
 
 **Goal:** Prove the `Language` trait extensibility with a second language.
 
-- [ ] **Add TypeScript/JavaScript support**  
+- [ ] **Add TypeScript/JavaScript support**
   Integrate `tree-sitter-typescript` grammar and implement `TypeScriptLanguage`.
 
-- [ ] **Language detection**  
+- [ ] **Language detection**
   Auto‑select language based on file extension (`.rs` → Rust, `.ts`/`.js` → TypeScript).
 
-- [ ] **Language‑specific repair heuristics**  
+- [ ] **Language‑specific repair heuristics**
   Ensure `balance` works for TypeScript delimiters.
+
+- [ ] **Multi‑language tests**
+  Add tests for TypeScript/JavaScript patching and repair.
 
 ---
 
@@ -56,19 +53,19 @@ This document outlines the evolution of `patch-ts`. Priorities are informed by t
 
 **Goal:** Solidify the tool as a reliable part of the AI‑assisted development workflow.
 
-- [ ] **Multi‑file patches**  
+- [ ] **Multi‑file patches**
   Support applying a patch that spans multiple files (e.g., from a single diff).
 
-- [ ] **Configuration file**  
+- [ ] **Configuration file**
   Read `patch-ts.toml` for project‑wide defaults (fuzz radius, backup location, language settings).
 
-- [ ] **Integration examples**  
+- [ ] **Integration examples**
   Provide copy‑pasteable prompts for popular LLMs (ChatGPT, Claude) that generate correct `patch-ts` commands.
 
-- [ ] **CI‑friendly exit codes**  
+- [ ] **CI‑friendly exit codes**
   Document and stabilize exit codes for scripting.
 
-- [ ] **Publish on crates.io**  
+- [ ] **Publish on crates.io**
   Official release with semantic versioning.
 
 ---
