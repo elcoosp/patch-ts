@@ -1,1054 +1,772 @@
-I'll guide you through creating a comprehensive set of specification documents for the `patch-ts` improvements, using the `spec-writer` skill framework. Since we're working from the detailed analysis you provided, I'll synthesize that information into formal spec documents following the evidence‑backed templates.
-
-I'll proceed with the **/spec** full walkthrough, creating all five documents in sequence. The output files will be saved to `/mnt/user-data/outputs/` with the project name `patch-ts-enhancements`.
-
-Let's begin.
+I'll create the full specification suite for **patch-ts v0.4.0** using the `spec-writer` framework. The documents build on the existing v0.3.0 baseline and focus on multi‑language support (TypeScript/JavaScript).
 
 ---
 
-## Document 1: Product Vision & Strategic Alignment (`/spec-vision`)
+# patch-ts v0.4.0 — Specification Documents
 
-**Reference:** `vision.md` (already loaded in context)
+## Document Set Overview
 
-**Gathered context from analysis:**
-- Project: Enhancements to existing Rust CLI tool `patch-ts`
-- Target users: AI coding agents (primary), developers applying patches (secondary)
-- Problem: Current tool fails on slightly misaligned patches, causing rework and manual intervention
-- Desired outcome: Higher patch success rate, reduced syntax‑error rejections, smoother AI‑agent workflows
+| Document | Purpose |
+|----------|---------|
+| [Vision & Strategic Alignment](#patch-ts-vision--strategic-alignment) | Long‑term direction and success criteria for multi‑language expansion. |
+| [Business & Stakeholder Requirements (BRS)](#patch-ts-business--stakeholder-requirements-specification-brs) | Business goals, stakeholders, and high‑level needs for TypeScript/JavaScript support. |
+| [Software Requirements Specification (SRS)](#patch-ts-software-requirements-specification-srs) | Functional and non‑functional requirements for v0.4.0. |
+| [Architecture & Design Specification](#patch-ts-architecture--design-specification) | Architectural decisions, trait extensions, and ADRs for language abstraction. |
+| [Behavioral Specification & Test Verification Plan](#patch-ts-behavioral-specification--test-verification-plan) | Acceptance criteria, test strategy, and traceability for v0.4.0 features. |
 
-**Vision document generated:**
+---
 
-```markdown
-# Product Vision & Strategic Alignment: patch-ts Enhancements
+# patch-ts Vision & Strategic Alignment
 
 | Field | Value |
 |-------|-------|
-| Project | patch-ts-enhancements |
+| Project | patch-ts |
 | Document | Vision & Strategic Alignment |
-| Version | 0.1 (Draft) |
+| Version | 2.0 (v0.4.0) |
 | Date | 2026-04-22 |
-| Author | AI‑assisted specification |
-| Status | Draft — Pending Review |
+| Author | patch-ts team, assisted by spec-writer |
+| Status | Draft |
 
-## Vision Statement
+## 1. Vision Statement
 
-> **For** AI coding agents and developers applying automated code modifications, **who** struggle with brittle line‑number‑based patches and syntax‑error rejections, **our enhanced patch‑ts tool** is a **tree‑sitter‑powered patching utility** that **intelligently matches intended changes even when context has shifted and automatically repairs minor syntactic flaws**. **Unlike** traditional diff tools or the current patch‑ts, **our tool** tolerates whitespace variations, finds semantic equivalents, and auto‑corrects delimiter mismatches, making patches succeed far more often with less manual effort.
+> *patch-ts becomes the go‑to, language‑agnostic patching tool for AI agents and developers, starting with robust support for Rust, TypeScript, and JavaScript. We enable safe, fuzzy, and self‑repairing code modifications across the most popular languages in modern development.*
 
-## Elevator Pitch
+## 2. Elevator Pitch (Moore Template)
 
-> For AI‑driven development workflows and engineers applying patches programmatically, who are frustrated by patch failures due to minor context drift or trivial syntax errors, **patch‑ts Enhancements** is a **semantic‑aware patching CLI** that **applies changes with fuzzy, token‑based matching and built‑in auto‑repair**. Unlike strict diff tools or the current version, our enhanced tool understands code structure, tolerates whitespace and formatting changes, and can automatically fix unbalanced braces or missing semicolons—dramatically increasing patch success rates.
+> For **AI coding agents and developers working with TypeScript/JavaScript** who need the same reliable patching experience currently available for Rust, **patch-ts** is a **tree‑sitter‑backed CLI** that provides **fuzzy matching, auto‑repair, and marker‑based targeting across multiple languages**. Unlike single‑language tools, our product **auto‑detects the language from file extensions** and **applies language‑specific repair heuristics**, making it the universal patching utility for polyglot codebases.
 
-## Problem Statement & Business Context
+## 3. Problem Statement & Business Context
 
-The current `patch-ts` tool provides a solid foundation with tree‑sitter parsing and fuzzy line matching, but it still rejects many patches that are conceptually correct but slightly misaligned with the current file state. This leads to:
+**Problem:** patch‑ts v0.3.0 is Rust‑only. Many AI agents and developers work in TypeScript/JavaScript ecosystems and cannot benefit from patch‑ts's fuzzy matching and auto‑repair capabilities.
 
-- AI agents needing multiple retries or manual corrections, wasting token usage and time.
-- Developers abandoning automated patching workflows due to brittleness.
-- Missed opportunities for seamless, automated code modifications in CI/CD and AI‑assisted development.
+**Why now:**  
+- TypeScript/JavaScript are among the most used languages globally.  
+- AI‑generated patches for frontend and Node.js code frequently fail due to line drift and delimiter errors.  
+- Extending patch‑ts to a second language proves the `Language` trait's extensibility and unlocks future multi‑language growth.
 
-**Why now?** The rise of AI coding assistants (Copilot, Cursor, Aider, etc.) has increased the volume of programmatically generated patches. The cost of patch failures is growing, and a more resilient patching tool directly addresses a critical pain point in the AI‑augmented software development lifecycle.
+**Business drivers:**  
+- Increase patch‑ts's addressable user base by 10×.  
+- Validate the architecture for adding more languages (Python, Go, etc.) in future releases.  
+- Strengthen patch‑ts's position as the universal patching companion for AI coding assistants.
 
-## Target Users & Customers
+## 4. Target Users / Customers
 
-| User Class | Description |
-|------------|-------------|
-| **AI Coding Agents** | LLM‑powered tools that generate code changes and invoke patch‑ts to apply them. They need high success rates and low‑friction error recovery. |
-| **Developers** | Engineers who use patch‑ts via CLI or scripts to apply changes from code reviews, refactoring tools, or automated fixes. They value reliability and clear diagnostics. |
-| **DevOps / CI Systems** | Automated pipelines that run patch‑ts as part of validation or auto‑remediation steps. They require deterministic behavior and minimal false negatives. |
+| Segment | Description |
+|---------|-------------|
+| **TypeScript/JavaScript developers** | Frontend, backend (Node.js), and full‑stack developers applying patches. |
+| **AI coding agents** | LLM‑based tools generating patches for TS/JS codebases. |
+| **CI/CD pipelines** | Automated systems applying bulk fixes (e.g., lint autofix, dependency updates). |
+| **Tool builders** | Developers creating cross‑language refactoring tools. |
 
-**Non‑targets (explicitly excluded for this phase):**
-- Non‑Rust languages (only Rust supported initially; language extensibility deferred).
-- GUI or IDE plugin integration (CLI focus remains).
-- Patch generation (we only apply patches; not generate them).
+**Explicitly NOT targeting (v0.4.0):**  
+- Other languages (Python, Go, etc.) — deferred to future versions.  
+- Framework‑specific repair (React, Angular) — kept language‑generic.  
+- JSX/TSX‑specific AST handling — treated as regular syntax.
 
-## User Needs & Value Proposition
+## 5. User Needs & Value Proposition
 
-| User Need | How patch‑ts Enhancements Addresses It |
-|-----------|----------------------------------------|
-| **Tolerate slight context shifts** | Multi‑line block matching and token‑based similarity find the correct location even if line numbers have changed. |
-| **Apply patches with minor syntax errors** | Auto‑repair mode invokes `balance` command internally and applies the fixed result with a warning. |
-| **Understand semantic structure** | AST‑aware matching finds the correct node (e.g., a function) even when surrounding text changes. |
-| **Clear, actionable failure messages** | JSON diagnostics provide structured error details and suggested fixes, enabling agents to retry intelligently. |
+| Need | patch‑ts v0.4.0 Value |
+|------|------------------------|
+| "I need fuzzy patching for my TypeScript codebase." | Language auto‑detection routes `.ts`/`.tsx` files to the TypeScript grammar. |
+| "I need to fix unbalanced braces in JavaScript." | The `balance` command now works for `{}`, `()`, `[]` in JS/TS. |
+| "I don't want to remember to pass `--lang` every time." | File extension detection automatically selects the correct language. |
+| "I need JSON diagnostics for my agent." | Consistent JSON output across both Rust and TypeScript/JavaScript. |
 
-**Key Differentiator:** Unlike `patch` or `sed`, patch‑ts understands Rust syntax. Unlike the current version, it tolerates formatting differences and can automatically fix common syntax mistakes introduced by the patch.
+**Differentiator:** patch‑ts is the only CLI patching tool that combines fuzzy matching, auto‑repair, marker targeting, and multi‑language support in a single, lightweight binary.
 
-## Desired Outcomes & Success Metrics
+## 6. Desired Outcomes & Success Metrics
 
-### Business Outcomes (Level 0)
-| ID | Outcome | Measurement |
-|----|---------|-------------|
-| G‑1 | Increase patch success rate in AI‑agent workflows | ≥ 30% relative reduction in patch‑application failures across a benchmark of AI‑generated patches. |
-| G‑2 | Reduce manual intervention for patching tasks | ≥ 50% reduction in support requests related to patch‑ts failures from internal users. |
+### Business Outcomes (v0.4.0)
 
-### Product Outcomes (Leading Indicators)
-| ID | Outcome | Measurement |
-|----|---------|-------------|
-| P‑1 | Fuzzy matching correctly locates intended lines | ≥ 95% of fuzzy‑matched patches apply successfully in synthetic drift tests. |
-| P‑2 | Auto‑repair resolves simple delimiter errors | ≥ 80% of syntax‑error‑causing patches are auto‑repaired and applied successfully. |
-| P‑3 | Users perceive higher reliability | Post‑release survey shows ≥ 4.2/5 satisfaction with patch success rate. |
+| ID | Outcome | Key Result / Target |
+|----|---------|---------------------|
+| G‑1 | Expand user base | At least 50 GitHub stars from TypeScript/JavaScript community within 3 months of release. |
+| G‑2 | Validate multi‑language architecture | Zero breaking changes to Rust functionality; all existing tests pass. |
+| G‑3 | Maintain performance | Patching/balance on TS/JS files ≤ 1.5× Rust file latency (benchmarked). |
 
-## Strategic Constraints
+### Product Outcomes (v0.4.0)
+
+| ID | Outcome | Metric |
+|----|---------|--------|
+| P‑1 | Users can patch TypeScript files without manual language selection. | CLI accepts `.ts`/`.tsx`/`.js`/`.jsx` files with auto‑detection. |
+| P‑2 | Users can balance delimiters in TypeScript/JavaScript. | `balance` command fixes extra/missing `{}`, `()`, `[]` in TS/JS test corpus. |
+| P‑3 | Users receive consistent JSON diagnostics across languages. | JSON output schema identical for Rust and TS/JS operations. |
+
+## 7. Strategic Constraints
 
 | Constraint | Description |
 |------------|-------------|
-| **Language** | Initial enhancements focus on Rust (tree‑sitter‑rust). Architecture must allow future language additions. |
-| **Performance** | Patch application time must not increase by more than 20% for typical files (<2000 lines). |
-| **Backward Compatibility** | Existing CLI flags and behavior must remain unchanged unless explicitly deprecated. |
-| **Dependency** | Must remain compatible with current `tree-sitter` 0.25 and `flickzeug` for diff handling. |
+| **Backward compatibility** | v0.4.0 CLI must accept all v0.3.0 flags and produce equivalent Rust behavior. |
+| **Dependency footprint** | Add `tree-sitter-typescript` and `tree-sitter-javascript`; keep binary size reasonable. |
+| **Performance** | Language detection overhead < 1 ms. |
+| **Code maintainability** | Avoid duplicating repair logic; leverage the existing `Language` trait. |
 
-## Goals and Non‑goals (Scope / Anti‑scope)
+## 8. Goals and Non‑Goals (v0.4.0)
 
 ### Goals
-- [ ] **G1:** Implement whitespace‑normalized and token‑based fuzzy matching for single‑line and multi‑line expected content.
-- [ ] **G2:** Integrate auto‑repair (balance) as an optional step when a patch introduces a syntax error.
-- [ ] **G3:** Add marker‑based targeting (`--marker`) to allow patches anchored to comments.
-- [ ] **G4:** Enhance JSON diagnostic output with structured suggestions and possible fixes.
-- [ ] **G5:** Support fuzzy context matching for unified diff application (`--diff --fuzz`).
-- [ ] **G6:** Improve performance with incremental parsing where possible.
 
-### Non‑goals (explicitly excluded)
-- **NG1:** Support for languages other than Rust in this release.
-- **NG2:** Full AST‑based refactoring engine (we only apply textual patches with AST validation).
-- **NG3:** Interactive patch conflict resolution UI.
-- **NG4:** Integration with specific AI agent frameworks (tool remains general‑purpose CLI).
-- **NG5:** Automatic patch generation (we apply existing patches, not create them).
+- Implement `TypeScriptLanguage` and `JavaScriptLanguage` structs that satisfy the `Language` trait.
+- Auto‑detect language from file extension (`.rs` → Rust, `.ts`/`.tsx` → TypeScript, `.js`/`.jsx` → JavaScript).
+- Ensure `find_delimiter_errors` works for TS/JS (the character‑based scanner is language‑agnostic; only parser setup differs).
+- Ensure `balance_file` works for TS/JS (leveraging the scanner).
+- Add integration tests for TypeScript/JavaScript files.
 
-## Operational Concept & High‑Level Scenarios
+### Non‑Goals (explicitly excluded from v0.4.0)
+
+- Support for JSX/TSX‑specific AST queries (treated as regular syntax).
+- TypeScript‑specific semantic repairs (e.g., adding missing type annotations).
+- Language‑specific `explain_error` enhancements (use generic error messages).
+- Multi‑file patch application.
+- Configuration file (`patch-ts.toml`).
+
+## 9. Operational Concept & High‑Level Scenarios
 
 ### Concept of Operations
-patch‑ts operates as a command‑line tool invoked by scripts, AI agents, or humans. It reads a source file, applies a specified change (literal replacement, deletion, insertion, or unified diff), validates the result with tree‑sitter, and writes the updated file (or previews it). The enhancements add tolerance for minor mismatches and automatic repair capabilities.
 
-### Key Scenarios
+Users invoke `patch-ts` exactly as before, but now on `.ts`/`.js` files. The tool inspects the file extension, instantiates the appropriate `Language` implementor, and proceeds with the requested operation. All commands (`patch`, `balance`, `explain`) work identically across languages.
 
-1. **AI Agent Applies Fuzzy Patch**  
-   An AI coding assistant generates a patch that replaces a function body. The line numbers are slightly off due to prior edits. patch‑ts uses multi‑line token‑based matching to locate the correct block, applies the change, and reports success.
+### High‑Level Scenarios (v0.4.0)
 
-2. **Auto‑Repair of Missing Brace**  
-   A patch removes a closing brace, causing a syntax error. Instead of failing, patch‑ts automatically runs the `balance` command, identifies the missing brace, and inserts it. A warning is emitted, but the patched file is saved.
+1. **Patch a TypeScript file with fuzzy matching**  
+   `patch-ts patch --file src/app.ts --line 42 --old "const x = 1;" --new "const x = 2;" --fuzz 3`  
+   → The tool uses TypeScript grammar, finds the fuzzy match, and applies the patch.
 
-3. **Marker‑Based Update**  
-   A developer adds a `// PATCH-ME: update-config` comment in the source. A script invokes patch‑ts with `--marker "update-config"` to replace the associated block with new configuration code, regardless of line number shifts.
+2. **Balance a JavaScript file**  
+   `patch-ts balance --file dist/bundle.js --apply`  
+   → Extra/missing braces/parentheses are repaired using the JavaScript parser.
 
-4. **Fuzzy Unified Diff**  
-   A CI pipeline applies a diff that expects a line `let x = 42;` but the actual file has `let x = 42; // meaning of life`. With `--diff --fuzz=3`, patch‑ts matches the line with high similarity and applies the change.
+3. **Explain a syntax error in a TypeScript file**  
+   `patch-ts explain --file src/component.tsx --line 15 --json`  
+   → Returns JSON diagnostic with error location and suggestion.
 
-## Stakeholders, Sponsorship & Governance
+4. **Auto‑detection fallback**  
+   If a file has no extension or an unknown extension, the tool errors with a clear message listing supported languages.
 
-| Role | Name/Group | Responsibility |
+## 10. Stakeholders, Sponsorship & Governance
+
+| Role | Name / Org | Responsibility |
 |------|------------|----------------|
-| **Executive Sponsor** | (TBD) | Approves resource allocation and strategic direction. |
-| **Product Owner** | (Maintainer) | Owns vision, prioritizes features, accepts deliverables. |
-| **Lead Developer** | (Contributor) | Technical design and implementation. |
-| **Key Stakeholders** | AI tooling teams, Rust developer community | Provide feedback and use cases. |
+| **Executive Sponsor** | (Project maintainer) | Approves strategic direction. |
+| **Product Owner** | (Project maintainer) | Prioritizes features, manages roadmap. |
+| **Engineering Lead** | (Core contributor) | Oversees technical implementation. |
+| **Contributors** | Open‑source community | Submit PRs, report issues. |
 
-**Decision Model:** Changes to goals, non‑goals, or success metrics require review and approval by Product Owner and Executive Sponsor.
+## 11. Risks, Assumptions & Open Questions
 
-## Traceability & Alignment Notes
+### Assumptions
 
-| Goal ID | Related Initiative | Success Metric |
-|---------|-------------------|----------------|
-| G‑1 | Fuzzy matching enhancements | P‑1, P‑3 |
-| G‑2 | Auto‑repair integration | P‑2, P‑3 |
-| G‑3 | Marker‑based targeting | User adoption metric |
+- `tree-sitter-typescript` and `tree-sitter-javascript` provide stable grammars.
+- The character‑based delimiter scanner works correctly for TS/JS (no language‑specific edge cases that break it).
+- Users will not expect TypeScript‑specific semantic repairs in v0.4.0.
 
-This document will feed into the Business Requirements Specification (BRS) where stakeholder needs will be detailed and traced to system requirements.
+### Risks
 
-## Risks, Assumptions, and Open Questions
-
-### Top Assumptions
-1. Users will accept a small performance overhead for improved success rates.
-2. AI‑generated patches are often semantically correct but syntactically imperfect due to line‑number drift.
-3. Auto‑repair of simple delimiter errors is sufficient for most syntax failures.
-
-### Major Risks
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Token‑based matching increases false positives | Medium | High | Use conservative similarity threshold; provide `--force` override. |
-| Auto‑repair may introduce unintended changes | Low | High | Run only when patch introduces syntax error AND original was valid; emit clear warning. |
-| Performance degradation on large files | Medium | Medium | Implement incremental parsing; benchmark and optimize. |
+| TS/JS grammars have different node kinds that break existing `find_extra_delimiter` logic | Medium | Medium | Keep `find_extra_delimiter` Rust‑only for now; rely on scanner for `balance`. |
+| Performance degradation due to additional dependencies | Low | Low | Benchmark and optimize if needed. |
+| Confusion about supported languages | Medium | Low | Clear CLI help and error messages. |
 
 ### Open Questions
-1. What similarity threshold should be default for token‑based matching? (Initial: 0.85)
-2. Should auto‑repair be opt‑in (`--auto-repair`) or default when validation fails?
-3. How to handle ambiguous matches (multiple candidates with similar scores)? (Proposed: fail with diagnostic listing candidates)
-```
+
+- Should we support `.mjs`/`.cjs`? (Yes, treat as JavaScript.)
+- Should we support `.vue` or `.svelte`? (No, out of scope.)
 
 ---
 
-## Document 2: Business & Stakeholder Requirements Specification (`/spec-brs`)
-
-**Reference:** `brs.md`
-
-**Pre‑check:** Vision document exists; extracted goals (G‑1, G‑2), user classes, and constraints.
-
-```markdown
-# Business & Stakeholder Requirements Specification: patch-ts Enhancements
+# patch-ts Business & Stakeholder Requirements Specification (BRS)
 
 | Field | Value |
 |-------|-------|
-| Project | patch-ts-enhancements |
-| Document | BRS |
-| Version | 0.1 (Draft) |
+| Project | patch-ts |
+| Document | Business & Stakeholder Requirements Specification |
+| Version | 2.0 (v0.4.0) |
 | Date | 2026-04-22 |
-| Author | AI‑assisted specification |
-| Status | Draft — Pending Review |
+| Author | patch-ts team, assisted by spec-writer |
+| Status | Draft |
+| References | Vision v2.0 |
 
-## 1. Introduction
+## 1. Business Context
 
-This document captures the business and stakeholder requirements for enhancing the `patch-ts` command‑line tool. It defines *what* business outcomes and stakeholder needs must be satisfied, without prescribing technical solutions. This BRS feeds directly into the Software Requirements Specification (SRS) and subsequent architecture and test documents.
+### 1.1 Purpose
 
-## 2. Business Context
+This BRS defines the business‑level requirements for patch-ts v0.4.0, which adds support for TypeScript and JavaScript as first‑class languages alongside Rust.
 
-### 2.1 Business Purpose
-The purpose of the enhancements is to increase the reliability and success rate of automated patch application, particularly in AI‑assisted development workflows. This reduces friction, saves developer time, and lowers the cost of AI‑generated code modifications.
+### 1.2 Business Problem / Opportunity
 
-### 2.2 Business Problem / Opportunity
-Currently, `patch-ts` rejects many patches that are conceptually correct but fail due to:
-- Line‑number drift caused by preceding edits.
-- Minor formatting differences (whitespace, comments).
-- Simple syntax errors introduced by the patch (e.g., missing brace).
+patch-ts is currently limited to Rust, excluding the vast TypeScript/JavaScript ecosystem. AI agents and developers in those ecosystems lack a reliable, fuzzy‑aware patching tool with auto‑repair. Adding TS/JS support expands the potential user base dramatically and proves the architecture's extensibility.
 
-These failures force manual intervention or costly retries, diminishing the value of automation.
+### 1.3 Scope Boundaries
 
-### 2.3 Business Scope
-**In‑scope:**
-- Enhancing the patch application logic to tolerate context shifts and formatting variations.
-- Adding automatic repair of common syntax errors resulting from patches.
-- Improving diagnostic output to guide automated retries.
+**In scope:**  
+- Language auto‑detection from file extension.  
+- Implementation of `TypeScriptLanguage` and `JavaScriptLanguage` satisfying the `Language` trait.  
+- Full support for `patch`, `balance`, and `explain` commands on TS/JS files.  
+- Integration tests for TS/JS.
 
-**Out‑of‑scope:**
-- Generating patches (the tool only applies given patches).
-- Supporting languages other than Rust (in this phase).
-- Modifying the unified diff application core (we enhance around `flickzeug`).
+**Out of scope:**  
+- Other languages (Python, Go, etc.).  
+- Framework‑specific features (React hooks, Angular templates).  
+- TypeScript‑specific semantic repairs (type checking).  
+- Multi‑file patches.
 
-## 3. Business Goals, Objectives & Success Metrics
+## 2. Business Goals, Objectives & Success Metrics
 
-| ID | Objective | Key Result / Fit Criterion |
-|----|-----------|----------------------------|
-| BG‑1 | Increase overall patch success rate | Achieve ≥30% relative reduction in patch application failures across a representative benchmark of AI‑generated patches within 3 months of release. |
-| BG‑2 | Reduce manual troubleshooting effort | Decrease the number of GitHub issues / support requests related to patch‑ts failures by ≥50% within 6 months. |
-| BG‑3 | Maintain syntactic correctness guarantees | 0% of successful patches should introduce syntax errors that go undetected (i.e., validation remains rigorous). |
+| ID | Business Goal | Success Metric (Fit Criterion) |
+|----|---------------|-------------------------------|
+| BR‑001 | Extend patch‑ts to TypeScript/JavaScript | 100% of existing CLI commands work on `.ts`/`.tsx`/`.js`/`.jsx` files in test suite. |
+| BR‑002 | Maintain Rust functionality unchanged | All v0.3.0 tests pass without modification. |
+| BR‑003 | Achieve adoption in TS/JS community | At least 10 external contributions or issues filed within 3 months. |
 
-## 4. Business Model and Processes
+## 3. Business Model & Processes
 
-### 4.1 Value Propositions
-- For AI agent developers: Higher patch success rates → lower token costs, faster iterations.
-- For individual developers: Less time spent debugging failed patches → increased productivity.
-- For CI/CD pipelines: More reliable automated fixes → fewer manual interventions.
+patch-ts remains an open‑source CLI tool. The "business model" is community growth and integration into AI agent workflows. Multi‑language support is a key driver for adoption.
 
-### 4.2 Core Business Processes (High‑Level)
-1. **Patch Application Workflow:** User/agent provides a source file and a patch specification → tool locates target, applies change, validates → outputs result or diagnostic.
-2. **Error Recovery:** If validation fails, tool may attempt auto‑repair and re‑validate → outputs warning but proceeds if repair succeeds.
-
-## 5. Business Rules and Policies
+## 4. Business Rules & Policies
 
 | ID | Rule | Source |
 |----|------|--------|
-| BR‑001 | Patches must not be applied if the resulting code introduces syntax errors that cannot be auto‑repaired, unless `--force` is used. | Quality policy |
-| BR‑002 | When auto‑repair is performed, the user must be clearly warned (via stderr or JSON field) that the applied content differs from the intended patch. | Transparency requirement |
-| BR‑003 | All changes must be traceable: a backup file must be created by default (`--no-backup` to disable). | Audit requirement |
+| BR‑R1 | Language is determined by file extension; no content‑based detection. | Design simplicity. |
+| BR‑R2 | If extension is unknown, the tool must error with a clear message. | User experience. |
+| BR‑R3 | All existing flags and behaviors must remain unchanged for Rust files. | Backward compatibility. |
 
-## 6. Stakeholders and User Classes
+## 5. Stakeholders & User Classes
 
-### 6.1 Stakeholder Map
-| Stakeholder | Role | Key Concerns |
-|-------------|------|--------------|
-| AI Tooling Developers | Primary user | High success rate, structured error messages for retry logic. |
-| Rust Developers | Secondary user | Ease of use, clear failure reasons, safety (no corruption). |
-| Maintainers | Project owners | Maintainability, performance, community adoption. |
-| CI/CD Engineers | Tertiary user | Deterministic behavior, exit codes, JSON output for automation. |
+| Stakeholder / User Class | Description | Primary Goals |
+|--------------------------|-------------|---------------|
+| **TypeScript Developer** | Writes frontend/backend TS code. | Apply patches safely; fix delimiter errors. |
+| **JavaScript Developer** | Writes Node.js or browser JS. | Same as above. |
+| **AI Agent** | Generates patches for TS/JS. | Reliable, machine‑readable patching. |
+| **CI/CD System** | Runs in pipelines. | Consistent behavior across languages. |
 
-### 6.2 User Classes & Personas
-**Primary: AI Coding Agent (via API/CLI)**
-- Needs to apply hundreds of patches per session.
-- Requires high tolerance for small mismatches.
-- Expects structured JSON diagnostics with actionable suggestions.
+## 6. Glossary / Ubiquitous Language
 
-**Secondary: Developer (Human)**
-- Uses CLI interactively or in scripts.
-- Values clear, human‑readable error messages.
-- Appreciates safety features (backups, dry‑run).
+| Term | Definition |
+|------|------------|
+| **Language trait** | Rust trait defining parser, validation, and error detection methods. |
+| **Auto‑detection** | Selecting the `Language` implementor based on file extension. |
+| **TS/JS** | TypeScript / JavaScript. |
+| **Grammar** | tree‑sitter language definition. |
 
-### 6.3 Jobs to Be Done (JTBD)
-| User Class | Job Statement |
-|------------|---------------|
-| AI Agent | When applying a patch that may have drifted, I want the tool to find the closest match in the file so that the change is applied successfully without manual correction. |
-| Developer | When a patch fails due to a missing brace, I want the tool to offer to fix it automatically so that I don't have to manually edit the file. |
+## 7. Conceptual Domain Model
 
-## 7. Glossary / Ubiquitous Language
+**Core entities (unchanged from v0.3.0):**  
+- `SourceFile`  
+- `ParseTree`  
+- `DelimiterError`  
+- `RepairAction`
 
-| Term | Definition | Notes |
-|------|------------|-------|
-| **Patch** | A specification of a change to a source file: literal replacement, deletion, insertion, or unified diff. | |
-| **Fuzzy matching** | Locating the intended target line/block using similarity metrics rather than exact line number. | |
-| **Auto‑repair** | Automatic correction of syntax errors introduced by a patch, using the `balance` command internally. | |
-| **ASR** | Architecturally Significant Requirement — a requirement (often NFR) that heavily influences design. | |
-| **Marker** | A specially formatted comment (e.g., `// PATCH-ME: id`) used as an anchor for patch location. | |
+**New relationships:**  
+- A `SourceFile` is associated with one `Language` implementor (Rust, TypeScript, or JavaScript) based on its extension.
 
-## 8. Stakeholder Needs and User Requirements
+## 8. Stakeholder Needs & User Requirements
 
-### 8.1 Stakeholder Needs (StRS‑level)
-| ID | Stakeholder | Need Statement |
-|----|-------------|----------------|
-| SN‑001 | AI Agent | The tool must locate the target of a patch even when line numbers have shifted by up to ±N lines or when whitespace differs. |
-| SN‑002 | AI Agent | When a patch introduces a syntax error that is trivially fixable (e.g., missing brace), the tool should automatically repair it and apply the patched+repaired content. |
-| SN‑003 | Developer | The tool must provide clear, actionable diagnostic messages when a patch cannot be applied, including the reason and possible remediation. |
-| SN‑004 | Developer | The tool must not silently corrupt the source file; backups and dry‑run must be available. |
-| SN‑005 | CI/CD Engineer | The tool must support machine‑readable output (JSON) for integration into automated pipelines. |
-| SN‑006 | Maintainer | The enhancements must not significantly degrade performance or increase maintenance burden. |
+| ID | Stakeholder Need | User Class |
+|----|------------------|------------|
+| SN‑001 | As a TypeScript developer, I want to use all patch‑ts commands on `.ts` files without extra configuration. | TypeScript Developer |
+| SN‑002 | As a JavaScript developer, I want the same fuzzy patching and auto‑repair I get for Rust. | JavaScript Developer |
+| SN‑003 | As an AI agent, I want consistent JSON output across languages. | AI Agent |
+| SN‑004 | As a CI user, I want predictable behavior regardless of file type. | CI/CD System |
 
-### 8.2 User Requirements (High‑Level)
-| ID | User Class | Requirement | Traced From |
-|----|------------|-------------|-------------|
-| UR‑001 | AI Agent | The tool shall locate a replacement target using fuzzy matching of the expected content, tolerating whitespace variations and line shifts. | SN‑001 |
-| UR‑002 | AI Agent | The tool shall support multi‑line expected content and find the best‑matching block in the file. | SN‑001 |
-| UR‑003 | AI Agent | If fuzzy matching yields multiple candidates with similar scores, the tool shall report ambiguity and fail, providing candidate locations. | SN‑001 |
-| UR‑004 | AI Agent | The tool shall provide an option to automatically repair syntax errors introduced by a patch (e.g., balancing delimiters). | SN‑002 |
-| UR‑005 | Developer | The tool shall emit a warning when auto‑repair is applied, indicating that the final content differs from the intended patch. | SN‑002, BR‑002 |
-| UR‑006 | Developer | JSON diagnostic output shall include a structured `suggestion` field with actionable next steps (e.g., "Try increasing --fuzz"). | SN‑003, SN‑005 |
-| UR‑007 | Developer | The tool shall support targeting a patch via a marker comment (e.g., `// PATCH-ME: id`) instead of a line number. | SN‑001 |
-| UR‑008 | All | The tool shall apply unified diffs with fuzzy context matching when `--diff --fuzz` is specified. | SN‑001 |
+## 9. System‑in‑Context & Operational Concept
 
-## 9. System‑in‑Context and Operational Concept
+patch-ts operates as before, but now inspects the file extension at the start of each command. Based on the extension, it instantiates `RustLanguage`, `TypeScriptLanguage`, or `JavaScriptLanguage` and delegates all operations. The CLI interface remains unchanged.
 
-### 9.1 System Context
-patch‑ts operates as a standalone CLI executable. It reads source files from the filesystem, parses them with tree‑sitter, applies changes, and writes updated files (or prints to stdout). External systems: none; all operations are local.
+## 10. Stakeholder‑Level Constraints & Quality Expectations
 
-### 9.2 Operational Scenarios
-1. **Fuzzy Single‑Line Replacement**  
-   User invokes `patch-ts patch --file src/main.rs --line 42 --old "old line" --new "new line" --fuzz 5`. Tool searches within ±5 lines, finds best match (e.g., at line 45), replaces, validates, and writes file.
+| ID | Constraint / Quality Expectation |
+|----|----------------------------------|
+| C‑001 | The tool must not require users to specify language manually. |
+| C‑002 | Performance on TS/JS files should be comparable to Rust (within 2×). |
+| C‑003 | Error messages for unsupported file types must be actionable. |
 
-2. **Multi‑Line Block Replacement with Auto‑Repair**  
-   User provides heredoc with a block of lines to replace. Tool finds best‑matching block using token‑based similarity, replaces it, detects a missing closing brace, auto‑balances, and writes file with warning.
+## 11. Risks, Assumptions & Open Issues
 
-3. **Marker‑Based Patch**  
-   User adds `// PATCH-ME: update-auth` in source. Invokes `patch-ts patch --file src/auth.rs --marker "update-auth" --new "fn new_auth() { ... }"`. Tool locates marker, replaces the associated statement/block, and applies.
+### Assumptions
+- tree‑sitter TS/JS grammars are mature and stable.
+- The existing scanner logic is language‑agnostic.
 
-4. **Fuzzy Diff Application**  
-   CI pipeline applies a diff that expects a line `println!("Hello");` but the file has `println!("Hello"); // greet`. With `--diff --fuzz=3`, tool matches the line and applies the change.
-
-## 10. Stakeholder‑Level Constraints and Quality Expectations
-
-| ID | Constraint / Quality Expectation | Fit Criterion |
-|----|----------------------------------|---------------|
-| C‑001 | Patch application time must not increase by more than 20% for files up to 2000 lines. | Measured via benchmark suite; average latency increase ≤20%. |
-| C‑002 | The tool must remain fully backward compatible with existing CLI invocations. | All existing tests pass without modification. |
-| C‑003 | Auto‑repair must only be applied when the original file was syntactically valid. | Validation: if original file has syntax errors, auto‑repair is skipped and patch fails as before. |
-| Q‑001 | Fuzzy matching false positive rate must be low (<5% on benchmark). | Manual review of a sample of 100 fuzzy‑matched patches shows <5 incorrect target selections. |
-
-## 11. Risks, Assumptions, and Open Issues
-
-### 11.1 Assumptions
-- AI‑generated patches are generally semantically correct but may have line‑number drift or minor formatting differences.
-- Users prefer a successful patch with a warning over a hard failure.
-- The `balance` command is sufficient to fix the majority of syntax errors introduced by patches.
-
-### 11.2 Risks
+### Risks
 | Risk | Mitigation |
 |------|------------|
-| Fuzzy matching selects wrong location, causing silent logic errors. | Conservative similarity threshold (0.9 default); provide `--force` to override; fail on ambiguity. |
-| Auto‑repair makes incorrect fix, leading to valid but wrong code. | Only run auto‑repair when original was valid and patch introduces error; warn prominently. |
-| Performance degrades unacceptably on large files. | Implement incremental parsing; benchmark and optimize; consider caching. |
+| TS/JS grammars produce different error node structures that break `find_extra_delimiter`. | Keep that method Rust‑only; rely on scanner for `balance`. |
+| Users expect TS‑specific fixes (e.g., missing types). | Document limitations clearly. |
 
-### 11.3 Open Issues
-- What should be the default fuzzy matching threshold? (Proposed: 0.9 for token‑based, 0.85 for string similarity)
-- Should auto‑repair be opt‑in (`--auto-repair`) or default when validation fails? (Decision: default on, can be disabled with `--no-auto-repair`)
+### Open Issues
+- Should we support `.mjs`/`.cjs`/`.mts`/`.cts`? (Yes, treat as JS/TS respectively.)
 
 ## 12. Traceability Mapping to Vision
 
-| Business Goal (Vision) | Stakeholder Need (BRS) | User Requirement (BRS) |
-|------------------------|------------------------|------------------------|
-| G‑1 (increase success rate) | SN‑001, SN‑002 | UR‑001, UR‑002, UR‑007, UR‑008 |
-| G‑2 (reduce manual intervention) | SN‑003, SN‑004 | UR‑005, UR‑006 |
-| G‑3 (maintain correctness) | SN‑004 | UR‑005 (warning) |
-```
+| Vision Goal | BRS Goal | Stakeholder Need |
+|-------------|----------|------------------|
+| G‑1 | BR‑001, BR‑003 | SN‑001, SN‑002 |
+| G‑2 | BR‑002 | All |
+| G‑3 | BR‑001 | C‑002 |
+| P‑1 | BR‑001 | SN‑001, SN‑002 |
+| P‑2 | BR‑001 | SN‑001, SN‑002 |
+| P‑3 | BR‑001 | SN‑003 |
 
 ---
 
-## Document 3: Software Requirements Specification (`/spec-srs`)
-
-**Reference:** `srs.md`
-
-**Pre‑check:** BRS exists; we will reference stakeholder needs (SN‑xxx) and business rules.
-
-```markdown
-# Software Requirements Specification: patch-ts Enhancements
+# patch-ts Software Requirements Specification (SRS)
 
 | Field | Value |
 |-------|-------|
-| Project | patch-ts-enhancements |
-| Document | SRS |
-| Version | 0.1 (Draft) |
+| Project | patch-ts |
+| Document | Software Requirements Specification |
+| Version | 2.0 (v0.4.0) |
 | Date | 2026-04-22 |
-| Author | AI‑assisted specification |
-| Status | Draft — Pending Review |
+| Author | patch-ts team, assisted by spec-writer |
+| Status | Draft |
+| References | BRS v2.0, Vision v2.0 |
 
-## 1. Introduction and Scope
+## 1. Introduction & Scope
 
-### 1.1 Purpose
-This SRS defines the functional and non‑functional requirements for the enhanced `patch-ts` tool. It describes the software behavior required to satisfy the stakeholder needs identified in the BRS (SN‑001 to SN‑006).
+This SRS defines functional and non‑functional requirements for patch-ts v0.4.0, adding TypeScript and JavaScript support via the `Language` trait.
 
-### 1.2 Scope
-This document covers:
-- Enhancements to the patch application logic (fuzzy matching, multi‑line support, marker targeting).
-- Auto‑repair integration.
-- Diagnostic output improvements.
-- Performance and backward compatibility constraints.
+### 1.1 Scope
 
-Out of scope: support for languages other than Rust, patch generation, GUI.
+- Implement `TypeScriptLanguage` and `JavaScriptLanguage` structs.
+- Auto‑detect language by file extension.
+- Ensure `patch`, `balance`, and `explain` commands work for TS/JS.
+- Add integration tests for TS/JS.
 
-### 1.3 References
-- Business Requirements Specification (BRS) v0.1
-- Product Vision v0.1
+### 1.2 Out of Scope
 
-## 2. System Context and Overview
+- Other languages.
+- TypeScript‑specific semantic analysis.
+- JSX/TSX‑specific handling beyond what the grammar provides.
 
-patch‑ts is a Rust command‑line tool that uses tree‑sitter to parse Rust source files and apply patches. The system consists of:
-- **CLI Parser** (`clap`): Handles command‑line arguments.
-- **Patch Engine**: Core logic for locating targets and applying changes.
-- **Language Module**: Rust‑specific parsing and AST utilities.
-- **Repair Module**: Delimiter balancing and syntax error explanation.
-- **File Manager**: Atomic writes and backups.
+## 2. System Context & Overview
 
-**External Actors:** User (human or AI agent) via terminal/script.
+**Context Diagram (C1):**  
+Same as v0.3.0; now the `Language` trait is implemented by three concrete types.
 
-## 3. Functional Capabilities and Behavior
+**High‑level capabilities (v0.4.0):**  
+- Language detection and dispatch.  
+- TS/JS grammar integration.  
+- Cross‑language test suite.
 
-### 3.1 Capability: Enhanced Fuzzy Matching for Literal Patches
+## 3. Functional Capabilities & Behavior
 
-**Goal:** Locate the intended replacement target even when line numbers have shifted or content differs slightly.
+### Feature: Language Auto‑Detection
 
-**Requirements:**
+| ID | Requirement (EARS pattern) | Priority | Acceptance Criteria |
+|----|----------------------------|----------|---------------------|
+| FR‑LANG‑001 | **When** a command is invoked with a file path, **the system shall** determine the language from the file extension: `.rs` → Rust, `.ts`/`.tsx` → TypeScript, `.js`/`.jsx` → JavaScript. | Must | CLI selects correct language based on extension. |
+| FR‑LANG‑002 | **If** the file extension is unknown or missing, **then** the system shall error with a message listing supported extensions. | Must | Error message includes `.rs, .ts, .tsx, .js, .jsx`. |
+| FR‑LANG‑003 | **The system shall** treat `.mjs` and `.cjs` as JavaScript, and `.mts` and `.cts` as TypeScript. | Should | These extensions work correctly. |
 
-| ID | Requirement (EARS style) | Priority | Acceptance Criteria |
-|----|--------------------------|----------|---------------------|
-| REQ‑FUNC‑001 | When applying a literal patch with `--line` and `--fuzz`, the system shall search for the expected content within ±`fuzz` lines of the specified line. | Must | A patch with expected content "old line" finds the line "old line" at line 45 when specified line is 42 and fuzz ≥3. |
-| REQ‑FUNC‑002 | When comparing expected content to candidate lines, the system shall normalize whitespace (trim leading/trailing spaces, collapse multiple spaces) before computing similarity. | Must | Expected "  foo  " matches actual "foo" with similarity 1.0. |
-| REQ‑FUNC‑003 | The system shall compute similarity using `normalized_levenshtein` on normalized strings, with a configurable threshold (default 0.9). | Must | Similarity below threshold causes failure. |
-| REQ‑FUNC‑004 | If multiple candidate lines have similarity ≥ threshold, the system shall select the one with highest score. If scores are equal (tie), the system shall fail and report ambiguity with candidate locations. | Must | Ambiguity diagnostic lists line numbers of tied candidates. |
-| REQ‑FUNC‑005 | When the expected content contains newlines (multi‑line block), the system shall search for the best‑matching contiguous block of lines using a sliding window and token‑based similarity (ignoring whitespace). | Should | Patch with 3‑line expected block finds correct block offset by ±5 lines. |
-| REQ‑FUNC‑006 | Token‑based similarity for multi‑line blocks shall use tree‑sitter to tokenize both expected and candidate blocks and compute Jaccard similarity on token sequences. | Should | Two blocks differing only in comments/whitespace have similarity 1.0. |
-| REQ‑FUNC‑007 | If the expected block contains no newlines but fuzzy matching is enabled, the system shall fall back to single‑line fuzzy matching as per REQ‑FUNC‑001–004. | Must | Consistent behavior. |
-
-**Edge Cases:**
-- If no line in fuzz radius meets threshold → fail with diagnostic.
-- If fuzz radius is 0 → exact match required at specified line.
-- Empty expected content → error.
-
-### 3.2 Capability: Marker‑Based Targeting
-
-**Goal:** Allow patches to be anchored to a unique marker comment, eliminating line‑number dependency.
-
-**Requirements:**
+### Feature: TypeScript Language Implementation
 
 | ID | Requirement | Priority | Acceptance Criteria |
 |----|-------------|----------|---------------------|
-| REQ‑FUNC‑010 | The system shall provide a `--marker <id>` option for the `patch` subcommand, mutually exclusive with `--line`. | Must | `--marker` cannot be used with `--line`. |
-| REQ‑FUNC‑011 | When `--marker` is specified, the system shall scan the file for a comment matching `// PATCH-ME: <id>` (or `/* PATCH-ME: <id> */`). | Must | Finds marker `// PATCH-ME: update-auth`. |
-| REQ‑FUNC‑012 | If the marker is found, the system shall replace the **immediately following statement or block** (as determined by tree‑sitter) with the new content. | Must | Marker before a function definition replaces that entire function. |
-| REQ‑FUNC‑013 | If multiple markers with the same ID exist, the system shall fail with an ambiguity error listing their locations. | Must | Diagnostic lists line numbers. |
-| REQ‑FUNC‑014 | If no marker is found, the system shall fail with a clear error message. | Must | Error: "Marker 'update-auth' not found". |
+| FR‑TS‑001 | **The system shall** provide a `TypeScriptLanguage` struct that implements the `Language` trait. | Must | Trait methods compile and pass tests. |
+| FR‑TS‑002 | **When** parsing TypeScript source, **the system shall** use `tree-sitter-typescript` with the `typescript` grammar. | Must | Correct grammar loaded. |
+| FR‑TS‑003 | **The system shall** support `.tsx` files using the `tsx` grammar. | Must | `.tsx` files parse correctly. |
 
-### 3.3 Capability: Auto‑Repair of Syntax Errors
-
-**Goal:** Automatically fix simple syntax errors introduced by a patch (e.g., unbalanced delimiters) to increase success rate.
-
-**Requirements:**
+### Feature: JavaScript Language Implementation
 
 | ID | Requirement | Priority | Acceptance Criteria |
 |----|-------------|----------|---------------------|
-| REQ‑FUNC‑020 | After applying a patch, if validation fails and `--force` is not used, the system shall optionally attempt auto‑repair using the `balance` algorithm. | Must | Enabled by default; can be disabled with `--no-auto-repair`. |
-| REQ‑FUNC‑021 | Auto‑repair shall only be attempted if the original file was syntactically valid. | Must | If original had errors, skip auto‑repair and fail. |
-| REQ‑FUNC‑022 | The system shall call `repair::quick_balance` (or equivalent) on the patched content. If the repair produces a valid AST, the system shall write the repaired content and emit a warning. | Must | Warning: "Patch introduced syntax error but was auto‑repaired." |
-| REQ‑FUNC‑023 | If auto‑repair fails to produce a valid AST, the system shall fail with the original syntax error diagnostic. | Must | No change applied. |
-| REQ‑FUNC‑024 | The warning (when auto‑repair succeeds) shall be included in JSON output under a `warning` field. | Must | JSON `{ "success": true, "warning": "..." }`. |
+| FR‑JS‑001 | **The system shall** provide a `JavaScriptLanguage` struct that implements the `Language` trait. | Must | Trait methods compile and pass tests. |
+| FR‑JS‑002 | **When** parsing JavaScript source, **the system shall** use `tree-sitter-javascript`. | Must | Correct grammar loaded. |
 
-### 3.4 Capability: Fuzzy Unified Diff Application
-
-**Goal:** Apply unified diffs even when context lines have minor changes.
-
-**Requirements:**
+### Feature: Cross‑Language Command Support
 
 | ID | Requirement | Priority | Acceptance Criteria |
 |----|-------------|----------|---------------------|
-| REQ‑FUNC‑030 | The `--diff` flag shall accept an optional `--fuzz` parameter to enable fuzzy matching of context lines. | Should | `patch-ts patch --file foo.rs --diff --fuzz 3` applies diff with fuzzy context. |
-| REQ‑FUNC‑031 | When applying a hunk, if exact context lines do not match, the system shall search within ±`fuzz` lines for the best match using the same similarity logic as literal patches. | Should | Hunk applies successfully despite line offset. |
-| REQ‑FUNC‑032 | The system shall fall back to exact matching if `--fuzz` is 0 or not provided. | Must | Backward compatible. |
+| FR‑CMD‑001 | **The system shall** support `patch`, `balance`, and `explain` commands on TypeScript files with the same semantics as Rust. | Must | Commands succeed on valid TS/JS inputs. |
+| FR‑CMD‑002 | **The system shall** produce JSON output for TS/JS operations that matches the Rust schema. | Must | JSON structure identical across languages. |
 
-### 3.5 Capability: Enhanced JSON Diagnostics
+## 4. Quality & Non‑Functional Requirements
 
-**Goal:** Provide structured, actionable error information for AI agents.
+| ID | Category | Requirement | Fit Criterion |
+|----|----------|-------------|---------------|
+| NFR‑PERF‑001 | Performance efficiency | Language detection overhead < 1 ms. | Benchmarked. |
+| NFR‑PERF‑002 | Performance efficiency | `balance` on 10k‑line TS file ≤ 2× Rust file latency. | Benchmark suite. |
+| NFR‑COMPAT‑001 | Compatibility | All v0.3.0 tests must pass without modification. | CI regression suite. |
+| NFR‑MAINT‑001 | Maintainability | New language implementations must share no code duplication with Rust beyond the trait contract. | Code review. |
 
-**Requirements:**
+## 5. External Interfaces & Data Contracts
 
-| ID | Requirement | Priority | Acceptance Criteria |
-|----|-------------|----------|---------------------|
-| REQ‑FUNC‑040 | All error responses in JSON mode shall include a `suggestion` field with a human‑readable recommended action. | Must | E.g., `"Try increasing --fuzz radius"`. |
-| REQ‑FUNC‑041 | For fuzzy matching failures, the JSON error shall include `best_score` and `best_match_line` fields. | Should | Helps agent decide next steps. |
-| REQ‑FUNC‑042 | For ambiguity errors, the JSON error shall include a `candidates` array with line numbers and similarity scores. | Should | `"candidates": [{"line": 45, "score": 0.95}, ...]`. |
-| REQ‑FUNC‑043 | For syntax errors, the JSON error shall include the span (line/column) and a `possible_fix` field if the tool can suggest one (e.g., "Missing `}`"). | Should | Derived from `explain_error`. |
+**CLI Interface:** Unchanged from v0.3.0. Language detection is transparent to the user.
 
-## 4. Quality and Non‑functional Requirements
+**JSON Output Schema:** Unchanged. The `BalanceResult` and `JsonError` structures are language‑agnostic.
 
-Organized per ISO/IEC 25010:2023.
+## 6. Constraints, Assumptions & Dependencies
 
-### 4.1 Performance Efficiency
-
-| ID | Requirement | Fit Criterion |
-|----|-------------|---------------|
-| NFR‑PERF‑001 | Patch application latency for a 2000‑line file shall not increase by more than 20% compared to baseline (pre‑enhancement). | Benchmark shows average latency increase ≤20%. |
-| NFR‑PERF‑002 | Tokenization for multi‑line fuzzy matching shall complete within 100 ms for a 500‑line block. | Measured in CI benchmarks. |
-
-### 4.2 Reliability
-
-| ID | Requirement | Fit Criterion |
-|----|-------------|---------------|
-| NFR‑REL‑001 | The tool shall never corrupt the source file; atomic writes with backup must be used. | All write operations use `tempfile` and `persist`. |
-| NFR‑REL‑002 | Fuzzy matching false positive rate (incorrect target selection) shall be <5% on a benchmark of 100 AI‑generated patches. | Manual review confirms <5 incorrect matches. |
-
-### 4.3 Security
-
-| ID | Requirement | Fit Criterion |
-|----|-------------|---------------|
-| NFR‑SEC‑001 | The tool shall not execute arbitrary code; all input is treated as data. | Code review confirms no `eval`-like constructs. |
-| NFR‑SEC‑002 | Backup files shall be created with restrictive permissions (0o600). | File mode verified. |
-
-### 4.4 Maintainability
-
-| ID | Requirement | Fit Criterion |
-|----|-------------|---------------|
-| NFR‑MAINT‑001 | New fuzzy matching logic shall be modular and testable in isolation. | Unit tests cover similarity functions. |
-| NFR‑MAINT‑002 | The tool shall continue to compile with Rust stable and no new major dependency conflicts. | CI passes. |
-
-### 4.5 Compatibility
-
-| ID | Requirement | Fit Criterion |
-|----|-------------|---------------|
-| NFR‑COMP‑001 | All existing CLI flags and behaviors must remain unchanged unless explicitly deprecated. | Existing tests pass without modification. |
-| NFR‑COMP‑002 | JSON output structure must be backward compatible; new fields added but existing fields retained. | Existing JSON parsers continue to work. |
-
-## 5. External Interfaces and Data Contracts
-
-### 5.1 Command‑Line Interface (CLI)
-
-**New/Modified Flags:**
-
-| Flag | Description |
+| Type | Description |
 |------|-------------|
-| `--fuzz <N>` | Existing; now also applies to `--diff` and multi‑line patches. |
-| `--marker <ID>` | New; anchor patch to marker comment. |
-| `--no-auto-repair` | New; disable automatic syntax repair. |
-| `--diff --fuzz <N>` | New combination; enable fuzzy diff context. |
-
-### 5.2 JSON Output Schema
-
-**Success Response (existing):**
-```json
-{ "success": true }
-```
-
-**Enhanced Success (with warning):**
-```json
-{
-  "success": true,
-  "warning": "Patch introduced syntax error but was auto-repaired."
-}
-```
-
-**Error Response (enhanced):**
-```json
-{
-  "success": false,
-  "error": {
-    "code": "patch_ts::content_mismatch",
-    "message": "no match found with similarity >= 0.9",
-    "span": { "file": "src/main.rs", "line": 42, "column": 1 },
-    "context": "expected 'old line' but found 'actual line'",
-    "suggestion": "Try increasing --fuzz radius",
-    "best_score": 0.82,
-    "best_match_line": 45,
-    "candidates": [ ... ]  // for ambiguity
-  }
-}
-```
-
-## 6. Constraints, Assumptions, and Dependencies
-
-| ID | Constraint |
-|----|------------|
-| CON‑001 | The tool must remain compatible with tree‑sitter 0.25 and tree‑sitter‑rust 0.24. |
-| CON‑002 | The tool must not introduce new dependencies that are not pure Rust (e.g., no C libraries) to maintain easy cross‑compilation. |
+| Constraint | Must add `tree-sitter-typescript` and `tree-sitter-javascript` crates. |
+| Assumption | TS/JS grammars do not require additional runtime setup. |
+| Dependency | `tree-sitter` 0.25. |
 
 ## 7. TBD Log
 
 | ID | Item | Owner | Due |
 |----|------|-------|-----|
-| TBD‑001 | Finalize default similarity thresholds for token‑based matching. | Product Owner | Before beta |
-| TBD‑002 | Decide whether auto‑repair is default‑on or opt‑in. | Product Owner | Before beta |
-| TBD‑003 | Determine exact marker comment syntax (e.g., `// PATCH-ME:` vs `// @patch`). | Team | During design |
+| TBD‑001 | Determine if `find_extra_delimiter` should be implemented for TS/JS or remain Rust‑only. | Engineering | Before implementation. |
 
-## 8. Requirements Attributes and Traceability Model
+## 8. Requirements Attributes & Traceability Model
 
-All requirements are assigned unique IDs with prefix:
-- `REQ‑FUNC‑XXX` for functional
-- `NFR‑XXX‑XXX` for non‑functional
-- `CON‑XXX` for constraints
+**ID Scheme:**  
+- Functional: `FR‑LANG‑###`, `FR‑TS‑###`, `FR‑JS‑###`, `FR‑CMD‑###`  
+- NFR: `NFR‑CAT‑###`
 
 **Traceability Matrix (excerpt):**
 
-| SRS Requirement | Traced to BRS |
-|-----------------|---------------|
-| REQ‑FUNC‑001 | SN‑001, UR‑001 |
-| REQ‑FUNC‑002 | SN‑001 |
-| REQ‑FUNC‑005 | SN‑001, UR‑002 |
-| REQ‑FUNC‑010–014 | SN‑001, UR‑007 |
-| REQ‑FUNC‑020–024 | SN‑002, UR‑004, UR‑005 |
-| REQ‑FUNC‑030–032 | SN‑001, UR‑008 |
-| REQ‑FUNC‑040–043 | SN‑003, SN‑005, UR‑006 |
-| NFR‑PERF‑001 | C‑001 |
-| NFR‑REL‑002 | Q‑001 |
-| NFR‑COMP‑001 | C‑002 |
-```
+| SRS ID | BRS ID | Verification Method |
+|--------|--------|---------------------|
+| FR‑LANG‑001 | SN‑001, SN‑002 | Test |
+| FR‑TS‑001 | SN‑001 | Test |
+| FR‑JS‑001 | SN‑002 | Test |
+| FR‑CMD‑001 | SN‑001, SN‑002 | Test |
+| NFR‑PERF‑001 | C‑002 | Analysis + Bench |
 
 ---
 
-## Document 4: Architecture & Design Specification (`/spec-architecture`)
-
-**Reference:** `architecture.md`
-
-**Pre‑check:** SRS exists; ASRs extracted from NFRs and constraints.
-
-```markdown
-# Architecture & Design Specification: patch-ts Enhancements
+# patch-ts Architecture & Design Specification
 
 | Field | Value |
 |-------|-------|
-| Project | patch-ts-enhancements |
-| Document | Architecture & Design |
-| Version | 0.1 (Draft) |
+| Project | patch-ts |
+| Document | Architecture & Design Specification |
+| Version | 2.0 (v0.4.0) |
 | Date | 2026-04-22 |
-| Author | AI‑assisted specification |
-| Status | Draft — Pending Review |
+| Author | patch-ts team, assisted by spec-writer |
+| Status | Draft |
+| References | SRS v2.0, BRS v2.0 |
 
-## 1. Context and Scope
+## 1. Context & Scope
 
-This document describes the architectural changes required to implement the enhancements defined in the SRS. It focuses on the new modules and modifications to existing components needed to support fuzzy matching, marker‑based targeting, auto‑repair integration, and improved diagnostics.
+This document describes the architectural changes required to add TypeScript and JavaScript support to patch-ts, leveraging the existing `Language` trait abstraction.
 
-## 2. Goals and Non‑goals
+## 2. Goals & Non‑Goals
 
-### Goals (Design‑Level)
-- Extend the existing `PatchOptions` and patch application flow to incorporate fuzzy matching and auto‑repair without breaking backward compatibility.
-- Introduce a modular matching subsystem that can be reused across literal patches and unified diffs.
-- Keep performance impact minimal by using incremental parsing where possible and caching parse results.
+### Goals
+- Add `TypeScriptLanguage` and `JavaScriptLanguage` as `Language` implementors.
+- Implement language detection in `cli.rs`.
+- Ensure existing scanner and repair logic work unchanged for TS/JS.
 
-### Non‑goals
-- Refactoring the entire codebase; changes are scoped to `patch.rs`, `repair.rs`, and `cli.rs`.
-- Adding support for languages other than Rust in this phase (but design should allow future extension).
+### Non‑Goals
+- Refactor the `Language` trait.
+- Add language‑specific repair heuristics beyond delimiter scanning.
 
 ## 3. Architecturally Significant Requirements (ASRs)
 
-Extracted from SRS NFRs and constraints:
-
 | ASR ID | Description | Source |
 |--------|-------------|--------|
-| ASR‑001 | Patch application latency increase ≤20% for typical files. | NFR‑PERF‑001 |
-| ASR‑002 | False positive rate for fuzzy matching <5%. | NFR‑REL‑002 |
-| ASR‑003 | Backward compatibility with existing CLI and behavior. | NFR‑COMP‑001, CON‑001 |
-| ASR‑004 | Auto‑repair only when original file was valid. | REQ‑FUNC‑021 |
+| ASR‑001 | Language detection must be transparent and automatic. | FR‑LANG‑001 |
+| ASR‑002 | All existing Rust functionality must remain unchanged. | NFR‑COMPAT‑001 |
+| ASR‑003 | TS/JS implementations must reuse the scanner‑based delimiter detection. | NFR‑MAINT‑001 |
 
-## 4. System Overview and High‑Level Structure
+## 4. The Design
 
-The enhanced system retains the same top‑level modules (`cli`, `patch`, `repair`, `ast`, `diagnostics`, `file`). New submodules are introduced:
+### 4.1 System Overview (C4 Level 2)
 
-- `matching`: Contains fuzzy matching logic (string‑based, token‑based, multi‑line block search).
-- `marker`: Marker comment detection and AST‑based replacement.
-
-**C4 Container Diagram (Textual Description):**
-- **User** invokes `patch-ts` CLI.
-- **CLI Parser** (`clap`) routes to appropriate command.
-- **Patch Engine** orchestrates:
-  - **Matching Subsystem**: Finds target location using fuzzy logic or marker.
-  - **Repair Subsystem**: Optionally balances delimiters.
-  - **AST Validator**: Uses tree‑sitter to check syntax.
-- **File Manager**: Handles atomic writes and backups.
-
-## 5. Detailed Design
-
-### 5.1 Matching Subsystem (`src/matching.rs`)
-
-**Purpose:** Provide a unified interface for locating patch targets with varying degrees of fuzziness.
-
-**Key Components:**
-
-- `LineMatcher`: Fuzzy single‑line matching with whitespace normalization and Levenshtein similarity.
-- `BlockMatcher`: Multi‑line block search using sliding window and token‑based similarity (Jaccard on token sequences).
-- `TokenSimilarity`: Uses tree‑sitter to tokenize a string and compare token sets.
-
-**Integration with `apply_literal_patch`:**
-```rust
-// pseudocode
-let target = if options.marker.is_some() {
-    marker::find_and_replace(...)
-} else if expected.contains('\n') {
-    matching::find_best_block_match(&lines, expected, options)
-} else {
-    matching::fuzzy_match_line(&lines, line_num, expected, options)
-};
+```
+[User/Agent] → (CLI) → [patch-ts Binary]
+                           ├── cli.rs (language detection)
+                           ├── ast.rs (Language trait, RustLanguage, TypeScriptLanguage, JavaScriptLanguage)
+                           ├── repair.rs (balance logic, unchanged)
+                           └── file.rs (atomic write)
+                                     ↓
+              ┌──────────────────┼──────────────────┐
+              ↓                  ↓                  ↓
+     [tree-sitter-rust] [tree-sitter-typescript] [tree-sitter-javascript]
 ```
 
-### 5.2 Marker Handling (`src/marker.rs`)
+### 4.2 Key Design Changes
 
-**Purpose:** Locate a marker comment and replace the associated AST node.
+**4.2.1 Language Detection**
 
-**Algorithm:**
-1. Parse file, iterate over comments (using tree‑sitter query for comments).
-2. Find comment containing `// PATCH-ME: <id>`.
-3. Locate the next sibling node (statement, expression, or item) using tree‑sitter's `next_sibling`.
-4. Replace that node's text range with new content.
+In `cli.rs`, before invoking any command, inspect the file extension:
 
-### 5.3 Auto‑Repair Integration (`src/patch.rs`)
-
-**Modification to `apply_literal_patch` (and similar functions):**
 ```rust
-if !options.force && was_valid && !is_valid && !options.no_auto_repair {
-    if let Ok(fixed) = repair::quick_balance(&new_content, language) {
-        eprintln!("Warning: Patch introduced syntax error but was auto-repaired.");
-        final_content = fixed;
-        // Optionally record warning in JSON output
-    } else {
-        anyhow::bail!(original_error);
+fn detect_language(file_path: &Path) -> Result<Box<dyn Language>> {
+    match file_path.extension().and_then(|e| e.to_str()) {
+        Some("rs") => Ok(Box::new(RustLanguage::new())),
+        Some("ts") | Some("tsx") | Some("mts") | Some("cts") => Ok(Box::new(TypeScriptLanguage::new())),
+        Some("js") | Some("jsx") | Some("mjs") | Some("cjs") => Ok(Box::new(JavaScriptLanguage::new())),
+        _ => anyhow::bail!("Unsupported file extension. Supported: .rs, .ts, .tsx, .js, .jsx, .mts, .cts, .mjs, .cjs"),
     }
 }
 ```
 
-### 5.4 Fuzzy Diff Application (`src/patch.rs`)
+**4.2.2 TypeScriptLanguage and JavaScriptLanguage**
 
-Extend `apply_unified_diff` to accept `fuzz_radius`. For each hunk, if exact context fails, invoke `matching::find_best_block_match` to locate the hunk's context lines, then apply the change relative to that offset.
+Both structs will be thin wrappers around `tree_sitter::Parser`:
 
-### 5.5 Enhanced Diagnostics (`src/diagnostics.rs`)
+```rust
+pub struct TypeScriptLanguage {
+    parser: Parser,
+}
 
-Add fields to `JsonError`:
-- `suggestion: Option<String>`
-- `best_score: Option<f64>`
-- `best_match_line: Option<usize>`
-- `candidates: Option<Vec<Candidate>>`
+impl TypeScriptLanguage {
+    pub fn new() -> Self {
+        let mut parser = Parser::new();
+        parser.set_language(&tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()).unwrap();
+        Self { parser }
+    }
+}
 
-Populate these fields in error constructors.
-
-## 6. Architecture Decision Records (ADRs)
-
-### ADR‑0001: Use Token‑Based Similarity for Multi‑Line Blocks
-
-**Context:** Multi‑line fuzzy matching requires comparing blocks of code where formatting may differ. String similarity is insufficient (e.g., `foo()` vs `foo( )`).
-
-**Decision Drivers:** ASR‑002 (low false positives), ASR‑001 (performance).
-
-**Considered Options:**
-- A) String similarity on concatenated lines.
-- B) Token‑based Jaccard similarity using tree‑sitter tokenization.
-- C) Full AST comparison (tree edit distance).
-
-**Decision Outcome:** Choose Option B. It balances accuracy and performance, leveraging existing tree‑sitter parser. AST comparison (C) is too heavy for this use case.
-
-**Consequences:**
-- Positive: More robust to formatting changes.
-- Negative: Requires tokenizing both expected and candidate blocks, adding some overhead (mitigated by limiting window size).
-
-### ADR‑0002: Auto‑Repair Default On with Opt‑Out
-
-**Context:** Should auto‑repair be enabled by default or require an explicit flag?
-
-**Decision Drivers:** User experience (SN‑002 wants less manual work), safety (ASR‑004).
-
-**Considered Options:**
-- A) Default on, can disable with `--no-auto-repair`.
-- B) Opt‑in with `--auto-repair`.
-
-**Decision Outcome:** Choose Option A. The benefit of higher patch success rate outweighs the risk, especially since auto‑repair only triggers when original file was valid and the tool emits a clear warning. Users concerned about safety can use `--no-auto-repair`.
-
-**Consequences:**
-- Positive: Higher success rate out of the box.
-- Negative: Potential for surprise if auto‑repair makes an unintended change (mitigated by warning and backup).
-
-### ADR‑0003: Marker Syntax `// PATCH-ME: <id>`
-
-**Context:** Need a standard marker comment format.
-
-**Decision Drivers:** Simplicity, unlikelihood of collision with normal comments.
-
-**Considered Options:**
-- A) `// PATCH-ME: <id>`
-- B) `// @patch <id>`
-- C) `/* PATCH <id> */`
-
-**Decision Outcome:** Choose Option A. It's explicit, unlikely to appear in normal code, and easy to parse.
-
-## 7. API and Interface Contracts
-
-No external APIs; CLI interface changes as documented in SRS Section 5.1.
-
-## 8. Cross‑cutting Concerns
-
-- **Observability:** Existing `log` and `env_logger` used; additional debug logs for matching decisions.
-- **Error Handling:** All new fallible operations return `anyhow::Result` with context.
-- **Testing:** New modules will have unit tests; integration tests will cover end‑to‑end scenarios.
-
-## 9. Alternatives Considered
-
-| Alternative | Reason Rejected |
-|-------------|-----------------|
-| Full AST diff/patch using tree edit distance | Too complex, performance overhead, and overkill for text‑based patching. |
-| Using `similar` crate for diff fuzzy matching | Adds another dependency; can implement simpler fuzzy matching in‑house. |
-| Making auto‑repair opt‑in | See ADR‑0002; default‑on better aligns with goal of higher success rate. |
-
-## 10. Traceability
-
-| ASR | Addressed By |
-|-----|--------------|
-| ASR‑001 | Token‑based matching limited to reasonable window; benchmark monitoring. |
-| ASR‑002 | Similarity threshold (0.9 default) and tie‑breaking logic. |
-| ASR‑003 | All new flags are additive; existing behavior unchanged. |
-| ASR‑004 | Auto‑repair gated by `was_valid` check. |
+impl Language for TypeScriptLanguage {
+    fn parse(&mut self, source: &str) -> ParseResult { /* ... */ }
+    fn is_valid(&self, result: &ParseResult) -> bool { /* ... */ }
+    fn find_extra_delimiter(&self, result: &ParseResult) -> Option<Span> { None } // not implemented
+    fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> { /* ... */ }
+    fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
+        // Reuse the same scanner logic (needs access to LineIndex)
+        // We'll move the scanner to a free function in ast.rs.
+        scan_delimiter_errors(result.text(), &result.index)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
+}
 ```
+
+Similarly for `JavaScriptLanguage` using `tree-sitter-javascript`.
+
+**4.2.3 Scanner Refactoring**
+
+Move `scan_delimiter_errors` to a free function in `ast.rs` so it can be called from any `Language` implementor.
+
+### 4.3 Data Model
+
+No changes.
+
+### 4.4 Security Architecture
+
+No changes.
+
+## 5. Architecture Decision Records (ADRs)
+
+### ADR‑004: Use file extension for language detection
+
+**Context:** Need to select the correct `Language` implementor.
+
+**Decision:** Inspect file extension only; no content‑based detection.
+
+**Alternatives:** Parse a few lines and look for Rust/TS/JS keywords. Rejected as slower and error‑prone.
+
+**Consequences:** Simple, fast, predictable. Users must use correct extensions.
+
+### ADR‑005: Reuse scanner for TS/JS delimiter detection
+
+**Context:** `balance` command relies on `find_delimiter_errors`.
+
+**Decision:** Use the same character‑based scanner for all languages, as delimiters are universal.
+
+**Alternatives:** Implement grammar‑specific traversal for each language. Rejected as unnecessary duplication.
+
+**Consequences:** Fast, consistent behavior. May miss language‑specific edge cases (e.g., regex literals in JS), but scanner already handles comments and strings.
+
+## 6. API & Interface Contracts
+
+No new external APIs.
+
+## 7. Cross‑cutting Concerns
+
+| Concern | Approach |
+|---------|----------|
+| **Observability** | Unchanged. |
+| **Error Handling** | Language detection errors are user‑friendly. |
+| **Testing** | New integration tests for TS/JS files; reuse existing test patterns. |
+
+## 8. Alternatives Considered
+
+| Alternative | Why Rejected |
+|-------------|--------------|
+| Content‑based language detection | Slower, ambiguous for small files. |
+| Separate scanner per language | Unnecessary code duplication. |
+
+## 9. Traceability
+
+| ASR | ADR | C4 Component |
+|-----|-----|--------------|
+| ASR‑001 | ADR‑004 | cli.rs |
+| ASR‑002 | – | All |
+| ASR‑003 | ADR‑005 | ast.rs, repair.rs |
 
 ---
 
-## Document 5: Behavioral Specification & Test Verification (`/spec-test`)
-
-**Reference:** `verification.md`
-
-**Pre‑check:** SRS defines features; we'll elaborate BDD scenarios for key functional requirements.
-
-```markdown
-# Behavioral Specification & Test Verification Plan: patch-ts Enhancements
+# patch-ts Behavioral Specification & Test Verification Plan
 
 | Field | Value |
 |-------|-------|
-| Project | patch-ts-enhancements |
-| Document | Test Verification Plan |
-| Version | 0.1 (Draft) |
+| Project | patch-ts |
+| Document | Behavioral Specification & Test Verification Plan |
+| Version | 2.0 (v0.4.0) |
 | Date | 2026-04-22 |
-| Author | AI‑assisted specification |
-| Status | Draft — Pending Review |
+| Author | patch-ts team, assisted by spec-writer |
+| Status | Draft |
+| References | SRS v2.0, Architecture v2.0 |
 
 ## 1. Behavioral Specifications (Specification by Example)
 
-### Feature: Fuzzy Single‑Line Matching
+### Feature: Multi‑language support
 
-**Scenario: Exact match within fuzz radius (success)**
+#### Scenario: Auto‑detect TypeScript file
+
 ```gherkin
-Given a file with content:
-  """
-  line1
-  line2
-  line3
-  line4
-  line5
-  """
-When I apply a literal patch with:
-  | --line | 3 |
-  | --old  | "line3" |
-  | --new  | "new line3" |
-  | --fuzz | 2 |
-Then the file content becomes:
-  """
-  line1
-  line2
-  new line3
-  line4
-  line5
-  """
-And the command exits with success.
+Feature: Language auto-detection
+  As a TypeScript developer
+  I want patch-ts to automatically use the TypeScript grammar
+  So that I don't need to specify the language manually
+
+  Scenario: Patch a TypeScript file without --lang flag
+    Given a file "src/app.ts" with content:
+      """
+      const x = 1;
+      console.log(x);
+      """
+    When I run `patch-ts patch --file src/app.ts --line 1 --old "const x = 1;" --new "const x = 2;"`
+    Then the command succeeds
+    And the file content becomes:
+      """
+      const x = 2;
+      console.log(x);
+      """
 ```
 
-**Scenario: Fuzzy match with whitespace variation**
+#### Scenario: Balance a JavaScript file
+
 ```gherkin
-Given a file with line "  line3  " (extra spaces)
-When I apply a patch with expected "line3" (no spaces) and --fuzz 2
-Then the patch succeeds and replaces the line with normalized matching.
+  Scenario: Fix extra brace in JavaScript
+    Given a file "script.js" with content:
+      """
+      function main() {
+        console.log("hi");
+      }
+      }
+      """
+    When I run `patch-ts balance --file script.js --apply`
+    Then the extra '}' is removed
+    And the file content becomes:
+      """
+      function main() {
+        console.log("hi");
+      }
+      """
 ```
 
-**Scenario: No match above similarity threshold**
+#### Scenario: Unsupported extension errors
+
 ```gherkin
-Given a file with lines: "apple", "banana", "cherry"
-When I apply a patch with expected "orange" and --fuzz 5
-Then the command fails with an error containing "no match found with similarity >= 0.9"
-And JSON output includes "best_score" and "best_match_line".
+  Scenario: Unknown file extension
+    Given a file "data.txt"
+    When I run `patch-ts patch --file data.txt --line 1 --old "a" --new "b"`
+    Then the command fails with error message containing "Unsupported file extension"
+    And the error lists supported extensions.
 ```
 
-**Scenario: Ambiguous match (tie)**
-```gherkin
-Given a file with two identical lines "target" at lines 10 and 20
-When I apply a patch with expected "target" at line 15 with --fuzz 10
-Then the command fails with an ambiguity error
-And JSON output contains a "candidates" array with both line numbers.
-```
+### Decision Table: Language Detection
 
-### Feature: Multi‑Line Block Fuzzy Matching
+| Extension | Language Selected |
+|-----------|------------------|
+| `.rs`     | Rust |
+| `.ts`     | TypeScript |
+| `.tsx`    | TypeScript (tsx) |
+| `.js`     | JavaScript |
+| `.jsx`    | JavaScript |
+| `.mjs`    | JavaScript |
+| `.cjs`    | JavaScript |
+| `.mts`    | TypeScript |
+| `.cts`    | TypeScript |
+| other     | Error |
 
-**Scenario: Block shifted by several lines**
-```gherkin
-Given a file where a 3‑line function body appears at lines 42‑44 instead of 40‑42
-When I apply a multi‑line patch with expected block content (3 lines) at line 40 with --fuzz 5
-Then the system locates the correct block at lines 42‑44 and replaces it.
-```
+## 2. Test Strategy & Plan
 
-**Scenario: Block with formatting differences**
-```gherkin
-Given expected block:
-  """
-  fn foo() {
-      println!("hi");
-  }
-  """
-And actual block with extra spaces and comments:
-  """
-  fn foo() { // comment
-      println!("hi");
-  }
-  """
-When token‑based similarity is used
-Then the match score is 1.0 and the patch succeeds.
-```
+### 2.1 Test Pyramid
 
-### Feature: Marker‑Based Targeting
+| Level | Scope | Tools | Ownership |
+|-------|-------|-------|-----------|
+| Unit | Language detection, scanner refactor | Rust `#[test]` | Developers |
+| Integration | Full commands on TS/JS files | `assert_cmd`, tempfile | Developers |
+| Regression | All existing Rust tests | Cargo test | CI |
 
-**Scenario: Replace function after marker**
-```gherkin
-Given a file containing:
-  """
-  // PATCH-ME: update-auth
-  fn old_auth() { ... }
-  """
-When I run `patch-ts patch --file src/lib.rs --marker "update-auth" --new "fn new_auth() { ... }"`
-Then the `old_auth` function is replaced with `new_auth`.
-```
+### 2.2 Test Environments
 
-**Scenario: Marker not found**
-```gherkin
-When I run with --marker "nonexistent"
-Then the command fails with "Marker 'nonexistent' not found".
-```
+- Local development (macOS/Linux).
+- CI (GitHub Actions) with Ubuntu latest.
 
-**Scenario: Multiple markers with same ID**
-```gherkin
-Given a file with two `// PATCH-ME: dup` markers
-When I run with --marker "dup"
-Then the command fails with ambiguity error listing both locations.
-```
+### 2.3 Risk‑Based Prioritization
 
-### Feature: Auto‑Repair on Syntax Error
+| Risk | Test Focus |
+|------|------------|
+| Breaking Rust functionality | Run full v0.3.0 test suite on every change. |
+| Incorrect language detection | Unit tests for `detect_language`. |
+| Scanner fails on JS regex literals | Add specific test cases with regex containing braces. |
 
-**Scenario: Patch introduces missing brace, auto‑repaired**
-```gherkin
-Given a valid file with "fn main() {}"
-When I apply a patch that changes it to "fn main() {" (missing '}')
-And --no-auto-repair is NOT used
-Then the system balances delimiters and writes "fn main() {}\n"
-And a warning is emitted: "Patch introduced syntax error but was auto-repaired."
-And JSON output includes a "warning" field.
-```
+## 3. Test Case Specifications
 
-**Scenario: Auto‑repair fails, original error reported**
-```gherkin
-Given a valid file
-When I apply a patch that introduces an unfixable syntax error (e.g., "fn main() { let x: = 1; }")
-Then the command fails with the syntax error diagnostic
-And no file is written.
-```
+### TC‑LANG‑001: TypeScript auto‑detection
 
-**Scenario: Original file invalid, auto‑repair skipped**
-```gherkin
-Given a file with existing syntax error "fn main() {"
-When I apply any patch that would trigger auto‑repair
-Then the command fails with syntax error (no auto‑repair attempted).
-```
+- **Requirement:** FR‑LANG‑001
+- **Preconditions:** File with `.ts` extension.
+- **Steps:** Run `patch‑ts balance --file test.ts`.
+- **Expected:** TypeScript grammar used; no errors.
+- **Automated:** Yes.
 
-### Feature: Fuzzy Unified Diff
+### TC‑LANG‑002: Unsupported extension
 
-**Scenario: Diff applies with fuzzy context**
-```gherkin
-Given a file where a line has an extra comment: "line2 // comment"
-And a diff that expects exactly "line2"
-When I apply the diff with `--diff --fuzz 3`
-Then the hunk matches the line and applies successfully.
-```
+- **Requirement:** FR‑LANG‑002
+- **Preconditions:** File with `.txt` extension.
+- **Steps:** Run `patch‑ts patch ...`.
+- **Expected:** Error with supported extensions.
+- **Automated:** Yes.
 
-## 2. Test Strategy and Plan
+### TC‑TS‑001: Parse valid TypeScript
 
-### 2.1 Test Pyramid Stance
+- **Requirement:** FR‑TS‑001
+- **Preconditions:** Valid `.ts` file.
+- **Steps:** Run `patch‑ts explain --file test.ts --line 1`.
+- **Expected:** No syntax error reported.
+- **Automated:** Yes.
 
-- **Unit Tests:** Extensive coverage for matching algorithms (`matching.rs`), marker detection, and auto‑repair logic.
-- **Integration Tests:** End‑to‑end CLI tests using `assert_cmd` covering all new scenarios (as Gherkin above).
-- **Acceptance/BDD Tests:** The Gherkin scenarios will be automated using `cucumber‑rust` or similar, running against the actual binary.
-- **Performance Benchmarks:** Extend existing `criterion` benchmarks to measure latency impact of fuzzy matching and tokenization.
+### TC‑BAL‑TS‑001: Balance TypeScript file
 
-### 2.2 Test Environment
-
-- Rust stable toolchain.
-- Temporary directories for file operations (`tempfile`).
-- Sample Rust files of varying sizes (fixtures).
-
-### 2.3 Risk‑Based Test Prioritization
-
-| Risk Area | Test Focus |
-|-----------|------------|
-| False positive fuzzy matches | Negative tests with similar but incorrect targets. |
-| Auto‑repair correctness | Tests with various delimiter errors; ensure no unintended changes. |
-| Backward compatibility | Full existing test suite must pass. |
-| Performance regression | Benchmark comparison against baseline. |
-
-## 3. Test Case Specifications (Scripted)
-
-**Example Test Case: TC‑FUNC‑001‑01**
-
-| Field | Value |
-|-------|-------|
-| ID | TC‑FUNC‑001‑01 |
-| Title | Fuzzy match with whitespace normalization |
-| Requirement | REQ‑FUNC‑002 |
-| Preconditions | File contains line "  foo  " at line 3. |
-| Steps | Invoke `patch-ts patch --file test.rs --line 1 --old "foo" --new "bar" --fuzz 5` |
-| Expected Result | File updated with "bar" at line 3; exit code 0. |
-| Automation | CLI integration test in `tests/cli_tests.rs`. |
+- **Requirement:** FR‑CMD‑001
+- **Preconditions:** `.ts` file with extra `}`.
+- **Steps:** Run `patch‑ts balance --apply`.
+- **Expected:** Extra `}` removed.
+- **Automated:** Yes.
 
 ## 4. NFR Verification Plans
 
-### 4.1 Performance (NFR‑PERF‑001)
-- **Test:** Benchmark suite comparing patch application time for 2000‑line file with and without fuzzy matching.
-- **Tool:** `criterion`.
-- **Threshold:** Average time increase ≤20%.
+### NFR‑PERF‑001 (Detection overhead)
 
-### 4.2 Reliability (NFR‑REL‑002)
-- **Test:** Run a corpus of 100 AI‑generated patches with known correct targets. Measure false positive rate (incorrect location chosen).
-- **Threshold:** <5% false positives.
+- **Method:** Benchmark `detect_language` function.
+- **Threshold:** < 1 ms.
 
-### 4.3 Compatibility (NFR‑COMP‑001)
-- **Test:** Run entire existing test suite (`cargo test`). All tests must pass.
-- **Additional:** Manually verify that old CLI invocations produce identical results (except where enhancements intentionally change behavior, which must be documented).
+### NFR‑PERF‑002 (TS/JS performance)
 
-## 5. Requirements Traceability Matrix (RTM Excerpt)
+- **Method:** Criterion benchmark comparing `balance` on equivalent Rust and TS files.
+- **Threshold:** TS/JS ≤ 2× Rust latency.
 
-| Requirement ID | BDD Scenario(s) | Test Case ID(s) |
-|----------------|-----------------|-----------------|
-| REQ‑FUNC‑001 | Fuzzy single‑line match success | TC‑FUNC‑001‑01, CLI‑fuzzy‑exact |
-| REQ‑FUNC‑002 | Fuzzy match with whitespace variation | TC‑FUNC‑001‑02 |
-| REQ‑FUNC‑004 | Ambiguous match (tie) | CLI‑fuzzy‑ambiguous |
-| REQ‑FUNC‑005 | Multi‑line block shifted | TC‑FUNC‑005‑01 |
-| REQ‑FUNC‑010‑014 | Marker replacement, not found, multiple | CLI‑marker‑* |
-| REQ‑FUNC‑020‑024 | Auto‑repair success, failure, skip | CLI‑auto‑repair‑* |
-| REQ‑FUNC‑030‑032 | Fuzzy diff application | CLI‑diff‑fuzzy |
-| NFR‑PERF‑001 | - | bench‑patch‑latency |
+### NFR‑COMPAT‑001 (Backward compatibility)
+
+- **Method:** Run full test suite from v0.3.0 against v0.4.0 binary.
+- **Threshold:** 100% pass.
+
+## 5. Requirements Traceability Matrix (RTM)
+
+| SRS ID | Test Case(s) | Verification Method | Status |
+|--------|--------------|---------------------|--------|
+| FR‑LANG‑001 | TC‑LANG‑001 | Test | Planned |
+| FR‑LANG‑002 | TC‑LANG‑002 | Test | Planned |
+| FR‑TS‑001 | TC‑TS‑001 | Test | Planned |
+| FR‑CMD‑001 | TC‑BAL‑TS‑001 | Test | Planned |
+| NFR‑PERF‑001 | bench | Analysis | Planned |
+| NFR‑PERF‑002 | bench | Analysis | Planned |
+| NFR‑COMPAT‑001 | regression suite | Test | Planned |
 
 ## 6. Living Documentation Strategy
 
-- Feature files (Gherkin) stored in `tests/features/` alongside code.
-- CI runs `cucumber` and publishes HTML report as artifact.
-- JSON test results integrated with existing tooling.
-```
+- New test files: `tests/typescript_tests.rs`, `tests/javascript_tests.rs`.
+- Feature files (Gherkin) for cross‑language scenarios.
+- CI publishes test reports.
 
 ---
 
-All five specification documents have been generated and saved to `/mnt/user-data/outputs/patch-ts-enhancements-{document}.md`. These documents form a complete, traceable specification suite for implementing the identified improvements.
-
-Would you like me to elaborate on any particular section, or shall we proceed to planning the implementation sprints?
+This completes the specification suite for patch-ts v0.4.0. The documents provide a clear, traceable path from vision through implementation and verification.
