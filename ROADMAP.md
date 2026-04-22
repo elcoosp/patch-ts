@@ -2,7 +2,7 @@
 
 ## `patch-ts` Roadmap
 
-This document outlines the evolution of `patch-ts`. Priorities are informed by the codebase review and alignment with the original specification.
+This document outlines the evolution of `patch-ts`.
 
 ---
 
@@ -10,12 +10,12 @@ This document outlines the evolution of `patch-ts`. Priorities are informed by t
 
 **Status:** ✅ Implemented
 
-- [x] **Fuzzy single‑line matching** – `fuzzy_match_line` with whitespace normalization and similarity threshold.
-- [x] **Fuzzy multi‑line block matching** – `find_best_block_match` using tree‑sitter tokenization and Jaccard similarity.
-- [x] **Auto‑repair on syntax error** – `quick_balance` attempts to fix extra delimiters when a patch introduces a syntax error.
-- [x] **Marker‑based targeting** – `--marker` flag replaces the AST node following a `// PATCH-ME: <id>` comment.
-- [x] **Enhanced JSON diagnostics** – `JsonError` now includes `suggestion`, `best_score`, `best_match_line`, and `candidates` fields.
-- [x] **Fuzzy flag for unified diffs** – `--fuzz` is allowed with `--diff`.
+- [x] Fuzzy single‑line matching
+- [x] Fuzzy multi‑line block matching
+- [x] Auto‑repair on syntax error
+- [x] Marker‑based targeting
+- [x] Enhanced JSON diagnostics
+- [x] Fuzzy flag for unified diffs
 
 ---
 
@@ -23,11 +23,11 @@ This document outlines the evolution of `patch-ts`. Priorities are informed by t
 
 **Status:** ✅ Implemented
 
-- [x] **Support all delimiter types** – Detect and fix extra/missing `(`, `[`, and `{`.
-- [x] **Insert missing delimiters** – Insertion logic implemented alongside removal.
-- [x] **Multi‑error repair** – Iterative repair loop fixes multiple errors in one run.
-- [x] **`--function` scoping** – Restrict `balance` repairs to a named function body.
-- [x] **JSON output for balance** – Structured `BalanceResult` with action details.
+- [x] Support all delimiter types (`(`, `[`, `{`)
+- [x] Insert missing delimiters
+- [x] Multi‑error repair (iterative)
+- [x] `--function` scoping (Rust)
+- [x] JSON output for balance
 
 ---
 
@@ -35,22 +35,33 @@ This document outlines the evolution of `patch-ts`. Priorities are informed by t
 
 **Status:** ✅ Implemented
 
-- [x] **Add TypeScript/JavaScript support** – Integrated `tree-sitter-typescript` and `tree-sitter-javascript`.
-- [x] **Language detection** – Auto‑select language based on file extension (`.rs` → Rust, `.ts`/`.tsx`/`.mts`/`.cts` → TypeScript, `.js`/`.jsx`/`.mjs`/`.cjs` → JavaScript).
-- [x] **Cross‑language commands** – `patch`, `balance`, and `explain` work identically across all supported languages.
-- [x] **MISSING node detection** – Use tree‑sitter queries to find missing delimiters for robust insertion in TS/JS.
-- [x] **Integration tests** – Added test suites for TypeScript and JavaScript.
+- [x] TypeScript/JavaScript support
+- [x] Language detection by file extension
+- [x] Cross‑language commands
+- [x] MISSING node detection
+- [x] Integration tests for TS/JS
 
 ---
 
 ### v0.5.0 — Enhanced Insertion & Diagnostics
 
-**Goal:** Improve missing delimiter insertion reliability and diagnostic precision.
+**Status:** ✅ Implemented
 
-- [ ] **Smarter insertion point detection** – Use surrounding node context for better placement of missing delimiters in TS/JS.
-- [ ] **Multi‑error batch repair** – Fix multiple delimiter errors in a single pass without re‑parsing.
-- [ ] **Enhanced `explain` for TS/JS** – Provide language‑specific error messages and fix suggestions.
-- [ ] **JSON Schema validation** – Add `jsonschema` dev‑dependency to validate JSON output structure.
+- [x] **Context‑aware insertion** – Uses parent node kind to place missing delimiters accurately.
+- [x] **Batch repair** – Collects and sorts all errors, applies fixes in one pass.
+- [x] **Language‑specific diagnostics** – `diagnostic_message` with context for TS/JS.
+- [x] **Public `ParseResult.index`** – Enables span calculations in repair logic.
+
+---
+
+### v0.6.0 — Robust Batch Repair & Additional Languages
+
+**Goal:** Improve batch repair reliability and add Python support.
+
+- [ ] **Overlapping error resolution** – Handle cases where repairs affect subsequent positions.
+- [ ] **Python support** – Integrate `tree-sitter-python` and implement `PythonLanguage`.
+- [ ] **Go support** – Integrate `tree-sitter-go` (stretch goal).
+- [ ] **Performance optimizations** – Reduce parsing overhead in batch mode.
 
 ---
 
@@ -58,20 +69,20 @@ This document outlines the evolution of `patch-ts`. Priorities are informed by t
 
 **Goal:** Solidify the tool as a reliable part of the AI‑assisted development workflow.
 
-- [ ] **Multi‑file patches** – Support applying a patch that spans multiple files (e.g., from a single diff).
-- [ ] **Configuration file** – Read `patch-ts.toml` for project‑wide defaults (fuzz radius, backup location, language settings).
-- [ ] **Integration examples** – Provide copy‑pasteable prompts for popular LLMs (ChatGPT, Claude) that generate correct `patch-ts` commands.
-- [ ] **CI‑friendly exit codes** – Document and stabilize exit codes for scripting.
-- [ ] **Publish on crates.io** – Official release with semantic versioning.
+- [ ] **Multi‑file patches** – Apply a patch spanning multiple files.
+- [ ] **Configuration file** – `patch-ts.toml` for project defaults.
+- [ ] **Integration examples** – LLM prompts for generating correct `patch-ts` commands.
+- [ ] **CI‑friendly exit codes** – Documented and stable.
+- [ ] **Publish on crates.io** – Official release.
 
 ---
 
 ### Future Ideas (Post‑v1.0)
 
-- **IDE plugin** (VSCode extension) to apply patches directly from compiler errors.
-- **`patch-ts watch`** mode to automatically apply patches from a queue.
-- **Structural diff** that understands AST moves, not just line changes.
-- **Integration with `cargo fix`** as a custom tool.
+- **IDE plugin** (VSCode extension)
+- **`patch-ts watch`** mode
+- **Structural diff** (AST‑aware moves)
+- **Integration with `cargo fix`**
 
 ---
 
