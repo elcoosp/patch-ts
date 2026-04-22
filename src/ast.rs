@@ -99,6 +99,79 @@ pub trait Language {
 }
 
 // ----------------------------------------------------------------------
+// AST‑based delimiter detection – works for all languages
+// ----------------------------------------------------------------------
+
+/// Traverse the AST to find delimiter errors, skipping string literals and comments.
+pub(crate) fn find_delimiter_errors_via_ast(root: Node, index: &LineIndex) -> Vec<DelimiterError> {
+    let mut errors = Vec::new();
+    let mut stack: Vec<(char, usize, Option<String>)> = Vec::new(); // (expected_close, open_byte, parent_kind)
+    traverse_for_delimiters(root, &mut stack, &mut errors, index);
+
+    // Any remaining open delimiters are missing
+    for (expected, open_byte, parent_kind) in stack {
+        errors.push(DelimiterError::Missing {
+            expected,
+            insert_at: Span::from_byte_range(open_byte, open_byte + 1, index),
+            parent_kind,
+        });
+    }
+    errors
+}
+
+fn traverse_for_delimiters(
+    node: Node,
+    stack: &mut Vec<(char, usize, Option<String>)>,
+    errors: &mut Vec<DelimiterError>,
+    index: &LineIndex,
+) {
+    let kind = node.kind();
+
+    // Skip string literals and comments entirely – they can't contain real delimiters
+    if kind.contains("string") || kind.contains("comment") || kind == "string_literal" || kind == "raw_string_literal" {
+        return;
+    }
+
+    // Process delimiter nodes
+    match kind {
+        "(" | "[" | "{" => {
+            let close = match kind {
+                "(" => ')',
+                "[" => ']',
+                "{" => '}',
+                _ => unreachable!(),
+            };
+            let parent_kind = node.parent().map(|p| p.kind().to_string());
+            stack.push((close, node.start_byte(), parent_kind));
+        }
+        ")" | "]" | "}" => {
+            let close_char = kind.chars().next().unwrap();
+            if let Some((expected, open_byte, _)) = stack.pop() {
+                if expected != close_char {
+                    errors.push(DelimiterError::Extra {
+                        span: Span::from_node(node, index),
+                        delimiter: close_char,
+                    });
+                    // Put the expected back
+                    stack.push((expected, open_byte, None));
+                }
+            } else {
+                errors.push(DelimiterError::Extra {
+                    span: Span::from_node(node, index),
+                    delimiter: close_char,
+                });
+            }
+        }
+        _ => {}
+    }
+
+    // Recurse into children
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        traverse_for_delimiters(child, stack, errors, index);
+    }
+}
+// ----------------------------------------------------------------------
 // Free functions
 // ----------------------------------------------------------------------
 
@@ -526,7 +599,7 @@ impl Language for RustLanguage {
     }
 
     fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
-        scan_delimiter_errors_full(result.text(), &result.index)
+        find_delimiter_errors_via_ast(result.tree.root_node(), &result.index)
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -703,6 +776,106 @@ impl Language for JavaScriptLanguage {
                 } else {
                     format!("Missing '{}'", expected)
                 }
+            }
+            DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter),
+        }
+    }
+}
+
+// ----------------------------------------------------------------------
+// PythonLanguage
+// ----------------------------------------------------------------------
+pub struct PythonLanguage { parser: Parser }
+impl PythonLanguage {
+    pub fn new() -> Self {
+        let mut parser = Parser::new();
+        parser.set_language(&tree_sitter_python::LANGUAGE.into()).unwrap();
+        Self { parser }
+    }
+}
+impl Language for PythonLanguage {
+    fn parse(&mut self, source: &str) -> ParseResult {
+        let tree = self.parser.parse(source, None).unwrap();
+        let index = LineIndex::new(source);
+        ParseResult { tree, source: source.to_string(), index }
+    }
+    fn is_valid(&self, result: &ParseResult) -> bool { !has_error_node(result.tree.root_node()) }
+    fn find_extra_delimiter(&self, _result: &ParseResult) -> Option<Span> { None }
+    fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> {
+        let node = result.node_at_line(line)?;
+        if node.is_error() || node.has_error() {
+            let text = node.utf8_text(result.text().as_bytes()).unwrap_or("");
+            let details = format!("Syntax error near '{}'", text);
+            let span = Span::from_node(node, &result.index);
+            return Some(SyntaxErrorDiagnostic { src: NamedSource::new("input", result.text().to_string()), error_span: (span.start_byte, span.end_byte - span.start_byte).into(), details });
+        }
+        None
+    }
+    fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
+        find_delimiter_errors_via_ast(result.tree.root_node(), &result.index)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
+    fn diagnostic_message(&self, error: &DelimiterError) -> String {
+        match error {
+            DelimiterError::Missing { expected, parent_kind, .. } => {
+                if let Some(kind) = parent_kind {
+                    match kind.as_str() {
+                        "block" => format!("Missing '{}' for block", expected),
+                        "parameters" => format!("Missing '{}' for parameters", expected),
+                        "parenthesized_expression" => format!("Missing '{}' for expression", expected),
+                        _ => format!("Missing '{}'", expected),
+                    }
+                } else { format!("Missing '{}'", expected) }
+            }
+            DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter),
+        }
+    }
+}
+
+// ----------------------------------------------------------------------
+// GoLanguage
+// ----------------------------------------------------------------------
+pub struct GoLanguage { parser: Parser }
+impl GoLanguage {
+    pub fn new() -> Self {
+        let mut parser = Parser::new();
+        parser.set_language(&tree_sitter_go::LANGUAGE.into()).unwrap();
+        Self { parser }
+    }
+}
+impl Language for GoLanguage {
+    fn parse(&mut self, source: &str) -> ParseResult {
+        let tree = self.parser.parse(source, None).unwrap();
+        let index = LineIndex::new(source);
+        ParseResult { tree, source: source.to_string(), index }
+    }
+    fn is_valid(&self, result: &ParseResult) -> bool { !has_error_node(result.tree.root_node()) }
+    fn find_extra_delimiter(&self, _result: &ParseResult) -> Option<Span> { None }
+    fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> {
+        let node = result.node_at_line(line)?;
+        if node.is_error() || node.has_error() {
+            let text = node.utf8_text(result.text().as_bytes()).unwrap_or("");
+            let details = format!("Syntax error near '{}'", text);
+            let span = Span::from_node(node, &result.index);
+            return Some(SyntaxErrorDiagnostic { src: NamedSource::new("input", result.text().to_string()), error_span: (span.start_byte, span.end_byte - span.start_byte).into(), details });
+        }
+        None
+    }
+    fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
+        find_delimiter_errors_via_ast(result.tree.root_node(), &result.index)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
+    fn diagnostic_message(&self, error: &DelimiterError) -> String {
+        match error {
+            DelimiterError::Missing { expected, parent_kind, .. } => {
+                if let Some(kind) = parent_kind {
+                    match kind.as_str() {
+                        "block" => format!("Missing '{}' for block", expected),
+                        "parameter_list" => format!("Missing '{}' for parameter list", expected),
+                        "parenthesized_expression" => format!("Missing '{}' for expression", expected),
+                        _ => format!("Missing '{}'", expected),
+                    }
+                } else { format!("Missing '{}'", expected) }
             }
             DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter),
         }
