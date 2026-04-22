@@ -1,7 +1,9 @@
 use clap::{Parser, Subcommand};
 use anyhow::Result;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::io::Read;
+use glob::glob;
+use rayon::prelude::*;
 
 use crate::ast::{
     Language, RustLanguage, TypeScriptLanguage, JavaScriptLanguage,
@@ -23,31 +25,60 @@ pub enum Command { Patch(PatchArgs), Balance(BalanceArgs), Explain(ExplainArgs) 
 
 #[derive(Parser, Debug)]
 pub struct PatchArgs {
-    #[arg(short, long)] pub file: String,
-    #[arg(short, long, required_unless_present_any = ["diff", "delete", "after", "marker"])] pub line: Option<usize>,
-    #[arg(short = 'z', long, default_value = "5")] pub fuzz: usize,
-    #[arg(long)] pub old: Option<String>,
-    #[arg(long)] pub new: Option<String>,
-    #[arg(long, conflicts_with = "line")] pub diff: bool,
-    #[arg(long, conflicts_with_all = ["line", "diff"])] pub delete: Option<usize>,
-    #[arg(long, requires = "delete")] pub expect: Option<String>,
-    #[arg(long, conflicts_with_all = ["line", "diff", "delete"])] pub after: Option<usize>,
-    #[arg(long, requires = "after")] pub content: Option<String>,
-    #[arg(long)] pub dry_run: bool,
-    #[arg(long)] pub force: bool,
-    #[arg(long)] pub no_backup: bool,
-    #[arg(long)] pub json: bool,
-    #[arg(long)] pub no_auto_repair: bool,
-    #[arg(long, conflicts_with = "line")] pub marker: Option<String>,
+    #[arg(short, long, required_unless_present = "files")]
+    pub file: Option<String>,
+    #[arg(long, conflicts_with = "file")]
+    pub files: Option<String>,
+    #[arg(short, long, required_unless_present_any = ["diff", "delete", "after", "marker"])]
+    pub line: Option<usize>,
+    #[arg(short = 'z', long, default_value = "5")]
+    pub fuzz: usize,
+    #[arg(long)]
+    pub old: Option<String>,
+    #[arg(long)]
+    pub new: Option<String>,
+    #[arg(long, conflicts_with = "line")]
+    pub diff: bool,
+    #[arg(long, conflicts_with_all = ["line", "diff"])]
+    pub delete: Option<usize>,
+    #[arg(long, requires = "delete")]
+    pub expect: Option<String>,
+    #[arg(long, conflicts_with_all = ["line", "diff", "delete"])]
+    pub after: Option<usize>,
+    #[arg(long, requires = "after")]
+    pub content: Option<String>,
+    #[arg(long)]
+    pub dry_run: bool,
+    #[arg(long)]
+    pub force: bool,
+    #[arg(long)]
+    pub no_backup: bool,
+    #[arg(long)]
+    pub json: bool,
+    #[arg(long)]
+    pub no_auto_repair: bool,
+    #[arg(long, conflicts_with = "line")]
+    pub marker: Option<String>,
+    #[arg(long)]
+    pub serial: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct BalanceArgs {
-    #[arg(short, long)] pub file: String,
-    #[arg(long)] pub function: Option<String>,
-    #[arg(long)] pub apply: bool,
-    #[arg(long)] pub no_backup: bool,
-    #[arg(long)] pub json: bool,
+    #[arg(short, long, required_unless_present = "files")]
+    pub file: Option<String>,
+    #[arg(long, conflicts_with = "file")]
+    pub files: Option<String>,
+    #[arg(long)]
+    pub function: Option<String>,
+    #[arg(long)]
+    pub apply: bool,
+    #[arg(long)]
+    pub no_backup: bool,
+    #[arg(long)]
+    pub json: bool,
+    #[arg(long)]
+    pub serial: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -62,7 +93,7 @@ pub fn run() -> Result<()> {
     let (json, file) = match &cli.command {
         Command::Patch(args) => (args.json, args.file.clone()),
         Command::Balance(args) => (args.json, args.file.clone()),
-        Command::Explain(args) => (args.json, args.file.clone()),
+        Command::Explain(args) => (args.json, Some(args.file.clone())),
     };
     let result = match cli.command {
         Command::Patch(args) => handle_patch(args),
@@ -71,12 +102,24 @@ pub fn run() -> Result<()> {
     };
     if let Err(ref e) = result {
         if json {
-            let json_err = anyhow_to_json(e, &file);
-            println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?);
-            std::process::exit(1);
+            if let Some(f) = file {
+                let json_err = anyhow_to_json(e, &f);
+                println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?);
+                std::process::exit(1);
+            }
         }
     }
     result
+}
+
+fn expand_files(pattern: &str) -> Result<Vec<PathBuf>> {
+    let paths: Vec<PathBuf> = glob(pattern)?
+        .filter_map(|entry| entry.ok())
+        .collect();
+    if paths.is_empty() {
+        anyhow::bail!("No files matched pattern: {}", pattern);
+    }
+    Ok(paths)
 }
 
 fn detect_language(file_path: &Path) -> Result<Box<dyn Language>> {
@@ -101,8 +144,7 @@ fn detect_language(file_path: &Path) -> Result<Box<dyn Language>> {
     }
 }
 
-fn handle_patch(args: PatchArgs) -> Result<()> {
-    let file_path = Path::new(&args.file);
+fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     let mut lang = detect_language(file_path)?;
     let _manager = FileManager::new(!args.no_backup);
     let options = PatchOptions {
@@ -110,6 +152,7 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
         no_backup: args.no_backup, similarity_threshold: 0.9,
         no_auto_repair: args.no_auto_repair, marker: args.marker.clone(),
     };
+
     if args.diff {
         let mut buffer = String::new();
         std::io::stdin().read_to_string(&mut buffer)?;
@@ -128,19 +171,63 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
         std::io::stdin().read_to_string(&mut buffer)?;
         let (expected, new) = parse_heredoc(&buffer)?;
         apply_literal_patch(file_path, line, &expected, &new, options, &mut *lang)?;
-    } else if let Some(marker) = args.marker {
+    } else if let Some(marker) = args.marker.as_deref() {
         let new = args.new.as_deref().or(args.content.as_deref()).ok_or_else(|| anyhow::anyhow!("--new or --content required"))?;
-        apply_marker_patch(file_path, &marker, new, options)?;
-    } else { anyhow::bail!("No patch operation specified"); }
-    if args.json { println!("{}", serde_json::to_string(&JsonDiagnostic::success())?); }
+        apply_marker_patch(file_path, marker, new, options)?;
+    } else {
+        anyhow::bail!("No patch operation specified");
+    }
+
+    if args.json {
+        println!("{}", serde_json::to_string(&JsonDiagnostic::success())?);
+    }
+    Ok(())
+}
+
+fn handle_patch(args: PatchArgs) -> Result<()> {
+    if let Some(pattern) = &args.files {
+        let paths = expand_files(pattern)?;
+        if args.serial {
+            for path in paths {
+                apply_patch_to_file(&path, &args)?;
+            }
+        } else {
+            paths.par_iter().try_for_each(|path| {
+                apply_patch_to_file(path, &args)
+            })?;
+        }
+    } else {
+        let file_path = Path::new(args.file.as_deref().unwrap());
+        apply_patch_to_file(file_path, &args)?;
+    }
+    Ok(())
+}
+
+fn apply_balance_to_file(file_path: &Path, args: &BalanceArgs) -> Result<()> {
+    let mut lang = detect_language(file_path)?;
+    let result = balance_file(file_path, args.function.as_deref(), !args.apply, &mut *lang)?;
+    if args.json {
+        println!("{}", serde_json::to_string(&result)?);
+    }
     Ok(())
 }
 
 fn handle_balance(args: BalanceArgs) -> Result<()> {
-    let file_path = Path::new(&args.file);
-    let mut lang = detect_language(file_path)?;
-    let result = balance_file(file_path, args.function.as_deref(), !args.apply, &mut *lang)?;
-    if args.json { println!("{}", serde_json::to_string(&result)?); }
+    if let Some(pattern) = &args.files {
+        let paths = expand_files(pattern)?;
+        if args.serial {
+            for path in paths {
+                apply_balance_to_file(&path, &args)?;
+            }
+        } else {
+            paths.par_iter().try_for_each(|path| {
+                apply_balance_to_file(path, &args)
+            })?;
+        }
+    } else {
+        let file_path = Path::new(args.file.as_deref().unwrap());
+        apply_balance_to_file(file_path, &args)?;
+    }
     Ok(())
 }
 
@@ -159,8 +246,12 @@ fn handle_explain(args: ExplainArgs) -> Result<()> {
                 best_score: None, best_match_line: None, candidates: None,
             };
             println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?);
-        } else { eprintln!("{:?}", miette::Report::new(diag)); }
-    } else if args.json { println!("{}", serde_json::to_string(&JsonDiagnostic::success())?); }
+        } else {
+            eprintln!("{:?}", miette::Report::new(diag));
+        }
+    } else if args.json {
+        println!("{}", serde_json::to_string(&JsonDiagnostic::success())?);
+    }
     Ok(())
 }
 
@@ -173,12 +264,19 @@ fn parse_heredoc(input: &str) -> Result<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::tempdir;
     use std::path::Path;
-    use crate::ast::{
-        RustLanguage, TypeScriptLanguage, JavaScriptLanguage, PythonLanguage, GoLanguage,
-        RubyLanguage, PHPLanguage, HtmlLanguage, XmlLanguage, CLanguage, CppLanguage,
-        JavaLanguage, CSharpLanguage, SwiftLanguage, ScalaLanguage, ZigLanguage
-    };
+
+    #[test]
+    fn test_glob_expansion() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("a.rs"), "").unwrap();
+        fs::write(dir.path().join("b.rs"), "").unwrap();
+        let pattern = dir.path().join("*.rs").to_str().unwrap().to_string();
+        let paths: Vec<_> = glob(&pattern).unwrap().filter_map(Result::ok).collect();
+        assert_eq!(paths.len(), 2);
+    }
 
     #[test] fn test_detect_language_rust() { let mut lang = detect_language(Path::new("main.rs")).unwrap(); assert!(lang.as_any_mut().is::<RustLanguage>()); }
     #[test] fn test_detect_language_typescript() { let mut lang = detect_language(Path::new("app.ts")).unwrap(); assert!(lang.as_any_mut().is::<TypeScriptLanguage>()); }
