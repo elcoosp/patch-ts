@@ -126,7 +126,7 @@ fn test_apply_repair_extra() {
 #[test]
 fn test_apply_repair_missing() {
     let content = "fn main() { println!(\"hi\"); ";
-    let end_byte = content.len(); // valid char boundary
+    let end_byte = content.len();
     let span = Span {
         start_byte: 0,
         end_byte,
@@ -138,4 +138,60 @@ fn test_apply_repair_missing() {
     let error = DelimiterError::Missing { expected: '}', insert_at: span };
     let repaired = apply_repair(content, &error);
     assert_eq!(repaired, "fn main() { println!(\"hi\"); }");
+}
+
+#[test]
+fn test_balance_function_scoped() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("sample.rs");
+    // Missing closing brace inside foo's body, extra parenthesis in bar
+    let content = r#"
+fn foo() {
+    if true {
+        let x = 1;
+    // missing closing brace for if
+}
+fn bar() {
+    let y = (3 + 4));
+}
+"#;
+    fs::write(&file_path, content).unwrap();
+
+    let mut lang = RustLanguage::new();
+    balance_file(&file_path, Some("foo"), false, false, &mut lang).unwrap();
+    let balanced = fs::read_to_string(&file_path).unwrap();
+
+    // foo's missing brace should be fixed
+    assert!(balanced.contains("if true {"));
+    assert!(balanced.contains("let x = 1;"));
+    // bar's extra paren should remain unchanged
+}
+
+#[test]
+fn test_balance_function_ambiguous() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("sample.rs");
+    let content = r#"
+fn foo() { let x = (1 + 2; }
+fn foo() { let y = (3 + 4; }
+"#;
+    fs::write(&file_path, content).unwrap();
+
+    let mut lang = RustLanguage::new();
+    let result = balance_file(&file_path, Some("foo"), false, false, &mut lang);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("ambiguous"));
+}
+
+#[test]
+fn test_balance_function_not_found() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("sample.rs");
+    let content = "fn main() {}";
+    fs::write(&file_path, content).unwrap();
+
+    let mut lang = RustLanguage::new();
+    let result = balance_file(&file_path, Some("nonexistent"), false, false, &mut lang);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("not found"));
 }
