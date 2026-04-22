@@ -881,3 +881,52 @@ impl Language for GoLanguage {
         }
     }
 }
+
+// Placeholder structs for new languages (full impl in Chunk 2-3)
+pub struct RubyLanguage;
+impl RubyLanguage { pub fn new() -> Self { Self } }
+impl Language for RubyLanguage {
+    fn parse(&mut self, _: &str) -> ParseResult { unimplemented!() }
+    fn is_valid(&self, _: &ParseResult) -> bool { unimplemented!() }
+    fn find_extra_delimiter(&self, _: &ParseResult) -> Option<Span> { unimplemented!() }
+    fn explain_error(&self, _: &ParseResult, _: usize) -> Option<SyntaxErrorDiagnostic> { unimplemented!() }
+    fn find_delimiter_errors(&self, _: &ParseResult) -> Vec<DelimiterError> { unimplemented!() }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { unimplemented!() }
+    fn diagnostic_message(&self, _: &DelimiterError) -> String { unimplemented!() }
+}
+
+pub struct PHPLanguage;
+impl PHPLanguage { pub fn new() -> Self { Self } }
+impl Language for PHPLanguage {
+    fn parse(&mut self, _: &str) -> ParseResult { unimplemented!() }
+    fn is_valid(&self, _: &ParseResult) -> bool { unimplemented!() }
+    fn find_extra_delimiter(&self, _: &ParseResult) -> Option<Span> { unimplemented!() }
+    fn explain_error(&self, _: &ParseResult, _: usize) -> Option<SyntaxErrorDiagnostic> { unimplemented!() }
+    fn find_delimiter_errors(&self, _: &ParseResult) -> Vec<DelimiterError> { unimplemented!() }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { unimplemented!() }
+    fn diagnostic_message(&self, _: &DelimiterError) -> String { unimplemented!() }
+}
+
+pub struct HtmlLanguage;
+impl HtmlLanguage { pub fn new() -> Self { Self } }
+impl Language for HtmlLanguage {
+    fn parse(&mut self, _: &str) -> ParseResult { unimplemented!() }
+    fn is_valid(&self, _: &ParseResult) -> bool { unimplemented!() }
+    fn find_extra_delimiter(&self, _: &ParseResult) -> Option<Span> { unimplemented!() }
+    fn explain_error(&self, _: &ParseResult, _: usize) -> Option<SyntaxErrorDiagnostic> { unimplemented!() }
+    fn find_delimiter_errors(&self, _: &ParseResult) -> Vec<DelimiterError> { unimplemented!() }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { unimplemented!() }
+    fn diagnostic_message(&self, _: &DelimiterError) -> String { unimplemented!() }
+}
+
+pub struct XmlLanguage;
+impl XmlLanguage { pub fn new() -> Self { Self } }
+impl Language for XmlLanguage {
+    fn parse(&mut self, _: &str) -> ParseResult { unimplemented!() }
+    fn is_valid(&self, _: &ParseResult) -> bool { unimplemented!() }
+    fn find_extra_delimiter(&self, _: &ParseResult) -> Option<Span> { unimplemented!() }
+    fn explain_error(&self, _: &ParseResult, _: usize) -> Option<SyntaxErrorDiagnostic> { unimplemented!() }
+    fn find_delimiter_errors(&self, _: &ParseResult) -> Vec<DelimiterError> { unimplemented!() }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { unimplemented!() }
+    fn diagnostic_message(&self, _: &DelimiterError) -> String { unimplemented!() }
+}
