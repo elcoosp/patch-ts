@@ -48,6 +48,9 @@ pub fn apply_literal_patch(
     if lines.is_empty() {
         anyhow::bail!("file is empty, cannot apply patch at line {}", line_num);
     }
+    if line_num > lines.len() {
+        anyhow::bail!("line {} out of range (file has {} lines)", line_num, lines.len());
+    }
 
     let target_idx = line_num.saturating_sub(1);
 
@@ -73,6 +76,13 @@ pub fn apply_literal_patch(
     } else {
         target_idx
     };
+
+    // For exact match (fuzz_radius == 0), verify the expected content matches
+    if options.fuzz_radius == 0 {
+        if lines[match_idx] != expected {
+            anyhow::bail!("expected line {} to contain '{}', but found '{}'", line_num, expected, lines[match_idx]);
+        }
+    }
 
     let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
     new_lines[match_idx] = new.to_string();

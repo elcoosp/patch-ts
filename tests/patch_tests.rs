@@ -26,11 +26,15 @@ fn test_replace_block_mismatch_fails() {
     fs::write(&file_path, "line1\nline2\nline3\n").unwrap();
 
     let mut lang = RustLanguage::new();
-    let options = PatchOptions::default();
+    let options = PatchOptions {
+        fuzz_radius: 0,
+        similarity_threshold: 1.0,
+        ..Default::default()
+    };
     let result = apply_literal_patch(&file_path, 2, "wrong line", "new line2", options, &mut lang);
     assert!(result.is_err());
     let err_msg = result.unwrap_err().to_string();
-    assert!(err_msg.contains("no match found with similarity"));
+    assert!(err_msg.contains("expected line 2 to contain"));
 }
 
 #[test]
@@ -63,7 +67,11 @@ fn test_fuzzy_match_ambiguous() {
         similarity_threshold: 0.9,
         ..Default::default()
     };
-    apply_literal_patch(&file_path, 2, "line A", "new line", options, &mut lang).unwrap();
+    // Ambiguous match should fail
+    let result = apply_literal_patch(&file_path, 2, "line A", "new line", options, &mut lang);
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("ambiguous match"));
 }
 
 #[test]
@@ -235,6 +243,7 @@ fn test_apply_literal_patch_out_of_range() {
     let options = PatchOptions::default();
     let result = apply_literal_patch(&file_path, 100, "line1", "new", options, &mut lang);
     assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("out of range"));
 }
 
 #[test]

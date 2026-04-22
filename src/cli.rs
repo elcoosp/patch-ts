@@ -211,7 +211,7 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
 fn handle_balance(args: BalanceArgs) -> Result<()> {
     let mut lang = RustLanguage::new();
     let file_path = Path::new(&args.file);
-    balance_file(file_path, args.function.as_deref(), !args.apply, &mut lang)?;
+    balance_file(file_path, args.function.as_deref(), !args.apply, args.json, &mut lang)?;
     if args.json {
         println!("{}", serde_json::to_string(&JsonDiagnostic::success())?);
     }

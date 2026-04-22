@@ -1,61 +1,131 @@
 use anyhow::Result;
 use std::fs;
 use std::path::Path;
+use crate::ast::DelimiterError;
 
 use crate::ast::Language;
 use crate::diagnostics::SyntaxErrorDiagnostic;
 
-/// Attempt to fix unbalanced delimiters by removing an extra delimiter
+pub fn apply_repair(content: &str, error: &DelimiterError) -> String {
+    match error {
+        DelimiterError::Extra { span, .. } => {
+            let mut new_content = content.to_string();
+            new_content.replace_range(span.start_byte..span.end_byte, "");
+            new_content
+        }
+        DelimiterError::Missing { expected, insert_at } => {
+            let mut new_content = content.to_string();
+            let insert_byte = insert_at.end_byte;
+            new_content.insert(insert_byte, *expected);
+            new_content
+        }
+    }
+}
+
 pub fn balance_file(
     file_path: &Path,
-    _function_name: Option<&str>, // reserved for future scoping
+    function_name: Option<&str>,
     dry_run: bool,
+    json_output: bool,
     language: &mut dyn Language,
 ) -> Result<()> {
-    let content = fs::read_to_string(file_path)?;
-    let parse_result = language.parse(&content);
+    let original_content = fs::read_to_string(file_path)?;
+    let mut current_content = original_content.clone();
+    const MAX_ITERATIONS: usize = 10;
 
-    if language.is_valid(&parse_result) {
-        // Already valid, nothing to do
-        return Ok(());
+    if let Some(func_name) = function_name {
+        let rust_lang = language
+            .as_any_mut()
+            .downcast_mut::<crate::ast::RustLanguage>()
+            .ok_or_else(|| anyhow::anyhow!("Function scoping only supported for Rust"))?;
+        if rust_lang.find_function_body_range(&original_content, func_name).is_none() {
+            anyhow::bail!("Function '{}' not found or ambiguous", func_name);
+        }
     }
 
-    let extra_span = language.find_extra_delimiter(&parse_result)
-        .ok_or_else(|| anyhow::anyhow!("Could not identify extra delimiter"))?;
+    for iteration in 0..MAX_ITERATIONS {
+        let parse_result = language.parse(&current_content);
+        if language.is_valid(&parse_result) {
+            if iteration == 0 {
+                if !json_output && dry_run {
+                    println!("File is already valid; no changes needed.");
+                }
+                return Ok(());
+            }
+            break;
+        }
 
-    let mut new_content = content.clone();
-    new_content.replace_range(extra_span.start_byte..extra_span.end_byte, "");
+        let errors = if let Some(func_name) = function_name {
+            find_delimiter_errors_in_function(language, &parse_result, func_name)?
+        } else {
+            language.find_delimiter_errors(&parse_result)
+        };
 
-    // Validate the fix
-    let new_parse = language.parse(&new_content);
-    if !language.is_valid(&new_parse) {
-        anyhow::bail!("Removing delimiter did not fix the syntax error; manual intervention required");
+        if errors.is_empty() {
+            anyhow::bail!("Could not identify any delimiter errors to fix");
+        }
+
+        current_content = apply_repair(&current_content, &errors[0]);
+
+        if !json_output && dry_run {
+            let action = match &errors[0] {
+                DelimiterError::Extra { span, delimiter } => {
+                    format!("Would remove extra '{}' at {}:{}", delimiter, span.start_line, span.start_column)
+                }
+                DelimiterError::Missing { expected, insert_at } => {
+                    format!("Would insert missing '{}' at {}:{}", expected, insert_at.end_line, insert_at.end_column)
+                }
+            };
+            println!("{}", action);
+        }
     }
 
-    if dry_run {
-        println!("Would remove extra delimiter at {}:{}-{}:{}",
-            extra_span.start_line, extra_span.start_column,
-            extra_span.end_line, extra_span.end_column);
-    } else {
-        fs::write(file_path, new_content)?;
+    let final_parse = language.parse(&current_content);
+    if !language.is_valid(&final_parse) {
+        anyhow::bail!("Repair loop completed but file is still invalid");
+    }
+
+    if !dry_run {
+        fs::write(file_path, current_content)?;
     }
     Ok(())
 }
 
-/// Explain syntax error at a specific line
-pub fn explain_error(
-    file_path: &Path,
-    line: usize,
-    _json: bool,
+fn find_delimiter_errors_in_function(
     language: &mut dyn Language,
-) -> Result<Option<SyntaxErrorDiagnostic>> {
-    let content = fs::read_to_string(file_path)?;
-    let parse_result = language.parse(&content);
-    Ok(language.explain_error(&parse_result, line))
+    parse_result: &crate::ast::ParseResult,
+    function_name: &str,
+) -> Result<Vec<DelimiterError>> {
+    let rust_lang = language
+        .as_any_mut()
+        .downcast_mut::<crate::ast::RustLanguage>()
+        .ok_or_else(|| anyhow::anyhow!("Function scoping only supported for Rust"))?;
+
+    let source = parse_result.text();
+    let (start_byte, end_byte) = rust_lang
+        .find_function_body_range(source, function_name)
+        .ok_or_else(|| anyhow::anyhow!("Function '{}' not found or ambiguous", function_name))?;
+
+    let all_errors = language.find_delimiter_errors(parse_result);
+
+    let filtered: Vec<DelimiterError> = all_errors
+        .into_iter()
+        .filter(|e| {
+            let span = match e {
+                DelimiterError::Extra { span, .. } => span,
+                DelimiterError::Missing { insert_at, .. } => insert_at,
+            };
+            span.start_byte <= end_byte && span.end_byte >= start_byte
+        })
+        .collect();
+
+
+    if filtered.is_empty() {
+        anyhow::bail!("No delimiter errors found in function '{}'", function_name);
+    }
+    Ok(filtered)
 }
 
-/// Attempt to fix unbalanced delimiters by removing an extra delimiter.
-/// Returns Some(fixed_content) if successful, None otherwise.
 pub fn quick_balance(content: &str, language: &mut dyn Language) -> Option<String> {
     let parse_result = language.parse(content);
     if language.is_valid(&parse_result) {
@@ -70,4 +140,15 @@ pub fn quick_balance(content: &str, language: &mut dyn Language) -> Option<Strin
     } else {
         None
     }
+}
+
+pub fn explain_error(
+    file_path: &Path,
+    line: usize,
+    _json: bool,
+    language: &mut dyn Language,
+) -> Result<Option<SyntaxErrorDiagnostic>> {
+    let content = fs::read_to_string(file_path)?;
+    let parse_result = language.parse(&content);
+    Ok(language.explain_error(&parse_result, line))
 }
