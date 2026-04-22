@@ -121,8 +121,6 @@ pub(crate) fn scan_delimiter_errors_full(source: &str, index: &LineIndex) -> Vec
     let chars: Vec<char> = source.chars().collect();
     let mut i = 0;
     let mut in_string = false;
-    let mut string_quote = '\0';
-    let mut triple_quoted = false;
     let mut in_char = false;
     let mut in_line_comment = false;
     let mut in_block_comment = false;
@@ -131,20 +129,6 @@ pub(crate) fn scan_delimiter_errors_full(source: &str, index: &LineIndex) -> Vec
     while i < chars.len() {
         let c = chars[i];
 
-        // String prefix detection (skip r/R, u/U, f/F, b/B)
-        if !in_string && !in_char && !in_line_comment && !in_block_comment {
-            if c == 'r' || c == 'R' || c == 'u' || c == 'U' || c == 'f' || c == 'F' || c == 'b' || c == 'B' {
-                if i + 1 < chars.len() {
-                    let next = chars[i + 1];
-                    if next == '"' || next == '\'' {
-                        i += 1;
-                        continue;
-                    }
-                }
-            }
-        }
-
-        // Comment detection
         if !in_string && !in_char && !in_line_comment && !in_block_comment {
             if c == '/' && i + 1 < chars.len() {
                 if chars[i + 1] == '/' {
@@ -160,7 +144,9 @@ pub(crate) fn scan_delimiter_errors_full(source: &str, index: &LineIndex) -> Vec
         }
 
         if in_line_comment {
-            if c == '\n' { in_line_comment = false; }
+            if c == '\n' {
+                in_line_comment = false;
+            }
             i += 1;
             continue;
         }
@@ -175,31 +161,18 @@ pub(crate) fn scan_delimiter_errors_full(source: &str, index: &LineIndex) -> Vec
             continue;
         }
 
-        // String handling (including triple quotes)
         if in_string {
             if escape {
                 escape = false;
             } else if c == '\\' {
                 escape = true;
-            } else if c == string_quote {
-                if triple_quoted {
-                    if i + 2 < chars.len() && chars[i + 1] == string_quote && chars[i + 2] == string_quote {
-                        i += 3;
-                        in_string = false;
-                        triple_quoted = false;
-                        continue;
-                    }
-                } else {
-                    in_string = false;
-                    i += 1;
-                    continue;
-                }
+            } else if c == '"' {
+                in_string = false;
             }
             i += 1;
             continue;
         }
 
-        // Character literal
         if in_char {
             if escape {
                 escape = false;
@@ -212,24 +185,17 @@ pub(crate) fn scan_delimiter_errors_full(source: &str, index: &LineIndex) -> Vec
             continue;
         }
 
-        // Enter string or character literal
-        if c == '"' || c == '\'' {
-            if i + 2 < chars.len() && chars[i + 1] == c && chars[i + 2] == c {
-                in_string = true;
-                string_quote = c;
-                triple_quoted = true;
-                i += 3;
-                continue;
-            } else {
-                in_string = true;
-                string_quote = c;
-                triple_quoted = false;
-                i += 1;
-                continue;
-            }
+        if c == '"' {
+            in_string = true;
+            i += 1;
+            continue;
+        }
+        if c == '\'' {
+            in_char = true;
+            i += 1;
+            continue;
         }
 
-        // Delimiter stack management
         let byte_pos = source[..i].len();
         match c {
             '(' | '[' | '{' => {
@@ -731,121 +697,6 @@ impl Language for JavaScriptLanguage {
                         "function_body" => format!("Missing '{}' for function body", expected),
                         "block" => format!("Missing '{}' for block", expected),
                         "arguments" => format!("Missing '{}' for function arguments", expected),
-                        "parenthesized_expression" => format!("Missing '{}' for expression", expected),
-                        _ => format!("Missing '{}'", expected),
-                    }
-                } else {
-                    format!("Missing '{}'", expected)
-                }
-            }
-            DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter),
-        }
-    }
-}
-
-// PythonLanguage and GoLanguage definitions
-pub struct PythonLanguage {
-    parser: Parser,
-}
-
-impl PythonLanguage {
-    pub fn new() -> Self {
-        let mut parser = Parser::new();
-        parser.set_language(&tree_sitter_python::LANGUAGE.into()).unwrap();
-        Self { parser }
-    }
-}
-
-impl Language for PythonLanguage {
-    fn parse(&mut self, source: &str) -> ParseResult {
-        let tree = self.parser.parse(source, None).unwrap();
-        let index = LineIndex::new(source);
-        ParseResult { tree, source: source.to_string(), index }
-    }
-    fn is_valid(&self, result: &ParseResult) -> bool { !has_error_node(result.tree.root_node()) }
-    fn find_extra_delimiter(&self, _result: &ParseResult) -> Option<Span> { None }
-    fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> {
-        let node = result.node_at_line(line)?;
-        if node.is_error() || node.has_error() {
-            let text = node.utf8_text(result.text().as_bytes()).unwrap_or("");
-            let details = format!("Syntax error near '{}'", text);
-            let span = Span::from_node(node, &result.index);
-            return Some(SyntaxErrorDiagnostic { src: NamedSource::new("input", result.text().to_string()), error_span: (span.start_byte, span.end_byte - span.start_byte).into(), details });
-        }
-        None
-    }
-    fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
-        let mut errors = scan_extra_delimiter_errors(result.text(), &result.index);
-        let root = result.tree.root_node();
-        let missing = find_missing_delimiters(root, result.text(), &result.index, tree_sitter_python::LANGUAGE.into());
-        errors.extend(missing);
-        errors
-    }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
-    fn diagnostic_message(&self, error: &DelimiterError) -> String {
-        match error {
-            DelimiterError::Missing { expected, parent_kind, .. } => {
-                if let Some(kind) = parent_kind {
-                    match kind.as_str() {
-                        "block" => format!("Missing '{}' for block", expected),
-                        "parameters" => format!("Missing '{}' for parameters", expected),
-                        "parenthesized_expression" => format!("Missing '{}' for expression", expected),
-                        _ => format!("Missing '{}'", expected),
-                    }
-                } else {
-                    format!("Missing '{}'", expected)
-                }
-            }
-            DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter),
-        }
-    }
-}
-
-pub struct GoLanguage {
-    parser: Parser,
-}
-
-impl GoLanguage {
-    pub fn new() -> Self {
-        let mut parser = Parser::new();
-        parser.set_language(&tree_sitter_go::LANGUAGE.into()).unwrap();
-        Self { parser }
-    }
-}
-
-impl Language for GoLanguage {
-    fn parse(&mut self, source: &str) -> ParseResult {
-        let tree = self.parser.parse(source, None).unwrap();
-        let index = LineIndex::new(source);
-        ParseResult { tree, source: source.to_string(), index }
-    }
-    fn is_valid(&self, result: &ParseResult) -> bool { !has_error_node(result.tree.root_node()) }
-    fn find_extra_delimiter(&self, _result: &ParseResult) -> Option<Span> { None }
-    fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> {
-        let node = result.node_at_line(line)?;
-        if node.is_error() || node.has_error() {
-            let text = node.utf8_text(result.text().as_bytes()).unwrap_or("");
-            let details = format!("Syntax error near '{}'", text);
-            let span = Span::from_node(node, &result.index);
-            return Some(SyntaxErrorDiagnostic { src: NamedSource::new("input", result.text().to_string()), error_span: (span.start_byte, span.end_byte - span.start_byte).into(), details });
-        }
-        None
-    }
-    fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
-        let mut errors = scan_extra_delimiter_errors(result.text(), &result.index);
-        let root = result.tree.root_node();
-        let missing = find_missing_delimiters(root, result.text(), &result.index, tree_sitter_go::LANGUAGE.into());
-        errors.extend(missing);
-        errors
-    }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
-    fn diagnostic_message(&self, error: &DelimiterError) -> String {
-        match error {
-            DelimiterError::Missing { expected, parent_kind, .. } => {
-                if let Some(kind) = parent_kind {
-                    match kind.as_str() {
-                        "block" => format!("Missing '{}' for block", expected),
-                        "parameter_list" => format!("Missing '{}' for parameter list", expected),
                         "parenthesized_expression" => format!("Missing '{}' for expression", expected),
                         _ => format!("Missing '{}'", expected),
                     }
