@@ -1,27 +1,40 @@
-use clap::{Parser, Subcommand};
 use anyhow::Result;
-use std::path::{Path, PathBuf};
-use std::io::Read;
+use clap::{Parser, Subcommand};
 use glob::glob;
 use rayon::prelude::*;
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::ast::{
-    Language, RustLanguage, TypeScriptLanguage, JavaScriptLanguage,
-    PythonLanguage, GoLanguage, RubyLanguage, PHPLanguage, HtmlLanguage, XmlLanguage,
-    CLanguage, CppLanguage, JavaLanguage, CSharpLanguage,
-    SwiftLanguage, ScalaLanguage, ZigLanguage,
+    CLanguage, CSharpLanguage, CppLanguage, GoLanguage, HtmlLanguage, JavaLanguage,
+    JavaScriptLanguage, Language, PHPLanguage, PythonLanguage, RubyLanguage, RustLanguage,
+    ScalaLanguage, SwiftLanguage, TypeScriptLanguage, XmlLanguage, ZigLanguage,
 };
-use crate::diagnostics::{JsonDiagnostic, JsonError, anyhow_to_json};
+use crate::diagnostics::{anyhow_to_json, JsonDiagnostic, JsonError};
 use crate::file::FileManager;
-use crate::patch::{apply_literal_patch, apply_unified_diff, delete_line, insert_lines, apply_marker_patch, PatchOptions};
+use crate::patch::{
+    apply_literal_patch, apply_marker_patch, apply_unified_diff, delete_line, insert_lines,
+    PatchOptions,
+};
 use crate::repair::{balance_file, explain_error};
 
 #[derive(Parser)]
-#[command(name = "patch-ts", about = "Tree-sitter-aware patching tool for LLM agents")]
-pub struct Cli { #[command(subcommand)] pub command: Command }
+#[command(
+    name = "patch-ts",
+    about = "Tree-sitter-aware patching tool for LLM agents"
+)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Command,
+}
 
 #[derive(Subcommand)]
-pub enum Command { Patch(PatchArgs), Balance(BalanceArgs), Explain(ExplainArgs) }
+pub enum Command {
+    Patch(PatchArgs),
+    Balance(BalanceArgs),
+    Explain(ExplainArgs),
+}
 
 #[derive(Parser, Debug)]
 pub struct PatchArgs {
@@ -63,14 +76,6 @@ pub struct PatchArgs {
     pub serial: bool,
     #[arg(long)]
     pub plugin: Option<String>,
-    #[arg(long)]
-    pub plugin: Option<String>,
-    #[arg(long)]
-    pub plugin: Option<String>,
-    #[arg(long)]
-    pub plugin: Option<String>,
-    #[arg(long)]
-    pub plugin: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -91,21 +96,16 @@ pub struct BalanceArgs {
     pub serial: bool,
     #[arg(long)]
     pub plugin: Option<String>,
-    #[arg(long)]
-    pub plugin: Option<String>,
-    #[arg(long)]
-    pub plugin: Option<String>,
-    #[arg(long)]
-    pub plugin: Option<String>,
-    #[arg(long)]
-    pub plugin: Option<String>,
 }
 
 #[derive(Parser, Debug)]
 pub struct ExplainArgs {
-    #[arg(short, long)] pub file: String,
-    #[arg(short, long)] pub line: usize,
-    #[arg(long)] pub json: bool,
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(short, long)]
+    pub line: usize,
+    #[arg(long)]
+    pub json: bool,
 }
 
 pub fn run() -> Result<()> {
@@ -124,7 +124,10 @@ pub fn run() -> Result<()> {
         if json {
             if let Some(f) = file {
                 let json_err = anyhow_to_json(e, &f);
-                println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?);
+                println!(
+                    "{}",
+                    serde_json::to_string(&JsonDiagnostic::error(json_err))?
+                );
                 std::process::exit(1);
             }
         }
@@ -133,9 +136,7 @@ pub fn run() -> Result<()> {
 }
 
 fn expand_files(pattern: &str) -> Result<Vec<PathBuf>> {
-    let paths: Vec<PathBuf> = glob(pattern)?
-        .filter_map(|entry| entry.ok())
-        .collect();
+    let paths: Vec<PathBuf> = glob(pattern)?.filter_map(|entry| entry.ok()).collect();
     if paths.is_empty() {
         anyhow::bail!("No files matched pattern: {}", pattern);
     }
@@ -168,13 +169,13 @@ fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     let mut lang = detect_language(file_path)?;
     let _manager = FileManager::new(!args.no_backup);
     let options = PatchOptions {
-        fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force,
-        no_backup: args.no_backup, similarity_threshold: 0.9,
-        no_auto_repair: args.no_auto_repair, marker: args.marker.clone(),
-        plugin: args.plugin.clone(),
-        plugin: args.plugin.clone(),
-        plugin: args.plugin.clone(),
-        plugin: args.plugin.clone(),
+        fuzz_radius: args.fuzz,
+        dry_run: args.dry_run,
+        force: args.force,
+        no_backup: args.no_backup,
+        similarity_threshold: 0.9,
+        no_auto_repair: args.no_auto_repair,
+        marker: args.marker.clone(),
         plugin: args.plugin.clone(),
     };
 
@@ -183,13 +184,21 @@ fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
         std::io::stdin().read_to_string(&mut buffer)?;
         apply_unified_diff(file_path, &buffer, options)?;
     } else if let Some(line) = args.delete {
-        let expected = args.expect.as_deref().ok_or_else(|| anyhow::anyhow!("--expect required"))?;
+        let expected = args
+            .expect
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("--expect required"))?;
         delete_line(file_path, line, expected, options)?;
     } else if let Some(after) = args.after {
-        let content = args.content.as_deref().ok_or_else(|| anyhow::anyhow!("--content required"))?;
+        let content = args
+            .content
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("--content required"))?;
         insert_lines(file_path, after, content, options)?;
     } else if let (Some(old), Some(new)) = (args.old.as_deref(), args.new.as_deref()) {
-        let line = args.line.ok_or_else(|| anyhow::anyhow!("--line required"))?;
+        let line = args
+            .line
+            .ok_or_else(|| anyhow::anyhow!("--line required"))?;
         apply_literal_patch(file_path, line, old, new, options, &mut *lang)?;
     } else if let Some(line) = args.line {
         let mut buffer = String::new();
@@ -197,7 +206,11 @@ fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
         let (expected, new) = parse_heredoc(&buffer)?;
         apply_literal_patch(file_path, line, &expected, &new, options, &mut *lang)?;
     } else if let Some(marker) = args.marker.as_deref() {
-        let new = args.new.as_deref().or(args.content.as_deref()).ok_or_else(|| anyhow::anyhow!("--new or --content required"))?;
+        let new = args
+            .new
+            .as_deref()
+            .or(args.content.as_deref())
+            .ok_or_else(|| anyhow::anyhow!("--new or --content required"))?;
         apply_marker_patch(file_path, marker, new, options)?;
     } else {
         anyhow::bail!("No patch operation specified");
@@ -212,11 +225,16 @@ fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
 fn handle_patch(args: PatchArgs) -> Result<()> {
     if let Some(pattern) = &args.files {
         let paths = expand_files(pattern)?;
-        let mut any_success = false;
-        let mut errors = Vec::new();
-        let process = |path: &std::path::Path| -> Result<(), anyhow::Error> {
+
+        // Thread‑safe success flag
+        let any_success = AtomicBool::new(false);
+
+        let process = |path: &PathBuf| -> Result<(), anyhow::Error> {
             match apply_patch_to_file(path, &args) {
-                Ok(()) => { any_success = true; Ok(()) }
+                Ok(()) => {
+                    any_success.store(true, Ordering::Relaxed);
+                    Ok(())
+                }
                 Err(e) => {
                     let msg = e.to_string();
                     if msg.contains("no match found") || msg.contains("ambiguous match") {
@@ -228,26 +246,16 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
                 }
             }
         };
+
         if args.serial {
             for path in &paths {
-                if let Err(e) = process(path) {
-                    errors.push((path.clone(), e));
-                }
+                process(path)?;
             }
         } else {
-            use rayon::prelude::*;
-            let results: Vec<_> = paths.par_iter().map(|path| (path, process(path))).collect();
-            for (path, res) in results {
-                match res {
-                    Ok(()) => {}
-                    Err(e) => errors.push((path.clone(), e)),
-                }
-            }
+            paths.par_iter().try_for_each(|path| process(path))?;
         }
-        if !errors.is_empty() {
-            return Err(errors.remove(0).1);
-        }
-        if !any_success {
+
+        if !any_success.load(Ordering::Relaxed) {
             anyhow::bail!("No files were successfully patched");
         }
     } else {
@@ -259,7 +267,13 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
 
 fn apply_balance_to_file(file_path: &Path, args: &BalanceArgs) -> Result<()> {
     let mut lang = detect_language(file_path)?;
-    let result = balance_file(file_path, args.function.as_deref(), !args.apply, &mut *lang)?;
+    let result = balance_file(
+        file_path,
+        args.function.as_deref(),
+        !args.apply,
+        &mut *lang,
+        args.plugin.as_deref(),
+    )?;
     if args.json {
         println!("{}", serde_json::to_string(&result)?);
     }
@@ -274,9 +288,9 @@ fn handle_balance(args: BalanceArgs) -> Result<()> {
                 apply_balance_to_file(&path, &args)?;
             }
         } else {
-            paths.par_iter().try_for_each(|path| {
-                apply_balance_to_file(path, &args)
-            })?;
+            paths
+                .par_iter()
+                .try_for_each(|path| apply_balance_to_file(path, &args))?;
         }
     } else {
         let file_path = Path::new(args.file.as_deref().unwrap());
@@ -294,12 +308,21 @@ fn handle_explain(args: ExplainArgs) -> Result<()> {
             let json_err = JsonError {
                 code: "patch_ts::syntax_error".to_string(),
                 message: diag.details.clone(),
-                span: crate::diagnostics::JsonSpan { file: args.file.clone(), line: args.line, column: 1 },
+                span: crate::diagnostics::JsonSpan {
+                    file: args.file.clone(),
+                    line: args.line,
+                    column: 1,
+                },
                 context: String::new(),
                 suggestion: Some("Run `patch-ts balance` to attempt automatic fix".to_string()),
-                best_score: None, best_match_line: None, candidates: None,
+                best_score: None,
+                best_match_line: None,
+                candidates: None,
             };
-            println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?);
+            println!(
+                "{}",
+                serde_json::to_string(&JsonDiagnostic::error(json_err))?
+            );
         } else {
             eprintln!("{:?}", miette::Report::new(diag));
         }
@@ -311,16 +334,21 @@ fn handle_explain(args: ExplainArgs) -> Result<()> {
 
 fn parse_heredoc(input: &str) -> Result<(String, String)> {
     let parts: Vec<&str> = input.split("\n---\n").collect();
-    if parts.len() != 2 { anyhow::bail!("Heredoc must contain '<<<' expected block, then '---', then new block"); }
-    Ok((parts[0].trim_start_matches("<<<\n").to_string(), parts[1].to_string()))
+    if parts.len() != 2 {
+        anyhow::bail!("Heredoc must contain '<<<' expected block, then '---', then new block");
+    }
+    Ok((
+        parts[0].trim_start_matches("<<<\n").to_string(),
+        parts[1].to_string(),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
-    use tempfile::tempdir;
     use std::path::Path;
+    use tempfile::tempdir;
 
     #[test]
     fn test_glob_expansion() {
@@ -332,21 +360,88 @@ mod tests {
         assert_eq!(paths.len(), 2);
     }
 
-    #[test] fn test_detect_language_rust() { let mut lang = detect_language(Path::new("main.rs")).unwrap(); assert!(lang.as_any_mut().is::<RustLanguage>()); }
-    #[test] fn test_detect_language_typescript() { let mut lang = detect_language(Path::new("app.ts")).unwrap(); assert!(lang.as_any_mut().is::<TypeScriptLanguage>()); }
-    #[test] fn test_detect_language_javascript() { let mut lang = detect_language(Path::new("script.js")).unwrap(); assert!(lang.as_any_mut().is::<JavaScriptLanguage>()); }
-    #[test] fn test_detect_language_python() { let mut lang = detect_language(Path::new("script.py")).unwrap(); assert!(lang.as_any_mut().is::<PythonLanguage>()); }
-    #[test] fn test_detect_language_go() { let mut lang = detect_language(Path::new("main.go")).unwrap(); assert!(lang.as_any_mut().is::<GoLanguage>()); }
-    #[test] fn test_detect_language_ruby() { let mut lang = detect_language(Path::new("app.rb")).unwrap(); assert!(lang.as_any_mut().is::<RubyLanguage>()); }
-    #[test] fn test_detect_language_php() { let mut lang = detect_language(Path::new("index.php")).unwrap(); assert!(lang.as_any_mut().is::<PHPLanguage>()); }
-    #[test] fn test_detect_language_html() { let mut lang = detect_language(Path::new("page.html")).unwrap(); assert!(lang.as_any_mut().is::<HtmlLanguage>()); }
-    #[test] fn test_detect_language_xml() { let mut lang = detect_language(Path::new("data.xml")).unwrap(); assert!(lang.as_any_mut().is::<XmlLanguage>()); }
-    #[test] fn test_detect_language_c() { let mut lang = detect_language(Path::new("main.c")).unwrap(); assert!(lang.as_any_mut().is::<CLanguage>()); }
-    #[test] fn test_detect_language_cpp() { let mut lang = detect_language(Path::new("main.cpp")).unwrap(); assert!(lang.as_any_mut().is::<CppLanguage>()); }
-    #[test] fn test_detect_language_java() { let mut lang = detect_language(Path::new("Main.java")).unwrap(); assert!(lang.as_any_mut().is::<JavaLanguage>()); }
-    #[test] fn test_detect_language_cs() { let mut lang = detect_language(Path::new("Program.cs")).unwrap(); assert!(lang.as_any_mut().is::<CSharpLanguage>()); }
-    #[test] fn test_detect_language_swift() { let mut lang = detect_language(Path::new("main.swift")).unwrap(); assert!(lang.as_any_mut().is::<SwiftLanguage>()); }
-    #[test] fn test_detect_language_scala() { let mut lang = detect_language(Path::new("Main.scala")).unwrap(); assert!(lang.as_any_mut().is::<ScalaLanguage>()); }
-    #[test] fn test_detect_language_zig() { let mut lang = detect_language(Path::new("main.zig")).unwrap(); assert!(lang.as_any_mut().is::<ZigLanguage>()); }
-    #[test] fn test_detect_language_unknown() { assert!(detect_language(Path::new("file.txt")).is_err()); }
+    #[test]
+    fn test_detect_language_rust() {
+        let mut lang = detect_language(Path::new("main.rs")).unwrap();
+        assert!(lang.as_any_mut().is::<RustLanguage>());
+    }
+    #[test]
+    fn test_detect_language_typescript() {
+        let mut lang = detect_language(Path::new("app.ts")).unwrap();
+        assert!(lang.as_any_mut().is::<TypeScriptLanguage>());
+    }
+    #[test]
+    fn test_detect_language_javascript() {
+        let mut lang = detect_language(Path::new("script.js")).unwrap();
+        assert!(lang.as_any_mut().is::<JavaScriptLanguage>());
+    }
+    #[test]
+    fn test_detect_language_python() {
+        let mut lang = detect_language(Path::new("script.py")).unwrap();
+        assert!(lang.as_any_mut().is::<PythonLanguage>());
+    }
+    #[test]
+    fn test_detect_language_go() {
+        let mut lang = detect_language(Path::new("main.go")).unwrap();
+        assert!(lang.as_any_mut().is::<GoLanguage>());
+    }
+    #[test]
+    fn test_detect_language_ruby() {
+        let mut lang = detect_language(Path::new("app.rb")).unwrap();
+        assert!(lang.as_any_mut().is::<RubyLanguage>());
+    }
+    #[test]
+    fn test_detect_language_php() {
+        let mut lang = detect_language(Path::new("index.php")).unwrap();
+        assert!(lang.as_any_mut().is::<PHPLanguage>());
+    }
+    #[test]
+    fn test_detect_language_html() {
+        let mut lang = detect_language(Path::new("page.html")).unwrap();
+        assert!(lang.as_any_mut().is::<HtmlLanguage>());
+    }
+    #[test]
+    fn test_detect_language_xml() {
+        let mut lang = detect_language(Path::new("data.xml")).unwrap();
+        assert!(lang.as_any_mut().is::<XmlLanguage>());
+    }
+    #[test]
+    fn test_detect_language_c() {
+        let mut lang = detect_language(Path::new("main.c")).unwrap();
+        assert!(lang.as_any_mut().is::<CLanguage>());
+    }
+    #[test]
+    fn test_detect_language_cpp() {
+        let mut lang = detect_language(Path::new("main.cpp")).unwrap();
+        assert!(lang.as_any_mut().is::<CppLanguage>());
+    }
+    #[test]
+    fn test_detect_language_java() {
+        let mut lang = detect_language(Path::new("Main.java")).unwrap();
+        assert!(lang.as_any_mut().is::<JavaLanguage>());
+    }
+    #[test]
+    fn test_detect_language_cs() {
+        let mut lang = detect_language(Path::new("Program.cs")).unwrap();
+        assert!(lang.as_any_mut().is::<CSharpLanguage>());
+    }
+    #[test]
+    fn test_detect_language_swift() {
+        let mut lang = detect_language(Path::new("main.swift")).unwrap();
+        assert!(lang.as_any_mut().is::<SwiftLanguage>());
+    }
+    #[test]
+    fn test_detect_language_scala() {
+        let mut lang = detect_language(Path::new("Main.scala")).unwrap();
+        assert!(lang.as_any_mut().is::<ScalaLanguage>());
+    }
+    #[test]
+    fn test_detect_language_zig() {
+        let mut lang = detect_language(Path::new("main.zig")).unwrap();
+        assert!(lang.as_any_mut().is::<ZigLanguage>());
+    }
+    #[test]
+    fn test_detect_language_unknown() {
+        assert!(detect_language(Path::new("file.txt")).is_err());
+    }
 }

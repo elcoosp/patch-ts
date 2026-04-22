@@ -13,7 +13,7 @@ fn test_balance_removes_extra_brace() {
     fs::write(&file_path, "fn main() {\n    println!(\"hi\");\n}\n}\n").unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, &mut lang);
+    let result = balance_file(&file_path, None, false, &mut lang, None);
     assert!(result.is_ok());
     let balanced = fs::read_to_string(&file_path).unwrap();
     assert_eq!(balanced.trim_end(), "fn main() {\n    println!(\"hi\");\n}");
@@ -27,7 +27,7 @@ fn test_balance_on_valid_file_does_nothing() {
     fs::write(&file_path, content).unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, &mut lang);
+    let result = balance_file(&file_path, None, false, &mut lang, None);
     assert!(result.is_ok());
     let new_content = fs::read_to_string(&file_path).unwrap();
     assert_eq!(new_content, content);
@@ -55,7 +55,7 @@ fn test_balance_unfixable() {
     fs::write(&file_path, "fn main() { let x: = 1; }\n").unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, &mut lang);
+    let result = balance_file(&file_path, None, false, &mut lang, None);
     assert!(result.is_err());
 }
 
@@ -132,7 +132,7 @@ fn bar() {
     fs::write(&file_path, content).unwrap();
 
     let mut lang = RustLanguage::new();
-    balance_file(&file_path, Some("foo"), false, &mut lang).unwrap();
+    balance_file(&file_path, Some("foo"), false, &mut lang, None).unwrap();
     let balanced = fs::read_to_string(&file_path).unwrap();
 
     assert!(balanced.contains("if true {"));
@@ -150,7 +150,7 @@ fn foo() { let y = (3 + 4; }
     fs::write(&file_path, content).unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, Some("foo"), false, &mut lang);
+    let result = balance_file(&file_path, Some("foo"), false, &mut lang, None);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("ambiguous"));
 }
@@ -163,7 +163,7 @@ fn test_balance_function_not_found() {
     fs::write(&file_path, content).unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, Some("nonexistent"), false, &mut lang);
+    let result = balance_file(&file_path, Some("nonexistent"), false, &mut lang, None);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("not found"));
 }

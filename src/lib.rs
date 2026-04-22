@@ -10,3 +10,5 @@ pub mod repair;
 pub use cli::run;
 pub mod config;
 pub mod watch;
+pub mod plugin;
+pub mod plugin_bindings;

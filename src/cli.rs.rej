@@ -1,8 +1,0 @@
-@@ -150,6 +150,7 @@
-         force: args.force,
-         no_backup: args.no_backup,
-         similarity_threshold: 0.9,
-+        no_auto_repair: args.no_auto_repair,
-         marker: None,
-     };
- 

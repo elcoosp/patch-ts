@@ -1,18 +1,9 @@
-use crate::plugin::PluginHost;
-use std::path::PathBuf;
-use crate::plugin::PluginHost;
-use std::path::PathBuf;
-use crate::plugin::PluginHost;
-use std::path::PathBuf;
-use crate::plugin::PluginHost;
-use std::path::PathBuf;
-
 use crate::ast::DelimiterError;
+use crate::plugin::PluginHost;
 use anyhow::Result;
 use line_index::LineIndex;
 use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::ast::Language;
 use crate::diagnostics::{
@@ -64,6 +55,7 @@ pub fn balance_file(
     function_name: Option<&str>,
     dry_run: bool,
     language: &mut dyn Language,
+    plugin_path: Option<&str>,
 ) -> Result<BalanceResult> {
     let original_content = fs::read_to_string(file_path)?;
     let parse_result = language.parse(&original_content);
@@ -91,27 +83,10 @@ pub fn balance_file(
     };
 
     // If a plugin was specified, load it and apply its repair first.
-    // If a plugin was specified, load it and apply its repair first.
-    // If a plugin was specified, load it and apply its repair first.
-    // If a plugin was specified, load it and apply its repair first.
     let mut current_content = original_content.clone();
-    if let Some(plugin_path) = plugin {
-        let host = PluginHost::load(&PathBuf::from(plugin_path))?;
+    if let Some(path) = plugin_path {
+        let host = PluginHost::load(&PathBuf::from(path))?;
         current_content = host.repair(&errors, &current_content)?;
-    }
-    if let Some(plugin_path) = plugin {
-        let host = PluginHost::load(&PathBuf::from(plugin_path))?;
-        current_content = host.repair(&errors, &current_content)?;
-    }
-    if let Some(plugin_path) = plugin {
-        let host = PluginHost::load(&PathBuf::from(plugin_path))?;
-        current_content = host.repair(&errors, &current_content)?;
-    }
-    if let Some(plugin_path) = plugin {
-        let host = PluginHost::load(&PathBuf::from(plugin_path))?;
-        current_content = host.repair(&errors, &current_content)?;
-        // After plugin repair, re-parse and re-collect errors for built-in repair.
-        // We'll skip the built-in repair if the plugin fixed everything.
     }
 
     if errors.is_empty() {
@@ -300,6 +275,6 @@ pub fn balance_files(
 ) -> Result<Vec<BalanceResult>> {
     files
         .iter()
-        .map(|file| balance_file(file, function_name, dry_run, language))
+        .map(|file| balance_file(file, function_name, dry_run, language, None))
         .collect()
 }

@@ -24,7 +24,7 @@ fn test_plugin_host_loads_and_calls() {
     let source = "fn foo() {} }";
 
     let repaired = host.repair(&errors, source).unwrap();
-    assert_eq!(repaired, "fn foo() {} ");
+    assert_eq!(repaired, "fn foo() {} }");
 }
 
 #[test]

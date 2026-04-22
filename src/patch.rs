@@ -1,7 +1,7 @@
+use crate::matching::{find_best_block_match, fuzzy_match_line};
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
-use crate::matching::{fuzzy_match_line, find_best_block_match};
 
 use crate::ast::Language;
 use crate::diagnostics::SyntaxErrorDiagnostic;
@@ -17,10 +17,6 @@ pub struct PatchOptions {
     pub no_auto_repair: bool,
     pub marker: Option<String>,
     pub plugin: Option<String>,
-    pub plugin: Option<String>,
-    pub plugin: Option<String>,
-    pub plugin: Option<String>,
-    pub plugin: Option<String>,
 }
 
 impl Default for PatchOptions {
@@ -33,10 +29,6 @@ impl Default for PatchOptions {
             similarity_threshold: 0.9,
             no_auto_repair: false,
             marker: None,
-            plugin: None,
-            plugin: None,
-            plugin: None,
-            plugin: None,
             plugin: None,
         }
     }
@@ -59,7 +51,11 @@ pub fn apply_literal_patch(
         anyhow::bail!("file is empty, cannot apply patch at line {}", line_num);
     }
     if line_num > lines.len() {
-        anyhow::bail!("line {} out of range (file has {} lines)", line_num, lines.len());
+        anyhow::bail!(
+            "line {} out of range (file has {} lines)",
+            line_num,
+            lines.len()
+        );
     }
 
     let target_idx = line_num.saturating_sub(1);
@@ -90,13 +86,23 @@ pub fn apply_literal_patch(
     // For exact match (fuzz_radius == 0), verify the expected content matches
     if options.fuzz_radius == 0 {
         if lines[match_idx] != expected {
-            anyhow::bail!("expected line {} to contain '{}', but found '{}'", line_num, expected, lines[match_idx]);
+            anyhow::bail!(
+                "expected line {} to contain '{}', but found '{}'",
+                line_num,
+                expected,
+                lines[match_idx]
+            );
         }
     }
 
     let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
     new_lines[match_idx] = new.to_string();
-    let mut new_content = new_lines.join("\n") + if original_content.ends_with('\n') { "\n" } else { "" };
+    let mut new_content = new_lines.join("\n")
+        + if original_content.ends_with('\n') {
+            "\n"
+        } else {
+            ""
+        };
 
     // AST validation (unless --force)
     if !options.force {
@@ -114,22 +120,24 @@ pub fn apply_literal_patch(
                     new_content = fixed_content;
                 } else {
                     // Auto-repair failed, bail with diagnostic
-                    let diag = language.explain_error(&new_parse, 1)
-                        .unwrap_or_else(|| SyntaxErrorDiagnostic {
+                    let diag = language.explain_error(&new_parse, 1).unwrap_or_else(|| {
+                        SyntaxErrorDiagnostic {
                             src: NamedSource::new(file_path.to_string_lossy(), new_content.clone()),
                             error_span: (0, 0).into(),
                             details: "Unknown syntax error".to_string(),
-                        });
+                        }
+                    });
                     anyhow::bail!(diag);
                 }
             } else {
                 // Auto-repair disabled, fail with error
-                let diag = language.explain_error(&new_parse, 1)
-                    .unwrap_or_else(|| SyntaxErrorDiagnostic {
+                let diag = language.explain_error(&new_parse, 1).unwrap_or_else(|| {
+                    SyntaxErrorDiagnostic {
                         src: NamedSource::new(file_path.to_string_lossy(), new_content.clone()),
                         error_span: (0, 0).into(),
                         details: "Unknown syntax error".to_string(),
-                    });
+                    }
+                });
                 anyhow::bail!(diag);
             }
         }
@@ -187,7 +195,11 @@ pub fn insert_lines(
     let content = fs::read_to_string(file_path)?;
     let lines: Vec<&str> = content.lines().collect();
     if after_line_num > lines.len() {
-        anyhow::bail!("line {} out of range (file has {} lines)", after_line_num, lines.len());
+        anyhow::bail!(
+            "line {} out of range (file has {} lines)",
+            after_line_num,
+            lines.len()
+        );
     }
     let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
     let insert_idx = after_line_num;
@@ -205,11 +217,7 @@ pub fn insert_lines(
 }
 
 /// Apply a unified diff using the `flickzeug` crate
-pub fn apply_unified_diff(
-    file_path: &Path,
-    diff_text: &str,
-    options: PatchOptions,
-) -> Result<()> {
+pub fn apply_unified_diff(file_path: &Path, diff_text: &str, options: PatchOptions) -> Result<()> {
     let original = fs::read_to_string(file_path)?;
     let diffs = flickzeug::patch_from_str(diff_text)
         .map_err(|e| anyhow::anyhow!("Failed to parse diff: {}", e))?;
