@@ -47,21 +47,32 @@ This document outlines the evolution of `patch-ts`.
 
 **Status:** ✅ Implemented
 
-- [x] **Context‑aware insertion** – Uses parent node kind to place missing delimiters accurately.
-- [x] **Batch repair** – Collects and sorts all errors, applies fixes in one pass.
-- [x] **Language‑specific diagnostics** – `diagnostic_message` with context for TS/JS.
-- [x] **Public `ParseResult.index`** – Enables span calculations in repair logic.
+- [x] Context‑aware insertion
+- [x] Batch repair (single pass)
+- [x] Language‑specific diagnostics for TS/JS
+- [x] Public `ParseResult.index`
 
 ---
 
-### v0.6.0 — Robust Batch Repair & Additional Languages
+### v0.6.0 — Python & Go Support, Overlapping Error Resolution
 
-**Goal:** Improve batch repair reliability and add Python support.
+**Status:** ✅ Implemented
 
-- [ ] **Overlapping error resolution** – Handle cases where repairs affect subsequent positions.
-- [ ] **Python support** – Integrate `tree-sitter-python` and implement `PythonLanguage`.
-- [ ] **Go support** – Integrate `tree-sitter-go` (stretch goal).
-- [ ] **Performance optimizations** – Reduce parsing overhead in batch mode.
+- [x] Python language support (`.py`, `.pyi`)
+- [x] Go language support (`.go`)
+- [x] Overlapping error resolution with offset tracking
+- [x] Integration tests for Python and Go
+
+---
+
+### v0.7.0 — Robust Batch Repair & Additional Languages
+
+**Goal:** Improve batch repair edge cases and add more languages.
+
+- [ ] **Full overlapping error support** – Handle complex overlapping scenarios perfectly.
+- [ ] **Ruby support** – Integrate `tree-sitter-ruby`.
+- [ ] **PHP support** – Integrate `tree-sitter-php`.
+- [ ] **HTML/XML support** – Delimiter repair for tags.
 
 ---
 
@@ -69,20 +80,11 @@ This document outlines the evolution of `patch-ts`.
 
 **Goal:** Solidify the tool as a reliable part of the AI‑assisted development workflow.
 
-- [ ] **Multi‑file patches** – Apply a patch spanning multiple files.
-- [ ] **Configuration file** – `patch-ts.toml` for project defaults.
-- [ ] **Integration examples** – LLM prompts for generating correct `patch-ts` commands.
-- [ ] **CI‑friendly exit codes** – Documented and stable.
-- [ ] **Publish on crates.io** – Official release.
-
----
-
-### Future Ideas (Post‑v1.0)
-
-- **IDE plugin** (VSCode extension)
-- **`patch-ts watch`** mode
-- **Structural diff** (AST‑aware moves)
-- **Integration with `cargo fix`**
+- [ ] **Multi‑file patches**
+- [ ] **Configuration file** (`patch-ts.toml`)
+- [ ] **Integration examples** for LLMs
+- [ ] **CI‑friendly exit codes**
+- [ ] **Publish on crates.io**
 
 ---
 
