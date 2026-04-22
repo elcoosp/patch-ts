@@ -8,3 +8,5 @@ pub mod patch;
 pub mod repair;
 
 pub use cli::run;
+pub mod config;
+pub mod watch;
