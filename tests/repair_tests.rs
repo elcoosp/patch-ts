@@ -1,5 +1,7 @@
 use patch_ts::ast::RustLanguage;
-use patch_ts::repair::{balance_file, explain_error};
+use patch_ts::repair::{balance_file, explain_error, quick_balance};
+use patch_ts::ast::{DelimiterError, Span};
+use patch_ts::repair::apply_repair;
 use std::fs;
 use tempfile::tempdir;
 
@@ -10,7 +12,7 @@ fn test_balance_removes_extra_brace() {
     fs::write(&file_path, "fn main() {\n    println!(\"hi\");\n}\n}\n").unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, &mut lang);
+    let result = balance_file(&file_path, None, false, false, &mut lang);
     assert!(result.is_ok());
     let balanced = fs::read_to_string(&file_path).unwrap();
     assert_eq!(balanced.trim_end(), "fn main() {\n    println!(\"hi\");\n}");
@@ -24,7 +26,7 @@ fn test_balance_on_valid_file_does_nothing() {
     fs::write(&file_path, content).unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, &mut lang);
+    let result = balance_file(&file_path, None, false, false, &mut lang);
     assert!(result.is_ok());
     let new_content = fs::read_to_string(&file_path).unwrap();
     assert_eq!(new_content, content);
@@ -50,9 +52,9 @@ fn test_balance_no_extra_delimiter_found() {
     fs::write(&file_path, "fn main() { let x = \"unclosed; }\n").unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, &mut lang);
+    let result = balance_file(&file_path, None, false, false, &mut lang);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Could not identify extra delimiter"));
+    assert!(result.unwrap_err().to_string().contains("Could not identify any delimiter errors"));
 }
 
 #[test]
@@ -73,7 +75,7 @@ fn test_balance_unfixable() {
     fs::write(&file_path, "fn main() { let x: = 1; }\n").unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, &mut lang);
+    let result = balance_file(&file_path, None, false, false, &mut lang);
     assert!(result.is_err());
 }
 
@@ -81,19 +83,17 @@ fn test_balance_unfixable() {
 fn test_balance_removal_does_not_fix() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("sample.rs");
-    // Syntax error that cannot be fixed by removing a single delimiter
     fs::write(&file_path, "fn main() { let x: = 1; }\n").unwrap();
 
     let mut lang = RustLanguage::new();
-    let result = balance_file(&file_path, None, false, &mut lang);
+    let result = balance_file(&file_path, None, false, false, &mut lang);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("Could not identify extra delimiter") || err.contains("did not fix"));
+    assert!(err.contains("Could not identify any delimiter errors") || err.contains("did not fix"));
 }
 
 #[test]
 fn test_quick_balance_fixes_extra_brace() {
-    use patch_ts::repair::quick_balance;
     let mut lang = RustLanguage::new();
     let content = "fn main() {\n    println!(\"hi\");\n}\n}\n";
     let fixed = quick_balance(content, &mut lang).unwrap();
@@ -102,8 +102,40 @@ fn test_quick_balance_fixes_extra_brace() {
 
 #[test]
 fn test_quick_balance_returns_none_if_unfixable() {
-    use patch_ts::repair::quick_balance;
     let mut lang = RustLanguage::new();
     let content = "fn main() { let x: = 1; }\n";
     assert!(quick_balance(content, &mut lang).is_none());
+}
+
+#[test]
+fn test_apply_repair_extra() {
+    let content = "fn main() { let x = (1 + 2)); }";
+    let span = Span {
+        start_byte: 26,
+        end_byte: 27,
+        start_line: 1,
+        start_column: 27,
+        end_line: 1,
+        end_column: 28,
+    };
+    let error = DelimiterError::Extra { span, delimiter: ')' };
+    let repaired = apply_repair(content, &error);
+    assert_eq!(repaired, "fn main() { let x = (1 + 2); }");
+}
+
+#[test]
+fn test_apply_repair_missing() {
+    let content = "fn main() { println!(\"hi\"); ";
+    let end_byte = content.len(); // valid char boundary
+    let span = Span {
+        start_byte: 0,
+        end_byte,
+        start_line: 1,
+        start_column: 1,
+        end_line: 1,
+        end_column: content.len() + 1,
+    };
+    let error = DelimiterError::Missing { expected: '}', insert_at: span };
+    let repaired = apply_repair(content, &error);
+    assert_eq!(repaired, "fn main() { println!(\"hi\"); }");
 }
