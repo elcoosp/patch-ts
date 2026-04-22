@@ -1,8 +1,25 @@
-I'll create the full specification suite for **patch-ts v0.4.0** using the `spec-writer` framework. The documents build on the existing v0.3.0 baseline and focus on multi‑language support (TypeScript/JavaScript).
+Based on the research, I've identified several high‑value crates that will significantly enhance the `patch-ts` v0.4.0 implementation. The updated specification documents incorporate these findings, with new dependency tables and revised sections that leverage these crates for a more robust, maintainable, and feature‑rich tool.
 
 ---
 
-# patch-ts v0.4.0 — Specification Documents
+# Research Summary: Recommended Crates for patch‑ts v0.4.0
+
+| Crate | Purpose | Why it's recommended for patch‑ts |
+|-------|---------|----------------------------------|
+| **`tree-sitter` v0.26** | Core parsing engine | Already in use; upgrade to latest version for performance and WASM improvements. |
+| **`tree-sitter-typescript`** | TypeScript/TSX grammar | Required for TS support. |
+| **`tree-sitter-javascript`** | JavaScript/JSX grammar | Required for JS support. |
+| **`strsim` / `fuzzt`** | String similarity metrics | Currently using `strsim::normalized_levenshtein`. `fuzzt` adds Gestalt pattern matching and top‑N matching which could improve fuzzy block detection. Keep `strsim` for v0.4.0; evaluate `fuzzt` for v0.5.0. |
+| **`ignore`** | Directory traversal respecting `.gitignore` | Future multi‑file patch support (v1.0.0). Not needed for v0.4.0. |
+| **`rayon`** | Data parallelism | Could parallelize multi‑file operations in v1.0.0. Not needed for v0.4.0. |
+| **`indicatif`** | Progress bars and spinners | Could enhance CLI UX for batch operations. Not needed for v0.4.0. |
+| **`jsonschema`** | JSON Schema validation | Validate JSON output structure; useful for contract testing. Could be added as a dev‑dependency. |
+| **`clap` v4.5** | CLI argument parsing | Already in use; continue using derive API. |
+| **`anyhow` / `thiserror` / `miette`** | Error handling | Already in use; continue with `anyhow` for application errors and `miette` for diagnostics. |
+
+---
+
+# patch‑ts v0.4.0 — Updated Specification Documents
 
 ## Document Set Overview
 
@@ -16,24 +33,24 @@ I'll create the full specification suite for **patch-ts v0.4.0** using the `spec
 
 ---
 
-# patch-ts Vision & Strategic Alignment
+# patch‑ts Vision & Strategic Alignment
 
 | Field | Value |
 |-------|-------|
-| Project | patch-ts |
+| Project | patch‑ts |
 | Document | Vision & Strategic Alignment |
 | Version | 2.0 (v0.4.0) |
-| Date | 2026-04-22 |
-| Author | patch-ts team, assisted by spec-writer |
+| Date | 2026‑04‑22 |
+| Author | patch‑ts team, assisted by spec‑writer |
 | Status | Draft |
 
 ## 1. Vision Statement
 
-> *patch-ts becomes the go‑to, language‑agnostic patching tool for AI agents and developers, starting with robust support for Rust, TypeScript, and JavaScript. We enable safe, fuzzy, and self‑repairing code modifications across the most popular languages in modern development.*
+> *patch‑ts becomes the go‑to, language‑agnostic patching tool for AI agents and developers, starting with robust support for Rust, TypeScript, and JavaScript. We enable safe, fuzzy, and self‑repairing code modifications across the most popular languages in modern development.*
 
 ## 2. Elevator Pitch (Moore Template)
 
-> For **AI coding agents and developers working with TypeScript/JavaScript** who need the same reliable patching experience currently available for Rust, **patch-ts** is a **tree‑sitter‑backed CLI** that provides **fuzzy matching, auto‑repair, and marker‑based targeting across multiple languages**. Unlike single‑language tools, our product **auto‑detects the language from file extensions** and **applies language‑specific repair heuristics**, making it the universal patching utility for polyglot codebases.
+> For **AI coding agents and developers working with TypeScript/JavaScript** who need the same reliable patching experience currently available for Rust, **patch‑ts** is a **tree‑sitter‑backed CLI** that provides **fuzzy matching, auto‑repair, and marker‑based targeting across multiple languages**. Unlike single‑language tools, our product **auto‑detects the language from file extensions** and **applies language‑specific repair heuristics**, making it the universal patching utility for polyglot codebases.
 
 ## 3. Problem Statement & Business Context
 
@@ -97,7 +114,7 @@ I'll create the full specification suite for **patch-ts v0.4.0** using the `spec
 | Constraint | Description |
 |------------|-------------|
 | **Backward compatibility** | v0.4.0 CLI must accept all v0.3.0 flags and produce equivalent Rust behavior. |
-| **Dependency footprint** | Add `tree-sitter-typescript` and `tree-sitter-javascript`; keep binary size reasonable. |
+| **Dependency footprint** | Add `tree‑sitter‑typescript` and `tree‑sitter‑javascript`; keep binary size reasonable. |
 | **Performance** | Language detection overhead < 1 ms. |
 | **Code maintainability** | Avoid duplicating repair logic; leverage the existing `Language` trait. |
 
@@ -110,33 +127,36 @@ I'll create the full specification suite for **patch-ts v0.4.0** using the `spec
 - Ensure `find_delimiter_errors` works for TS/JS (the character‑based scanner is language‑agnostic; only parser setup differs).
 - Ensure `balance_file` works for TS/JS (leveraging the scanner).
 - Add integration tests for TypeScript/JavaScript files.
+- Upgrade `tree‑sitter` to v0.26.0 for latest performance improvements. 
 
 ### Non‑Goals (explicitly excluded from v0.4.0)
 
 - Support for JSX/TSX‑specific AST queries (treated as regular syntax).
 - TypeScript‑specific semantic repairs (e.g., adding missing type annotations).
 - Language‑specific `explain_error` enhancements (use generic error messages).
-- Multi‑file patch application.
-- Configuration file (`patch-ts.toml`).
+- Multi‑file patch application (deferred to v1.0.0).
+- Configuration file (`patch‑ts.toml`).
+- Parallel processing with `rayon` (deferred to v1.0.0).
+- Progress bars with `indicatif` (deferred to v1.0.0).
 
 ## 9. Operational Concept & High‑Level Scenarios
 
 ### Concept of Operations
 
-Users invoke `patch-ts` exactly as before, but now on `.ts`/`.js` files. The tool inspects the file extension, instantiates the appropriate `Language` implementor, and proceeds with the requested operation. All commands (`patch`, `balance`, `explain`) work identically across languages.
+Users invoke `patch‑ts` exactly as before, but now on `.ts`/`.js` files. The tool inspects the file extension, instantiates the appropriate `Language` implementor, and proceeds with the requested operation. All commands (`patch`, `balance`, `explain`) work identically across languages.
 
 ### High‑Level Scenarios (v0.4.0)
 
 1. **Patch a TypeScript file with fuzzy matching**  
-   `patch-ts patch --file src/app.ts --line 42 --old "const x = 1;" --new "const x = 2;" --fuzz 3`  
+   `patch‑ts patch --file src/app.ts --line 42 --old "const x = 1;" --new "const x = 2;" --fuzz 3`  
    → The tool uses TypeScript grammar, finds the fuzzy match, and applies the patch.
 
 2. **Balance a JavaScript file**  
-   `patch-ts balance --file dist/bundle.js --apply`  
+   `patch‑ts balance --file dist/bundle.js --apply`  
    → Extra/missing braces/parentheses are repaired using the JavaScript parser.
 
 3. **Explain a syntax error in a TypeScript file**  
-   `patch-ts explain --file src/component.tsx --line 15 --json`  
+   `patch‑ts explain --file src/component.tsx --line 15 --json`  
    → Returns JSON diagnostic with error location and suggestion.
 
 4. **Auto‑detection fallback**  
@@ -155,7 +175,7 @@ Users invoke `patch-ts` exactly as before, but now on `.ts`/`.js` files. The too
 
 ### Assumptions
 
-- `tree-sitter-typescript` and `tree-sitter-javascript` provide stable grammars.
+- `tree‑sitter‑typescript` and `tree‑sitter‑javascript` provide stable grammars. 
 - The character‑based delimiter scanner works correctly for TS/JS (no language‑specific edge cases that break it).
 - Users will not expect TypeScript‑specific semantic repairs in v0.4.0.
 
@@ -174,15 +194,15 @@ Users invoke `patch-ts` exactly as before, but now on `.ts`/`.js` files. The too
 
 ---
 
-# patch-ts Business & Stakeholder Requirements Specification (BRS)
+# patch‑ts Business & Stakeholder Requirements Specification (BRS)
 
 | Field | Value |
 |-------|-------|
-| Project | patch-ts |
+| Project | patch‑ts |
 | Document | Business & Stakeholder Requirements Specification |
 | Version | 2.0 (v0.4.0) |
-| Date | 2026-04-22 |
-| Author | patch-ts team, assisted by spec-writer |
+| Date | 2026‑04‑22 |
+| Author | patch‑ts team, assisted by spec‑writer |
 | Status | Draft |
 | References | Vision v2.0 |
 
@@ -190,11 +210,11 @@ Users invoke `patch-ts` exactly as before, but now on `.ts`/`.js` files. The too
 
 ### 1.1 Purpose
 
-This BRS defines the business‑level requirements for patch-ts v0.4.0, which adds support for TypeScript and JavaScript as first‑class languages alongside Rust.
+This BRS defines the business‑level requirements for patch‑ts v0.4.0, which adds support for TypeScript and JavaScript as first‑class languages alongside Rust.
 
 ### 1.2 Business Problem / Opportunity
 
-patch-ts is currently limited to Rust, excluding the vast TypeScript/JavaScript ecosystem. AI agents and developers in those ecosystems lack a reliable, fuzzy‑aware patching tool with auto‑repair. Adding TS/JS support expands the potential user base dramatically and proves the architecture's extensibility.
+patch‑ts is currently limited to Rust, excluding the vast TypeScript/JavaScript ecosystem. AI agents and developers in those ecosystems lack a reliable, fuzzy‑aware patching tool with auto‑repair. Adding TS/JS support expands the potential user base dramatically and proves the architecture's extensibility.
 
 ### 1.3 Scope Boundaries
 
@@ -203,6 +223,7 @@ patch-ts is currently limited to Rust, excluding the vast TypeScript/JavaScript 
 - Implementation of `TypeScriptLanguage` and `JavaScriptLanguage` satisfying the `Language` trait.  
 - Full support for `patch`, `balance`, and `explain` commands on TS/JS files.  
 - Integration tests for TS/JS.
+- Upgrade `tree‑sitter` to v0.26.0.
 
 **Out of scope:**  
 - Other languages (Python, Go, etc.).  
@@ -220,7 +241,7 @@ patch-ts is currently limited to Rust, excluding the vast TypeScript/JavaScript 
 
 ## 3. Business Model & Processes
 
-patch-ts remains an open‑source CLI tool. The "business model" is community growth and integration into AI agent workflows. Multi‑language support is a key driver for adoption.
+patch‑ts remains an open‑source CLI tool. The "business model" is community growth and integration into AI agent workflows. Multi‑language support is a key driver for adoption.
 
 ## 4. Business Rules & Policies
 
@@ -270,7 +291,7 @@ patch-ts remains an open‑source CLI tool. The "business model" is community gr
 
 ## 9. System‑in‑Context & Operational Concept
 
-patch-ts operates as before, but now inspects the file extension at the start of each command. Based on the extension, it instantiates `RustLanguage`, `TypeScriptLanguage`, or `JavaScriptLanguage` and delegates all operations. The CLI interface remains unchanged.
+patch‑ts operates as before, but now inspects the file extension at the start of each command. Based on the extension, it instantiates `RustLanguage`, `TypeScriptLanguage`, or `JavaScriptLanguage` and delegates all operations. The CLI interface remains unchanged.
 
 ## 10. Stakeholder‑Level Constraints & Quality Expectations
 
@@ -283,7 +304,7 @@ patch-ts operates as before, but now inspects the file extension at the start of
 ## 11. Risks, Assumptions & Open Issues
 
 ### Assumptions
-- tree‑sitter TS/JS grammars are mature and stable.
+- tree‑sitter TS/JS grammars are mature and stable. 
 - The existing scanner logic is language‑agnostic.
 
 ### Risks
@@ -308,21 +329,21 @@ patch-ts operates as before, but now inspects the file extension at the start of
 
 ---
 
-# patch-ts Software Requirements Specification (SRS)
+# patch‑ts Software Requirements Specification (SRS)
 
 | Field | Value |
 |-------|-------|
-| Project | patch-ts |
+| Project | patch‑ts |
 | Document | Software Requirements Specification |
 | Version | 2.0 (v0.4.0) |
-| Date | 2026-04-22 |
-| Author | patch-ts team, assisted by spec-writer |
+| Date | 2026‑04‑22 |
+| Author | patch‑ts team, assisted by spec‑writer |
 | Status | Draft |
 | References | BRS v2.0, Vision v2.0 |
 
 ## 1. Introduction & Scope
 
-This SRS defines functional and non‑functional requirements for patch-ts v0.4.0, adding TypeScript and JavaScript support via the `Language` trait.
+This SRS defines functional and non‑functional requirements for patch‑ts v0.4.0, adding TypeScript and JavaScript support via the `Language` trait.
 
 ### 1.1 Scope
 
@@ -330,6 +351,7 @@ This SRS defines functional and non‑functional requirements for patch-ts v0.4.
 - Auto‑detect language by file extension.
 - Ensure `patch`, `balance`, and `explain` commands work for TS/JS.
 - Add integration tests for TS/JS.
+- Upgrade `tree‑sitter` to v0.26.0. 
 
 ### 1.2 Out of Scope
 
@@ -354,7 +376,7 @@ Same as v0.3.0; now the `Language` trait is implemented by three concrete types.
 | ID | Requirement (EARS pattern) | Priority | Acceptance Criteria |
 |----|----------------------------|----------|---------------------|
 | FR‑LANG‑001 | **When** a command is invoked with a file path, **the system shall** determine the language from the file extension: `.rs` → Rust, `.ts`/`.tsx` → TypeScript, `.js`/`.jsx` → JavaScript. | Must | CLI selects correct language based on extension. |
-| FR‑LANG‑002 | **If** the file extension is unknown or missing, **then** the system shall error with a message listing supported extensions. | Must | Error message includes `.rs, .ts, .tsx, .js, .jsx`. |
+| FR‑LANG‑002 | **If** the file extension is unknown or missing, **then** the system shall error with a message listing supported extensions. | Must | Error message includes `.rs, .ts, .tsx, .js, .jsx, .mts, .cts, .mjs, .cjs`. |
 | FR‑LANG‑003 | **The system shall** treat `.mjs` and `.cjs` as JavaScript, and `.mts` and `.cts` as TypeScript. | Should | These extensions work correctly. |
 
 ### Feature: TypeScript Language Implementation
@@ -362,7 +384,7 @@ Same as v0.3.0; now the `Language` trait is implemented by three concrete types.
 | ID | Requirement | Priority | Acceptance Criteria |
 |----|-------------|----------|---------------------|
 | FR‑TS‑001 | **The system shall** provide a `TypeScriptLanguage` struct that implements the `Language` trait. | Must | Trait methods compile and pass tests. |
-| FR‑TS‑002 | **When** parsing TypeScript source, **the system shall** use `tree-sitter-typescript` with the `typescript` grammar. | Must | Correct grammar loaded. |
+| FR‑TS‑002 | **When** parsing TypeScript source, **the system shall** use `tree‑sitter‑typescript` with the `typescript` grammar. | Must | Correct grammar loaded. |
 | FR‑TS‑003 | **The system shall** support `.tsx` files using the `tsx` grammar. | Must | `.tsx` files parse correctly. |
 
 ### Feature: JavaScript Language Implementation
@@ -370,7 +392,7 @@ Same as v0.3.0; now the `Language` trait is implemented by three concrete types.
 | ID | Requirement | Priority | Acceptance Criteria |
 |----|-------------|----------|---------------------|
 | FR‑JS‑001 | **The system shall** provide a `JavaScriptLanguage` struct that implements the `Language` trait. | Must | Trait methods compile and pass tests. |
-| FR‑JS‑002 | **When** parsing JavaScript source, **the system shall** use `tree-sitter-javascript`. | Must | Correct grammar loaded. |
+| FR‑JS‑002 | **When** parsing JavaScript source, **the system shall** use `tree‑sitter‑javascript`. | Must | Correct grammar loaded. |
 
 ### Feature: Cross‑Language Command Support
 
@@ -392,21 +414,23 @@ Same as v0.3.0; now the `Language` trait is implemented by three concrete types.
 
 **CLI Interface:** Unchanged from v0.3.0. Language detection is transparent to the user.
 
-**JSON Output Schema:** Unchanged. The `BalanceResult` and `JsonError` structures are language‑agnostic.
+**JSON Output Schema:** Unchanged. The `BalanceResult` and `JsonError` structures are language‑agnostic. Consider adding `jsonschema` as a dev‑dependency for contract testing in the future. 
 
 ## 6. Constraints, Assumptions & Dependencies
 
 | Type | Description |
 |------|-------------|
-| Constraint | Must add `tree-sitter-typescript` and `tree-sitter-javascript` crates. |
+| Constraint | Must add `tree‑sitter‑typescript` and `tree‑sitter‑javascript` crates. |
+| Constraint | Upgrade `tree‑sitter` to v0.26.0. |
 | Assumption | TS/JS grammars do not require additional runtime setup. |
-| Dependency | `tree-sitter` 0.25. |
+| Dependency | `tree‑sitter` v0.26, `tree‑sitter‑typescript` v0.23, `tree‑sitter‑javascript` v0.25.  |
 
 ## 7. TBD Log
 
 | ID | Item | Owner | Due |
 |----|------|-------|-----|
 | TBD‑001 | Determine if `find_extra_delimiter` should be implemented for TS/JS or remain Rust‑only. | Engineering | Before implementation. |
+| TBD‑002 | Evaluate `fuzzt` crate for enhanced fuzzy matching in v0.5.0.  | Product | Post‑v0.4.0. |
 
 ## 8. Requirements Attributes & Traceability Model
 
@@ -426,30 +450,33 @@ Same as v0.3.0; now the `Language` trait is implemented by three concrete types.
 
 ---
 
-# patch-ts Architecture & Design Specification
+# patch‑ts Architecture & Design Specification
 
 | Field | Value |
 |-------|-------|
-| Project | patch-ts |
+| Project | patch‑ts |
 | Document | Architecture & Design Specification |
 | Version | 2.0 (v0.4.0) |
-| Date | 2026-04-22 |
-| Author | patch-ts team, assisted by spec-writer |
+| Date | 2026‑04‑22 |
+| Author | patch‑ts team, assisted by spec‑writer |
 | Status | Draft |
 | References | SRS v2.0, BRS v2.0 |
 
 ## 1. Context & Scope
 
-This document describes the architectural changes required to add TypeScript and JavaScript support to patch-ts, leveraging the existing `Language` trait abstraction.
+This document describes the architectural changes required to add TypeScript and JavaScript support to patch‑ts, leveraging the existing `Language` trait abstraction.
 
 ## 2. Goals & Non‑Goals
 
 ### Goals
+
 - Add `TypeScriptLanguage` and `JavaScriptLanguage` as `Language` implementors.
 - Implement language detection in `cli.rs`.
 - Ensure existing scanner and repair logic work unchanged for TS/JS.
+- Upgrade `tree‑sitter` to v0.26.0.
 
 ### Non‑Goals
+
 - Refactor the `Language` trait.
 - Add language‑specific repair heuristics beyond delimiter scanning.
 
@@ -466,7 +493,7 @@ This document describes the architectural changes required to add TypeScript and
 ### 4.1 System Overview (C4 Level 2)
 
 ```
-[User/Agent] → (CLI) → [patch-ts Binary]
+[User/Agent] → (CLI) → [patch‑ts Binary]
                            ├── cli.rs (language detection)
                            ├── ast.rs (Language trait, RustLanguage, TypeScriptLanguage, JavaScriptLanguage)
                            ├── repair.rs (balance logic, unchanged)
@@ -474,7 +501,7 @@ This document describes the architectural changes required to add TypeScript and
                                      ↓
               ┌──────────────────┼──────────────────┐
               ↓                  ↓                  ↓
-     [tree-sitter-rust] [tree-sitter-typescript] [tree-sitter-javascript]
+     [tree‑sitter‑rust] [tree‑sitter‑typescript] [tree‑sitter‑javascript]
 ```
 
 ### 4.2 Key Design Changes
@@ -518,14 +545,13 @@ impl Language for TypeScriptLanguage {
     fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> { /* ... */ }
     fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
         // Reuse the same scanner logic (needs access to LineIndex)
-        // We'll move the scanner to a free function in ast.rs.
         scan_delimiter_errors(result.text(), &result.index)
     }
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
 }
 ```
 
-Similarly for `JavaScriptLanguage` using `tree-sitter-javascript`.
+Similarly for `JavaScriptLanguage` using `tree_sitter_javascript`.
 
 **4.2.3 Scanner Refactoring**
 
@@ -561,6 +587,16 @@ No changes.
 
 **Consequences:** Fast, consistent behavior. May miss language‑specific edge cases (e.g., regex literals in JS), but scanner already handles comments and strings.
 
+### ADR‑006: Upgrade tree‑sitter to v0.26.0
+
+**Context:** v0.3.0 uses tree‑sitter v0.25. v0.26.0 includes performance improvements and WASM fixes. 
+
+**Decision:** Upgrade to v0.26.0 as part of v0.4.0.
+
+**Alternatives:** Stay on v0.25. Rejected to stay current and benefit from improvements.
+
+**Consequences:** Minimal breaking changes expected; need to verify compatibility with grammar crates.
+
 ## 6. API & Interface Contracts
 
 No new external APIs.
@@ -579,6 +615,7 @@ No new external APIs.
 |-------------|--------------|
 | Content‑based language detection | Slower, ambiguous for small files. |
 | Separate scanner per language | Unnecessary code duplication. |
+| Using `fuzzt` for fuzzy matching now | `strsim` is sufficient for v0.4.0; evaluate `fuzzt` for v0.5.0.  |
 
 ## 9. Traceability
 
@@ -590,15 +627,15 @@ No new external APIs.
 
 ---
 
-# patch-ts Behavioral Specification & Test Verification Plan
+# patch‑ts Behavioral Specification & Test Verification Plan
 
 | Field | Value |
 |-------|-------|
-| Project | patch-ts |
+| Project | patch‑ts |
 | Document | Behavioral Specification & Test Verification Plan |
 | Version | 2.0 (v0.4.0) |
-| Date | 2026-04-22 |
-| Author | patch-ts team, assisted by spec-writer |
+| Date | 2026‑04‑22 |
+| Author | patch‑ts team, assisted by spec‑writer |
 | Status | Draft |
 | References | SRS v2.0, Architecture v2.0 |
 
@@ -609,9 +646,9 @@ No new external APIs.
 #### Scenario: Auto‑detect TypeScript file
 
 ```gherkin
-Feature: Language auto-detection
+Feature: Language auto‑detection
   As a TypeScript developer
-  I want patch-ts to automatically use the TypeScript grammar
+  I want patch‑ts to automatically use the TypeScript grammar
   So that I don't need to specify the language manually
 
   Scenario: Patch a TypeScript file without --lang flag
@@ -620,7 +657,7 @@ Feature: Language auto-detection
       const x = 1;
       console.log(x);
       """
-    When I run `patch-ts patch --file src/app.ts --line 1 --old "const x = 1;" --new "const x = 2;"`
+    When I run `patch‑ts patch --file src/app.ts --line 1 --old "const x = 1;" --new "const x = 2;"`
     Then the command succeeds
     And the file content becomes:
       """
@@ -640,7 +677,7 @@ Feature: Language auto-detection
       }
       }
       """
-    When I run `patch-ts balance --file script.js --apply`
+    When I run `patch‑ts balance --file script.js --apply`
     Then the extra '}' is removed
     And the file content becomes:
       """
@@ -655,7 +692,7 @@ Feature: Language auto-detection
 ```gherkin
   Scenario: Unknown file extension
     Given a file "data.txt"
-    When I run `patch-ts patch --file data.txt --line 1 --old "a" --new "b"`
+    When I run `patch‑ts patch --file data.txt --line 1 --old "a" --new "b"`
     Then the command fails with error message containing "Unsupported file extension"
     And the error lists supported extensions.
 ```
@@ -684,6 +721,7 @@ Feature: Language auto-detection
 | Unit | Language detection, scanner refactor | Rust `#[test]` | Developers |
 | Integration | Full commands on TS/JS files | `assert_cmd`, tempfile | Developers |
 | Regression | All existing Rust tests | Cargo test | CI |
+| Contract | JSON output validation | `serde_json`; optionally `jsonschema` | QA |
 
 ### 2.2 Test Environments
 
@@ -769,4 +807,4 @@ Feature: Language auto-detection
 
 ---
 
-This completes the specification suite for patch-ts v0.4.0. The documents provide a clear, traceable path from vision through implementation and verification.
+This completes the updated specification suite for patch‑ts v0.4.0, incorporating research on relevant Rust crates to enhance the implementation.
