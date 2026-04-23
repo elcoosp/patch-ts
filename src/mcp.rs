@@ -166,6 +166,8 @@ fn handle_patch_tool(args: Value) -> Value {
         compile_timeout: 30,
         no_sanitize: false,
         no_ellipsis: false,
+        uniqueness_weight: 0.2,
+        strict_whitespace: false,
     };
 
     let path = PathBuf::from(file);

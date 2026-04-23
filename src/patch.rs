@@ -14,6 +14,8 @@ pub struct PatchOptions {
     pub no_backup: bool,
     pub similarity_threshold: f64,
     pub confidence_threshold: f64,
+    pub uniqueness_weight: f64,
+    pub strict_whitespace: bool,
     pub no_auto_repair: bool,
     pub marker: Option<String>,
     pub plugin: Option<String>,
@@ -30,6 +32,8 @@ impl Default for PatchOptions {
             no_backup: false,
             similarity_threshold: 0.9,
             confidence_threshold: 0.9,
+            uniqueness_weight: 0.2,
+            strict_whitespace: false,
             no_auto_repair: false,
             marker: None,
             plugin: None,
@@ -76,6 +80,7 @@ pub fn apply_literal_patch(
                 expected,
                 options.fuzz_radius,
                 options.confidence_threshold,
+                options.uniqueness_weight,
             )?;
             let matched = lines[line_match.index].to_string();
             let info = Some(line_match.clone());
@@ -215,9 +220,30 @@ pub fn insert_lines(
     Ok(())
 }
 
+/// Strip leading whitespace from all context lines in a unified diff.
+pub fn normalize_diff_whitespace(diff_text: &str) -> String {
+    let mut result = String::new();
+    for line in diff_text.lines() {
+        if line.starts_with(' ') || line.starts_with('-') || line.starts_with('+') {
+            let control = &line[0..1];
+            let content = line[1..].trim_start();
+            result.push_str(&format!("{}{}\n", control, content));
+        } else {
+            result.push_str(line);
+            result.push('\n');
+        }
+    }
+    result
+}
+
 pub fn apply_unified_diff(file_path: &Path, diff_text: &str, options: PatchOptions) -> Result<()> {
     let original = fs::read_to_string(file_path)?;
-    let diffs = flickzeug::patch_from_str(diff_text)
+    let text = if options.strict_whitespace {
+        diff_text.to_string()
+    } else {
+        normalize_diff_whitespace(diff_text)
+    };
+    let diffs = flickzeug::patch_from_str(&text)
         .map_err(|e| anyhow::anyhow!("Failed to parse diff: {}", e))?;
     let mut current_content = original;
     for diff in diffs {

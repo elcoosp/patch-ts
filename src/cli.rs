@@ -104,6 +104,10 @@ pub struct PatchArgs {
     pub no_sanitize: bool,
     #[arg(long)]
     pub no_ellipsis: bool,
+    #[arg(long, default_value = "0.2")]
+    pub uniqueness_weight: f64,
+    #[arg(long)]
+    pub strict_whitespace: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -232,6 +236,8 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
         no_backup: args.no_backup,
         similarity_threshold: 0.9,
         confidence_threshold: args.confidence,
+        uniqueness_weight: args.uniqueness_weight,
+        strict_whitespace: args.strict_whitespace,
         no_auto_repair: args.no_auto_repair,
         marker: args.marker.clone(),
         plugin: args.plugin.clone(),

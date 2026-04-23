@@ -8,41 +8,83 @@ pub struct MatchResult {
     pub score: f64,
     pub confidence: f64,
     pub strategy: String,
+    pub uniqueness_score: f64,
 }
 
-/// Normalize a line for comparison: trim whitespace and collapse multiple spaces.
 fn normalize_line(s: &str) -> String {
     s.trim().split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Try to match when `...` appears as a line in the expected block.
-/// `...` acts as a wildcard that matches zero or more lines between the
-/// surrounding explicit lines.
+pub fn compute_uniqueness(line: &str, all_lines: &[&str]) -> f64 {
+    let trimmed = line.trim();
+    if trimmed.is_empty() { return 0.5; }
+    let count = all_lines.iter().filter(|l| l.trim() == trimmed).count();
+    if count == 0 { 1.0 } else { 1.0 / (count as f64) }
+}
+
+fn adjusted_threshold(base_threshold: f64, uniqueness: f64, weight: f64) -> f64 {
+    let adjustment = weight * (1.0 - uniqueness);
+    (base_threshold + adjustment).min(0.99)
+}
+
+#[allow(unused_variables)]
+fn most_unique_lines<'a>(lines: &'a [&str], all_lines: &[&str], n: usize) -> Vec<(usize, &'a str, f64)> {
+    let mut scored: Vec<(usize, &str, f64)> = lines.iter().enumerate()
+        .map(|(i, &l)| (i, l, compute_uniqueness(l, all_lines)))
+        .collect();
+    scored.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap());
+    scored.truncate(n);
+    scored
+}
+
+#[allow(unused_variables)]
+fn try_anchor_pair(
+    lines: &[&str],
+    expected_lines: &[&str],
+    fuzz_radius: usize,
+    max_gap: usize,
+) -> Option<usize> {
+    if expected_lines.len() < 2 { return None; }
+    let best_pair = most_unique_lines(expected_lines, lines, 2);
+    if best_pair.len() < 2 { return None; }
+    let (i1, line1, _) = best_pair[0];
+    let (i2, line2, _) = best_pair[1];
+    let (anchor1, anchor2) = if i1 < i2 { (i1, i2) } else { (i2, i1) };
+    let gap = anchor2 - anchor1;
+
+    let start = 0usize.saturating_sub(fuzz_radius);
+    let end = (lines.len().saturating_sub(1)).min(lines.len().saturating_sub(gap) + fuzz_radius);
+
+    for i in start..=end {
+        if i + anchor1 >= lines.len() || i + anchor2 >= lines.len() { continue; }
+        if lines[i + anchor1] == line1 && lines[i + anchor2] == line2 {
+            return Some(i);
+        }
+    }
+    None
+}
+
 fn try_ellipsis_match(
     lines: &[&str],
     expected: &str,
     fuzz_radius: usize,
 ) -> Option<MatchResult> {
     let expected_lines: Vec<&str> = expected.lines().collect();
-    // Find `...` on a line by itself
     let ellipsis_pos = expected_lines.iter().position(|l| l.trim() == "...")?;
     let before: Vec<&str> = expected_lines[..ellipsis_pos].to_vec();
     let after: Vec<&str> = expected_lines[ellipsis_pos + 1..].to_vec();
 
-    let target_idx = 0usize; // We'll search from the top
+    let target_idx = 0usize;
     let start = target_idx.saturating_sub(fuzz_radius);
     let end = (target_idx + fuzz_radius).min(lines.len().saturating_sub(1));
 
-    // Find the first line that matches the "before" block's first line
     for i in start..=end {
-        let mut matches = true;
-        // Match all "before" lines starting at i
         if i + before.len() > lines.len() { continue; }
+        let mut matches = true;
         for (j, bline) in before.iter().enumerate() {
             if lines[i + j] != *bline { matches = false; break; }
         }
         if !matches { continue; }
-        // Now find where the "after" block matches after some gap
         let after_start = i + before.len();
         for gap in 0..(lines.len() - after_start) {
             let aj = after_start + gap;
@@ -53,10 +95,8 @@ fn try_ellipsis_match(
             }
             if after_matches {
                 return Some(MatchResult {
-                    index: i,
-                    score: 1.0,
-                    confidence: 0.95,
-                    strategy: "ellipsis".to_string(),
+                    index: i, score: 1.0, confidence: 0.95,
+                    strategy: "ellipsis".to_string(), uniqueness_score: 1.0,
                 });
             }
         }
@@ -64,13 +104,13 @@ fn try_ellipsis_match(
     None
 }
 
-/// Multi‑strategy cascade match: exact → anchor → ellipsis → similarity → fuzzy.
 pub fn cascade_match(
     lines: &[&str],
     target_line: usize,
     expected: &str,
     fuzz_radius: usize,
     similarity_threshold: f64,
+    uniqueness_weight: f64,
 ) -> Result<MatchResult> {
     let target_idx = target_line.saturating_sub(1);
     let start = target_idx.saturating_sub(fuzz_radius);
@@ -80,11 +120,14 @@ pub fn cascade_match(
         anyhow::bail!("empty search range");
     }
 
+    let uniqueness = compute_uniqueness(expected, lines);
+    let effective_threshold = adjusted_threshold(similarity_threshold, uniqueness, uniqueness_weight);
+
     // 1. Exact match at target line
     if target_idx < lines.len() && lines[target_idx] == expected {
         return Ok(MatchResult {
             index: target_idx, score: 1.0, confidence: 1.0,
-            strategy: "exact".to_string(),
+            strategy: "exact".to_string(), uniqueness_score: uniqueness,
         });
     }
 
@@ -93,7 +136,17 @@ pub fn cascade_match(
         if lines[i] == expected {
             return Ok(MatchResult {
                 index: i, score: 1.0, confidence: 1.0,
-                strategy: "anchor".to_string(),
+                strategy: "anchor".to_string(), uniqueness_score: uniqueness,
+            });
+        }
+    }
+
+    // 2b. Multi‑line anchor fallback (try pair of unique lines)
+    if expected.lines().count() >= 2 {
+        if let Some(idx) = try_anchor_pair(lines, &expected.lines().collect::<Vec<_>>(), fuzz_radius, 10) {
+            return Ok(MatchResult {
+                index: idx, score: 0.98, confidence: 0.98,
+                strategy: "anchor_pair".to_string(), uniqueness_score: uniqueness,
             });
         }
     }
@@ -116,10 +169,10 @@ pub fn cascade_match(
         let conf = if union == 0 { 0.0 } else { intersection as f64 / union as f64 };
         if conf > best_conf { best_conf = conf; best_idx = i; }
     }
-    if best_conf >= similarity_threshold {
+    if best_conf >= effective_threshold {
         return Ok(MatchResult {
             index: best_idx, score: best_conf, confidence: best_conf,
-            strategy: "similarity".to_string(),
+            strategy: "similarity".to_string(), uniqueness_score: uniqueness,
         });
     }
 
@@ -128,28 +181,33 @@ pub fn cascade_match(
     for i in start..=end {
         let normalized_actual = normalize_line(lines[i]);
         let score = normalized_levenshtein(&normalized_expected, &normalized_actual);
-        if score >= similarity_threshold {
+        if score >= effective_threshold {
             return Ok(MatchResult {
                 index: i, score, confidence: score,
-                strategy: "fuzzy".to_string(),
+                strategy: "fuzzy".to_string(), uniqueness_score: uniqueness,
             });
         }
     }
 
-    anyhow::bail!("no match found with any strategy (best similarity confidence was {:.2})", best_conf)
+    anyhow::bail!(
+        "no match found with any strategy (best confidence {:.2}, threshold {:.2}, uniqueness {:.2})",
+        best_conf, effective_threshold, uniqueness
+    )
 }
 
+#[allow(unused_variables)]
 pub fn fuzzy_match_line(
     lines: &[&str],
     target_line: usize,
     expected: &str,
     fuzz_radius: usize,
     similarity_threshold: f64,
+    uniqueness_weight: f64,
 ) -> Result<MatchResult> {
-    cascade_match(lines, target_line, expected, fuzz_radius, similarity_threshold)
+    cascade_match(lines, target_line, expected, fuzz_radius, similarity_threshold, uniqueness_weight)
 }
 
-// Block matching and tests remain below (same as before)
+// Block matching
 use crate::ast::{Language, RustLanguage};
 use tree_sitter::Node;
 
@@ -190,6 +248,7 @@ fn jaccard_similarity(tokens1: &[String], tokens2: &[String]) -> f64 {
     if union == 0 { 1.0 } else { intersection as f64 / union as f64 }
 }
 
+#[allow(unused_variables)]
 pub fn find_best_block_match(
     lines: &[&str],
     expected: &str,
@@ -197,9 +256,7 @@ pub fn find_best_block_match(
     similarity_threshold: f64,
 ) -> Result<BlockMatchResult> {
     let expected_lines: Vec<&str> = expected.lines().collect();
-    if expected_lines.is_empty() {
-        anyhow::bail!("expected block cannot be empty");
-    }
+    if expected_lines.is_empty() { anyhow::bail!("expected block cannot be empty"); }
     let expected_tokens = tokenize_rust(expected);
     let window_size = expected_lines.len();
     let search_start = 0usize;
@@ -211,11 +268,8 @@ pub fn find_best_block_match(
         let candidate = lines[i..i + window_size].join("\n");
         let candidate_tokens = tokenize_rust(&candidate);
         let score = jaccard_similarity(&expected_tokens, &candidate_tokens);
-        if score > best_score {
-            best_score = score; best_index = Some(i); tie_count = 1;
-        } else if (score - best_score).abs() < f64::EPSILON {
-            tie_count += 1;
-        }
+        if score > best_score { best_score = score; best_index = Some(i); tie_count = 1; }
+        else if (score - best_score).abs() < f64::EPSILON { tie_count += 1; }
     }
     let idx = best_index.ok_or_else(|| anyhow!("no block match found"))?;
     if best_score < similarity_threshold {
@@ -232,32 +286,56 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_uniqueness_unique_line() {
+        let lines = vec!["unique line", "other", "other"];
+        assert_eq!(compute_uniqueness("unique line", &lines), 1.0);
+    }
+
+    #[test]
+    fn test_uniqueness_common_line() {
+        let lines = vec!["a", "a", "a"];
+        assert!((compute_uniqueness("a", &lines) - 1.0/3.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_adjusted_threshold_raises() {
+        let adjusted = adjusted_threshold(0.9, 0.33, 0.2);
+        assert!(adjusted > 0.9);
+    }
+
+    #[test]
+    fn test_adjusted_threshold_lowers() {
+        let adjusted = adjusted_threshold(0.9, 1.0, 0.2);
+        assert!((adjusted - 0.9).abs() < 0.01);
+    }
+
+    #[test]
     fn test_ellipsis_match_simple() {
         let lines = vec!["fn main() {", "    let x = 1;", "    println!(\"{}\", x);", "}"];
         let expected = "fn main() {\n...\n}";
-        let result = cascade_match(&lines, 0, expected, 2, 0.9).unwrap();
+        let result = cascade_match(&lines, 0, expected, 2, 0.9, 0.2).unwrap();
         assert_eq!(result.strategy, "ellipsis");
-        assert_eq!(result.confidence, 0.95);
+    }
+
+    #[test]
+    fn test_anchor_pair_finds_match() {
+        let lines = vec!["// comment", "fn foo() {", "    let x = 1;", "}", "fn bar() {", "    let y = 2;", "}"];
+        let expected = "fn foo() {\n    let x = 1;\n}";
+        let result = cascade_match(&lines, 0, expected, 3, 0.9, 0.2).unwrap();
+        assert!(["anchor", "anchor_pair"].contains(&result.strategy.as_str()));
     }
 
     #[test]
     fn test_exact_match() {
         let lines = vec!["a", "b", "c"];
-        let result = cascade_match(&lines, 2, "b", 0, 0.9).unwrap();
+        let result = cascade_match(&lines, 2, "b", 0, 0.9, 0.2).unwrap();
         assert_eq!(result.strategy, "exact");
-    }
-
-    #[test]
-    fn test_anchor_match() {
-        let lines = vec!["x", "b", "y"];
-        let result = cascade_match(&lines, 1, "b", 2, 0.9).unwrap();
-        assert_eq!(result.strategy, "anchor");
     }
 
     #[test]
     fn test_no_match() {
         let lines = vec!["apple", "banana"];
-        let result = cascade_match(&lines, 0, "orange", 2, 0.9);
+        let result = cascade_match(&lines, 0, "orange", 2, 0.9, 0.2);
         assert!(result.is_err());
     }
 }

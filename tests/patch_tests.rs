@@ -13,7 +13,7 @@ fn test_replace_block_exact_match() {
 
     let mut lang = RustLanguage::new();
     let mut options = PatchOptions::default();
-    apply_literal_patch(&file_path, 2, "line2", "new line2", &mut options, &mut lang).unwrap();
+    apply_literal_patch(&file_path, 2, "line2", "new line2", &mut &mut &mut options, &mut lang).unwrap();
 
     let new_content = fs::read_to_string(&file_path).unwrap();
     assert_eq!(new_content, "line1\nnew line2\nline3\n");
@@ -31,7 +31,7 @@ fn test_replace_block_mismatch_fails() {
         similarity_threshold: 1.0,
         ..Default::default()
     };
-    let result = apply_literal_patch(&file_path, 2, "wrong line", "new line2", &mut options, &mut lang);
+    let result = apply_literal_patch(&file_path, 2, "wrong line", "new line2", &mut &mut &mut options, &mut lang);
     assert!(result.is_err());
     let err_msg = result.unwrap_err().to_string();
     assert!(err_msg.contains("expected line 2 to contain"));
@@ -49,7 +49,7 @@ fn test_replace_block_with_fuzz() {
         similarity_threshold: 0.9,
         ..Default::default()
     };
-    apply_literal_patch(&file_path, 2, "line2", "new line2", &mut options, &mut lang).unwrap();
+    apply_literal_patch(&file_path, 2, "line2", "new line2", &mut &mut &mut options, &mut lang).unwrap();
 
     let new_content = fs::read_to_string(&file_path).unwrap();
     assert_eq!(new_content, "// added comment\nline1\nnew line2\nline3\n");
@@ -68,7 +68,7 @@ fn test_fuzzy_match_ambiguous() {
         ..Default::default()
     };
     // The cascade now returns the first match, so it succeeds.
-    let result = apply_literal_patch(&file_path, 2, "line A", "new line", &mut options, &mut lang);
+    let result = apply_literal_patch(&file_path, 2, "line A", "new line", &mut &mut &mut options, &mut lang);
     assert!(result.is_ok());
     let content = fs::read_to_string(&file_path).unwrap();
     assert!(content.contains("new line"));
@@ -80,7 +80,7 @@ fn test_delete_line_with_expect() {
     let file_path = dir.path().join("sample.rs");
     fs::write(&file_path, "line1\nline2\nline3\n").unwrap();
 
-    let options = PatchOptions::default();
+    let mut options = PatchOptions::default();
     delete_line(&file_path, 2, "line2", options).unwrap();
 
     let new_content = fs::read_to_string(&file_path).unwrap();
@@ -93,7 +93,7 @@ fn test_delete_line_mismatch_fails() {
     let file_path = dir.path().join("sample.rs");
     fs::write(&file_path, "line1\nline2\nline3\n").unwrap();
 
-    let options = PatchOptions::default();
+    let mut options = PatchOptions::default();
     let result = delete_line(&file_path, 2, "wrong", options);
     assert!(result.is_err());
 }
@@ -104,7 +104,7 @@ fn test_insert_lines() {
     let file_path = dir.path().join("sample.rs");
     fs::write(&file_path, "line1\nline2\nline4\n").unwrap();
 
-    let options = PatchOptions::default();
+    let mut options = PatchOptions::default();
     insert_lines(&file_path, 2, "line3", options).unwrap();
 
     let new_content = fs::read_to_string(&file_path).unwrap();
@@ -125,7 +125,7 @@ fn test_apply_unified_diff() {
 +new line2
  line3
 "#;
-    let options = PatchOptions::default();
+    let mut options = PatchOptions::default();
     apply_unified_diff(&file_path, diff, options).unwrap();
 
     let new_content = fs::read_to_string(&file_path).unwrap();
@@ -146,7 +146,7 @@ fn test_apply_diff_with_fuzz() {
 +new line2
  line3
 "#;
-    let options = PatchOptions {
+    let mut options = PatchOptions {
         fuzz_radius: 3,
         ..Default::default()
     };
@@ -168,7 +168,7 @@ fn test_fuzzy_match_below_threshold_fails() {
         similarity_threshold: 0.99,
         ..Default::default()
     };
-    let result = apply_literal_patch(&file_path, 2, "line2", "new line", &mut options, &mut lang);
+    let result = apply_literal_patch(&file_path, 2, "line2", "new line", &mut &mut &mut options, &mut lang);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("no match found with any strategy"));
@@ -182,7 +182,7 @@ fn test_empty_search_range_fails() {
 
     let mut lang = RustLanguage::new();
     let mut options = PatchOptions::default();
-    let result = apply_literal_patch(&file_path, 1, "line", "new", &mut options, &mut lang);
+    let result = apply_literal_patch(&file_path, 1, "line", "new", &mut &mut &mut options, &mut lang);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("empty") || err.contains("out of range"));
@@ -202,7 +202,7 @@ fn test_apply_unified_diff_malformed() {
 +new line2
  line3
 "#;
-    let options = PatchOptions::default();
+    let mut options = PatchOptions::default();
     let result = apply_unified_diff(&file_path, diff, options);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
@@ -215,7 +215,7 @@ fn test_delete_line_out_of_range() {
     let file_path = dir.path().join("sample.rs");
     fs::write(&file_path, "line1\n").unwrap();
 
-    let options = PatchOptions::default();
+    let mut options = PatchOptions::default();
     let result = delete_line(&file_path, 5, "line2", options);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("out of range"));
@@ -227,7 +227,7 @@ fn test_insert_lines_out_of_range() {
     let file_path = dir.path().join("sample.rs");
     fs::write(&file_path, "line1\n").unwrap();
 
-    let options = PatchOptions::default();
+    let mut options = PatchOptions::default();
     let result = insert_lines(&file_path, 5, "line2", options);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("out of range"));
@@ -241,7 +241,7 @@ fn test_apply_literal_patch_out_of_range() {
 
     let mut lang = RustLanguage::new();
     let mut options = PatchOptions::default();
-    let result = apply_literal_patch(&file_path, 100, "line1", "new", &mut options, &mut lang);
+    let result = apply_literal_patch(&file_path, 100, "line1", "new", &mut &mut &mut options, &mut lang);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("out of range"));
 }
@@ -252,7 +252,7 @@ fn test_delete_line_mismatch_message() {
     let file_path = dir.path().join("sample.rs");
     fs::write(&file_path, "line1\nline2\nline3\n").unwrap();
 
-    let options = PatchOptions::default();
+    let mut options = PatchOptions::default();
     let result = delete_line(&file_path, 2, "wrong", options);
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
@@ -273,7 +273,7 @@ fn test_apply_unified_diff_error() {
 +new line2
  line3
 "#;
-    let options = PatchOptions::default();
+    let mut options = PatchOptions::default();
     let result = apply_unified_diff(&file_path, diff, options);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Failed to apply diff"));
