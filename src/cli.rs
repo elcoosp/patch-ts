@@ -57,6 +57,10 @@ pub struct PatchArgs {
     pub old: Option<String>,
     #[arg(long)]
     pub new: Option<String>,
+    #[arg(long, default_value = "0.9")]
+    pub confidence: f64,
+    #[arg(long)]
+    pub fix_indent: bool,
     #[arg(long, conflicts_with = "line")]
     pub diff: bool,
     #[arg(long, conflicts_with_all = ["line", "diff"])]
@@ -83,10 +87,14 @@ pub struct PatchArgs {
     pub serial: bool,
     #[arg(long)]
     pub plugin: Option<String>,
+    #[arg(long)]
+    pub allow_all_paths: bool,
     #[arg(long, conflicts_with_all = ["line", "diff", "delete", "after", "marker"])]
     pub url: Option<String>,
     #[arg(long, conflicts_with_all = ["line", "diff", "delete", "after", "marker"])]
     pub git_commit: Option<String>,
+    #[arg(long)]
+    pub no_strip_fence: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -109,6 +117,8 @@ pub struct BalanceArgs {
     pub serial: bool,
     #[arg(long)]
     pub plugin: Option<String>,
+    #[arg(long)]
+    pub allow_all_paths: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -135,6 +145,25 @@ pub struct ExplainArgs {
 
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
+
+    match &cli.command {
+        Command::Patch(args) => {
+            if let Some(ref file) = args.file {
+                validate::validate_path(file, args.allow_all_paths)?;
+            }
+            if let Some(ref old) = args.old { validate::validate_string(old, "--old")?; }
+            if let Some(ref new) = args.new { validate::validate_string(new, "--new")?; }
+            if let Some(ref expect) = args.expect { validate::validate_string(expect, "--expect")?; }
+            if let Some(ref content) = args.content { validate::validate_string(content, "--content")?; }
+        }
+        Command::Balance(args) => {
+            if let Some(ref file) = args.file {
+                validate::validate_path(file, args.allow_all_paths)?;
+            }
+        }
+        _ => {}
+    }
+
     let result = match cli.command {
         Command::Patch(args) => handle_patch(args),
         Command::Balance(args) => handle_balance(args),
@@ -186,45 +215,49 @@ fn detect_language(file_path: &Path) -> Result<Box<dyn Language>> {
 fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     let mut lang = detect_language(file_path)?;
     let _manager = FileManager::new(!args.no_backup);
-    let options = PatchOptions {
+    let mut options = PatchOptions {
         fuzz_radius: args.fuzz,
         dry_run: args.dry_run,
         force: args.force,
         no_backup: args.no_backup,
         similarity_threshold: 0.9,
+        confidence_threshold: args.confidence,
         no_auto_repair: args.no_auto_repair,
         marker: args.marker.clone(),
         plugin: args.plugin.clone(),
+        match_info: None,
+        fix_indent: args.fix_indent,
     };
 
     let original = std::fs::read_to_string(file_path)?;
+
     if let Some(url) = &args.url {
         let diff_text = crate::remote::fetch_http(url)?;
-        apply_unified_diff(file_path, &diff_text, options)?;
+        apply_unified_diff(file_path, &diff_text, options.clone())?;
     } else if let Some(commit) = &args.git_commit {
         let diff_text = crate::remote::fetch_git_commit(".", commit)?;
-        apply_unified_diff(file_path, &diff_text, options)?;
+        apply_unified_diff(file_path, &diff_text, options.clone())?;
     } else if args.diff {
         let mut buffer = String::new();
         std::io::stdin().read_to_string(&mut buffer)?;
-        apply_unified_diff(file_path, &buffer, options)?;
+        apply_unified_diff(file_path, &buffer, options.clone())?;
     } else if let Some(line) = args.delete {
         let expected = args.expect.as_deref().ok_or_else(|| anyhow::anyhow!("--expect required"))?;
-        delete_line(file_path, line, expected, options)?;
+        delete_line(file_path, line, expected, options.clone())?;
     } else if let Some(after) = args.after {
         let content = args.content.as_deref().ok_or_else(|| anyhow::anyhow!("--content required"))?;
-        insert_lines(file_path, after, content, options)?;
+        insert_lines(file_path, after, content, options.clone())?;
     } else if let (Some(old), Some(new)) = (args.old.as_deref(), args.new.as_deref()) {
         let line = args.line.ok_or_else(|| anyhow::anyhow!("--line required"))?;
-        apply_literal_patch(file_path, line, old, new, options, &mut *lang)?;
+        apply_literal_patch(file_path, line, old, new, &mut options, &mut *lang)?;
     } else if let Some(line) = args.line {
         let mut buffer = String::new();
         std::io::stdin().read_to_string(&mut buffer)?;
-        let (expected, new) = parse_heredoc(&buffer)?;
-        apply_literal_patch(file_path, line, &expected, &new, options, &mut *lang)?;
+        let (expected, new) = parse_heredoc(&buffer, args.no_strip_fence)?;
+        apply_literal_patch(file_path, line, &expected, &new, &mut options, &mut *lang)?;
     } else if let Some(marker) = args.marker.as_deref() {
         let new = args.new.as_deref().or(args.content.as_deref()).ok_or_else(|| anyhow::anyhow!("--new or --content required"))?;
-        apply_marker_patch(file_path, marker, new, options)?;
+        apply_marker_patch(file_path, marker, new, options.clone())?;
     } else {
         anyhow::bail!("No patch operation specified");
     }
@@ -235,8 +268,25 @@ fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
         manager.save(&file_path.to_string_lossy(), &original, &patched)?;
     }
 
+    // Identifier cross-validation (warnings only, not errors)
+    let language_name = file_path.extension()
+        .and_then(|e| e.to_str())
+        .map(|ext| match ext {
+            "py" | "pyi" => "py",
+            other => other,
+        }).unwrap_or("");
+    let missing = crate::identifier::missing_identifiers(&original, &patched, language_name);
+    if !missing.is_empty() {
+        eprintln!("Warning: new identifiers not found in original file: {:?}", missing);
+    }
+
     if args.json {
-        println!("{}", serde_json::to_string(&JsonDiagnostic::success())?);
+        let mut diag = JsonDiagnostic::success();
+        if let Some(ref info) = options.match_info {
+            diag.confidence = Some(info.confidence);
+            diag.strategy = Some(info.strategy.clone());
+        }
+        println!("{}", serde_json::to_string(&diag)?);
     }
     Ok(())
 }
@@ -387,8 +437,14 @@ fn handle_lsp() -> Result<()> {
     Ok(())
 }
 
-fn parse_heredoc(input: &str) -> Result<(String, String)> {
-    let parts: Vec<&str> = input.split("\n---\n").collect();
+fn parse_heredoc(input: &str, no_strip_fence: bool) -> Result<(String, String)> {
+    let input = input.trim();
+    let content = if !no_strip_fence && input.starts_with("```") && input.ends_with("```") {
+        &input[3..input.len()-3]
+    } else {
+        input
+    };
+    let parts: Vec<&str> = content.split("\n---\n").collect();
     if parts.len() != 2 {
         anyhow::bail!("Heredoc must contain '<<<' expected block, then '---', then new block");
     }

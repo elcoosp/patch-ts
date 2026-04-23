@@ -17,3 +17,5 @@ pub mod remote;
 pub mod history;
 pub mod lsp;
 pub mod validate;
+pub mod indent;
+pub mod identifier;

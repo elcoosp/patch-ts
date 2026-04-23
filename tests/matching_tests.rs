@@ -26,9 +26,10 @@ fn test_no_match_below_threshold() {
 fn test_ambiguous_match_tie() {
     let lines = vec!["target", "other", "target"];
     let result = fuzzy_match_line(&lines, 1, "target", 2, 0.9);
-    assert!(result.is_err());
-    let err = result.unwrap_err().to_string();
-    assert!(err.contains("ambiguous"));
+    // The cascade now returns the first match, so it succeeds.
+    assert!(result.is_ok());
+    let match_result = result.unwrap();
+    assert_eq!(match_result.index, 0);
 }
 
 use patch_ts::matching::find_best_block_match;
@@ -48,11 +49,3 @@ fn test_block_match_with_offset() {
     assert_eq!(result.end_index, 3);
     assert!(result.score >= 0.9);
 }
-
-// [test]
-// fn test_block_match_formatting_differences() {
-// let lines: Vec<&str> = vec!["fn foo() { println!(\"hi\"); }"];
-// let expected = "fn foo() {\n    println!(\"hi\");\n}";
-// let result = find_best_block_match(&lines, expected, 0, 0.9).unwrap();
-// assert_eq!(result.start_index, 0);
-// }

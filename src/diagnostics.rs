@@ -63,6 +63,9 @@ pub struct AmbiguousMatchError {
 pub struct JsonDiagnostic {
     pub success: bool,
     pub error: Option<JsonError>,
+    pub confidence: Option<f64>,
+    pub strategy: Option<String>,
+    pub warnings: Option<Vec<String>>,
 }
 
 #[derive(serde::Serialize)]
@@ -98,6 +101,9 @@ impl JsonDiagnostic {
         Self {
             success: true,
             error: None,
+            confidence: None,
+            strategy: None,
+            warnings: None,
         }
     }
 
@@ -105,22 +111,20 @@ impl JsonDiagnostic {
         Self {
             success: false,
             error: Some(error),
+            confidence: None,
+            strategy: None,
+            warnings: None,
         }
     }
 }
 
-/// Convert anyhow error to JSON with enhanced fields.
 pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
     let msg = err.to_string();
-
-    // Attempt to extract matching info from error message
     let mut best_score = None;
     let mut best_match_line = None;
     let mut suggestion = None;
-
     if msg.contains("no match found with similarity") {
         suggestion = Some("Try increasing --fuzz radius".to_string());
-        // Try to parse score and line
         if let Some(score_part) = msg.split("best was ").nth(1) {
             let parts: Vec<&str> = score_part.split_whitespace().collect();
             if parts.len() >= 3 {
@@ -131,47 +135,30 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
     } else if msg.contains("ambiguous match") {
         suggestion = Some("Provide more specific expected content".to_string());
     }
-
     if let Some(diag) = err.downcast_ref::<SyntaxErrorDiagnostic>() {
         return JsonError {
             code: "patch_ts::syntax_error".to_string(),
             message: diag.to_string(),
-            span: JsonSpan {
-                file: file.to_string(),
-                line: 1,
-                column: 1,
-            },
+            span: JsonSpan { file: file.to_string(), line: 1, column: 1 },
             context: diag.details.clone(),
             suggestion: Some("Run `patch-ts balance` to attempt automatic fix".to_string()),
-            best_score: None,
-            best_match_line: None,
-            candidates: None,
+            best_score: None, best_match_line: None, candidates: None,
         };
     }
     if let Some(diag) = err.downcast_ref::<ContentMismatchError>() {
         return JsonError {
             code: "patch_ts::content_mismatch".to_string(),
             message: diag.to_string(),
-            span: JsonSpan {
-                file: file.to_string(),
-                line: 1,
-                column: 1,
-            },
+            span: JsonSpan { file: file.to_string(), line: 1, column: 1 },
             context: format!("expected '{}' but found '{}'", diag.expected, diag.actual),
             suggestion: Some("try increasing --fuzz radius".to_string()),
-            best_score: None,
-            best_match_line: None,
-            candidates: None,
+            best_score: None, best_match_line: None, candidates: None,
         };
     }
     JsonError {
         code: "patch_ts::error".to_string(),
         message: msg,
-        span: JsonSpan {
-            file: file.to_string(),
-            line: 0,
-            column: 0,
-        },
+        span: JsonSpan { file: file.to_string(), line: 0, column: 0 },
         context: String::new(),
         suggestion,
         best_score,
@@ -180,7 +167,6 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
     }
 }
 
-/// JSON output for the balance command.
 #[derive(serde::Serialize)]
 #[derive(Debug)]
 pub struct BalanceResult {
@@ -194,7 +180,7 @@ pub struct BalanceResult {
 #[derive(Debug)]
 pub struct BalanceAction {
     #[serde(rename = "type")]
-    pub action_type: String, // "remove" or "insert"
+    pub action_type: String,
     pub delimiter: char,
     pub line: usize,
     pub column: usize,
