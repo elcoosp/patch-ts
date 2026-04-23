@@ -66,6 +66,8 @@ pub struct PatchArgs {
     pub force: bool,
     #[arg(long)]
     pub no_backup: bool,
+    #[arg(long, default_value = "10")]
+    pub max_cost: usize,
     #[arg(long)]
     pub json: bool,
     #[arg(long)]
@@ -90,6 +92,8 @@ pub struct BalanceArgs {
     pub apply: bool,
     #[arg(long)]
     pub no_backup: bool,
+    #[arg(long, default_value = "10")]
+    pub max_cost: usize,
     #[arg(long)]
     pub json: bool,
     #[arg(long)]
@@ -273,6 +277,7 @@ fn apply_balance_to_file(file_path: &Path, args: &BalanceArgs) -> Result<()> {
         !args.apply,
         &mut *lang,
         args.plugin.as_deref(),
+        args.max_cost,
     )?;
     if args.json {
         println!("{}", serde_json::to_string(&result)?);

@@ -1,5 +1,8 @@
+pub mod search;
+
 use crate::ast::DelimiterError;
 use crate::plugin::PluginHost;
+use crate::repair::search::{minimum_cost_repair, RepairAction};
 use anyhow::Result;
 use line_index::LineIndex;
 use std::fs;
@@ -56,6 +59,7 @@ pub fn balance_file(
     dry_run: bool,
     language: &mut dyn Language,
     plugin_path: Option<&str>,
+    max_cost: usize,
 ) -> Result<BalanceResult> {
     let original_content = fs::read_to_string(file_path)?;
     let parse_result = language.parse(&original_content);
@@ -105,108 +109,85 @@ pub fn balance_file(
         }
     }
 
-    // Sort errors by descending start byte to minimize offset interference
-    let mut sorted_errors = errors.clone();
-    sorted_errors.sort_by(|a, b| {
-        let span_a = a.span();
-        let span_b = b.span();
-        span_b.start_byte.cmp(&span_a.start_byte)
-    });
+    // Use the new minimum-cost search
+    let search_result = minimum_cost_repair(
+        &original_content,
+        &errors,
+        language,
+        max_cost,
+    );
 
-    let mut actions = Vec::new();
-    let mut rolled_back = Vec::new();
-    let mut offset_shift: isize = 0;
-
-    for error in &sorted_errors {
-        // Store state before repair
-        let before_content = current_content.clone();
-        let before_parse = language.parse(&before_content);
-        let before_error_count = language.find_delimiter_errors(&before_parse).len();
-
-        // Create a mutable copy of the error with adjusted span
-        let mut adjusted_error = error.clone();
-        *adjusted_error.span_mut() = error.span().shift(offset_shift);
-
-        // Apply repair
-        current_content = apply_repair(&current_content, &adjusted_error, index);
-        let after_parse = language.parse(&current_content);
-        let after_error_count = language.find_delimiter_errors(&after_parse).len();
-
-        // Validate: rollback if error count increased
-        if after_error_count > before_error_count {
-            current_content = before_content;
-            rolled_back.push(error.clone());
-            continue;
+    let (repaired_content, actions, _cost) = match search_result {
+        Some((content, actions, cost)) => (content, actions, cost),
+        None => {
+            return Ok(BalanceResult {
+                success: false,
+                actions: vec![],
+                rolled_back: vec![],
+                error: Some(JsonError {
+                    code: "patch_ts::balance_max_cost_exceeded".to_string(),
+                    message: format!("Unable to find repair within max cost {}", max_cost),
+                    span: JsonSpan {
+                        file: file_path.to_string_lossy().to_string(),
+                        line: 0,
+                        column: 0,
+                    },
+                    context: String::new(),
+                    suggestion: Some("Try increasing max_cost or manually fix".to_string()),
+                    best_score: None,
+                    best_match_line: None,
+                    candidates: None,
+                }),
+            });
         }
+    };
 
-        // Update offset and record successful action
-        offset_shift += error.delta();
-        let action = match &adjusted_error {
-            DelimiterError::Extra { span, delimiter } => BalanceAction {
-                action_type: "remove".to_string(),
-                delimiter: *delimiter,
-                line: span.start_line,
-                column: span.start_column,
-                message: format!("Removed extra '{}'", delimiter),
-            },
-            DelimiterError::Missing {
-                expected,
-                insert_at,
-                ..
-            } => BalanceAction {
-                action_type: "insert".to_string(),
-                delimiter: *expected,
-                line: insert_at.end_line,
-                column: insert_at.end_column,
-                message: format!("Inserted missing '{}'", expected),
-            },
-        };
-        actions.push(action);
-
-        if dry_run {
-            println!(
-                "Would {} at {}:{}",
-                actions.last().unwrap().message,
-                actions.last().unwrap().line,
-                actions.last().unwrap().column
-            );
+    // Convert actions to BalanceAction
+    let balance_actions: Vec<BalanceAction> = actions.iter().map(|action| {
+        match action {
+            RepairAction::Insert { ch, pos } => {
+                let (line, col) = offset_to_line_col(&original_content, *pos);
+                BalanceAction {
+                    action_type: "insert".to_string(),
+                    delimiter: *ch,
+                    line,
+                    column: col,
+                    message: format!("Inserted missing '{}'", ch),
+                }
+            }
+            RepairAction::Delete { start, end: _ } => {
+                let (line, col) = offset_to_line_col(&original_content, *start);
+                let delimiter = original_content.chars().nth(*start).unwrap_or('?');
+                BalanceAction {
+                    action_type: "remove".to_string(),
+                    delimiter,
+                    line,
+                    column: col,
+                    message: format!("Removed extra '{}'", delimiter),
+                }
+            }
         }
-    }
+    }).collect();
 
-    let final_parse = language.parse(&current_content);
-    if !language.is_valid(&final_parse) {
-        let err = anyhow::anyhow!("Repair completed but file is still invalid");
-        return Ok(BalanceResult {
-            success: false,
-            actions,
-            rolled_back,
-            error: Some(JsonError {
-                code: "patch_ts::balance_incomplete".to_string(),
-                message: err.to_string(),
-                span: JsonSpan {
-                    file: file_path.to_string_lossy().to_string(),
-                    line: 0,
-                    column: 0,
-                },
-                context: String::new(),
-                suggestion: Some("Manual intervention required".to_string()),
-                best_score: None,
-                best_match_line: None,
-                candidates: None,
-            }),
-        });
-    }
-
-    if !dry_run {
-        fs::write(file_path, current_content)?;
+    if dry_run {
+        println!("{}", repaired_content);
+    } else {
+        fs::write(file_path, &repaired_content)?;
     }
 
     Ok(BalanceResult {
         success: true,
-        actions,
-        rolled_back,
+        actions: balance_actions,
+        rolled_back: vec![],
         error: None,
     })
+}
+
+fn offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
+    use line_index::{LineIndex, TextSize};
+    let index = LineIndex::new(source);
+    let pos = index.line_col(TextSize::from(offset as u32));
+    (pos.line as usize + 1, pos.col as usize + 1)
 }
 
 fn find_delimiter_errors_in_function(
@@ -244,15 +225,8 @@ pub fn quick_balance(content: &str, language: &mut dyn Language) -> Option<Strin
     if language.is_valid(&parse_result) {
         return Some(content.to_string());
     }
-    let extra_span = language.find_extra_delimiter(&parse_result)?;
-    let mut new_content = content.to_string();
-    new_content.replace_range(extra_span.start_byte..extra_span.end_byte, "");
-    let new_parse = language.parse(&new_content);
-    if language.is_valid(&new_parse) {
-        Some(new_content)
-    } else {
-        None
-    }
+    let errors = language.find_delimiter_errors(&parse_result);
+    minimum_cost_repair(content, &errors, language, 3).map(|(s, _, _)| s)
 }
 
 pub fn explain_error(
@@ -266,7 +240,6 @@ pub fn explain_error(
     Ok(language.explain_error(&parse_result, line))
 }
 
-// Serial (non-parallel) multi-file balance (parallel deferred to v1.0.0)
 pub fn balance_files(
     files: &[PathBuf],
     function_name: Option<&str>,
@@ -275,6 +248,6 @@ pub fn balance_files(
 ) -> Result<Vec<BalanceResult>> {
     files
         .iter()
-        .map(|file| balance_file(file, function_name, dry_run, language, None))
+        .map(|file| balance_file(file, function_name, dry_run, language, None, 10))
         .collect()
 }
