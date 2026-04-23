@@ -196,6 +196,7 @@ macro_rules! __export_plugin_impl {
   )
 }
 #[doc(inline)]
+#[allow(unused_imports)]
 pub(crate) use __export_plugin_impl as export;
 
 #[cfg(target_arch = "wasm32")]

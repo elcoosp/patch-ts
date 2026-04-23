@@ -63,7 +63,6 @@ pub fn balance_file(
 ) -> Result<BalanceResult> {
     let original_content = fs::read_to_string(file_path)?;
     let parse_result = language.parse(&original_content);
-    let index = &parse_result.index;
 
     // Validate function existence upfront (Rust only)
     if let Some(func_name) = function_name {
@@ -87,11 +86,12 @@ pub fn balance_file(
     };
 
     // If a plugin was specified, load it and apply its repair first.
-    let mut current_content = original_content.clone();
-    if let Some(path) = plugin_path {
+    let repaired_content = if let Some(path) = plugin_path {
         let host = PluginHost::load(&PathBuf::from(path))?;
-        current_content = host.repair(&errors, &current_content)?;
-    }
+        host.repair(&errors, &original_content)?
+    } else {
+        original_content.clone()
+    };
 
     if errors.is_empty() {
         if language.is_valid(&parse_result) {
@@ -109,15 +109,15 @@ pub fn balance_file(
         }
     }
 
-    // Use the new minimum-cost search
+    // Use the new minimum-cost search on the (possibly plugin‑repaired) content
     let search_result = minimum_cost_repair(
-        &original_content,
+        &repaired_content,
         &errors,
         language,
         max_cost,
     );
 
-    let (repaired_content, actions, _cost) = match search_result {
+    let (patched_content, actions, _cost) = match search_result {
         Some((content, actions, cost)) => (content, actions, cost),
         None => {
             return Ok(BalanceResult {
@@ -146,7 +146,7 @@ pub fn balance_file(
     let balance_actions: Vec<BalanceAction> = actions.iter().map(|action| {
         match action {
             RepairAction::Insert { ch, pos } => {
-                let (line, col) = offset_to_line_col(&original_content, *pos);
+                let (line, col) = offset_to_line_col(&repaired_content, *pos);
                 BalanceAction {
                     action_type: "insert".to_string(),
                     delimiter: *ch,
@@ -156,8 +156,8 @@ pub fn balance_file(
                 }
             }
             RepairAction::Delete { start, end: _ } => {
-                let (line, col) = offset_to_line_col(&original_content, *start);
-                let delimiter = original_content.chars().nth(*start).unwrap_or('?');
+                let (line, col) = offset_to_line_col(&repaired_content, *start);
+                let delimiter = repaired_content.chars().nth(*start).unwrap_or('?');
                 BalanceAction {
                     action_type: "remove".to_string(),
                     delimiter,
@@ -170,9 +170,9 @@ pub fn balance_file(
     }).collect();
 
     if dry_run {
-        println!("{}", repaired_content);
+        println!("{}", patched_content);
     } else {
-        fs::write(file_path, &repaired_content)?;
+        fs::write(file_path, &patched_content)?;
     }
 
     Ok(BalanceResult {
