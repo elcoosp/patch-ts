@@ -19,3 +19,5 @@ pub mod lsp;
 pub mod validate;
 pub mod indent;
 pub mod identifier;
+pub mod mcp;
+pub mod compile;

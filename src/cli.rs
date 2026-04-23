@@ -41,6 +41,7 @@ pub enum Command {
     Redo,
     History,
     Lsp,
+    Mcp,
 }
 
 #[derive(Parser, Debug)]
@@ -95,6 +96,10 @@ pub struct PatchArgs {
     pub git_commit: Option<String>,
     #[arg(long)]
     pub no_strip_fence: bool,
+    #[arg(long)]
+    pub no_compile_check: bool,
+    #[arg(long, default_value = "30")]
+    pub compile_timeout: u64,
 }
 
 #[derive(Parser, Debug)]
@@ -173,6 +178,7 @@ pub fn run() -> Result<()> {
         Command::Redo => handle_redo(),
         Command::History => handle_history(),
         Command::Lsp => handle_lsp(),
+        Command::Mcp => handle_mcp(),
     };
 
     if let Err(ref e) = result {
@@ -190,7 +196,7 @@ fn expand_files(pattern: &str) -> Result<Vec<PathBuf>> {
     Ok(paths)
 }
 
-fn detect_language(file_path: &Path) -> Result<Box<dyn Language>> {
+pub fn detect_language(file_path: &Path) -> Result<Box<dyn Language>> {
     match file_path.extension().and_then(|e| e.to_str()) {
         Some("rs") => Ok(Box::new(RustLanguage::new())),
         Some("ts") | Some("tsx") | Some("mts") | Some("cts") => Ok(Box::new(TypeScriptLanguage::new())),
@@ -212,7 +218,7 @@ fn detect_language(file_path: &Path) -> Result<Box<dyn Language>> {
     }
 }
 
-fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
+pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     let mut lang = detect_language(file_path)?;
     let _manager = FileManager::new(!args.no_backup);
     let mut options = PatchOptions {
@@ -263,18 +269,31 @@ fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     }
 
     let patched = std::fs::read_to_string(file_path)?;
+
+    // Post-patch compilation validation
+    if !args.no_compile_check {
+        let lang_str = file_path.extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+        let compile_result = crate::compile::compile_check(file_path, lang_str, args.compile_timeout)?;
+        if !compile_result.success {
+            // Rollback to original
+            std::fs::write(file_path, &original)?;
+            let error_msg = compile_result.errors.iter()
+                .map(|e| format!("{}:{}:{}: {}", e.file, e.line, e.column, e.message))
+                .collect::<Vec<_>>()
+                .join("\n");
+            anyhow::bail!("Patch introduced compilation errors:\n{}", error_msg);
+        }
+    }
+
     if patched != original {
         let manager = HistoryManager::new();
         manager.save(&file_path.to_string_lossy(), &original, &patched)?;
     }
 
     // Identifier cross-validation (warnings only, not errors)
-    let language_name = file_path.extension()
-        .and_then(|e| e.to_str())
-        .map(|ext| match ext {
-            "py" | "pyi" => "py",
-            other => other,
-        }).unwrap_or("");
+    let language_name = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let missing = crate::identifier::missing_identifiers(&original, &patched, language_name);
     if !missing.is_empty() {
         eprintln!("Warning: new identifiers not found in original file: {:?}", missing);
@@ -322,7 +341,7 @@ fn handle_patch(args: PatchArgs) -> Result<()> {
     Ok(())
 }
 
-fn apply_balance_to_file(file_path: &Path, args: &BalanceArgs) -> Result<()> {
+pub fn apply_balance_to_file(file_path: &Path, args: &BalanceArgs) -> Result<()> {
     let mut lang = detect_language(file_path)?;
     let result = balance_file(
         file_path,
@@ -396,6 +415,11 @@ fn handle_watch(args: WatchArgs) -> Result<()> {
 
     let event = watcher.wait_for_change()?;
     println!("Change detected: {:?}", event.paths);
+    Ok(())
+}
+
+fn handle_mcp() -> Result<()> {
+    crate::mcp::run_mcp()?;
     Ok(())
 }
 
