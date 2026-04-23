@@ -11,7 +11,7 @@ use crate::ast::{
     JavaScriptLanguage, Language, PHPLanguage, PythonLanguage, RubyLanguage, RustLanguage,
     ScalaLanguage, SwiftLanguage, TypeScriptLanguage, XmlLanguage, ZigLanguage,
 };
-use crate::diagnostics::{anyhow_to_json, JsonDiagnostic, JsonError};
+use crate::diagnostics::{JsonDiagnostic, JsonError};
 use crate::file::FileManager;
 use crate::history::HistoryManager;
 use crate::patch::{

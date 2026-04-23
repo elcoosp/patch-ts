@@ -1,7 +1,7 @@
 [package]
 name = "patch-ts"
-version = "1.0.0"
-edition = "2021"
+version = "1.2.0"
+edition = "2024"
 authors = ["Your Name <you@example.com>"]
 description = "Tree-sitter-backed patching CLI for AI agents"
 license = "MIT"
@@ -50,6 +50,8 @@ wit-bindgen = "0.41"
 reqwest = { version = "0.12", features = ["blocking", "rustls-tls"] }
 git2 = "0.19"
 chrono = "0.4"
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["rt", "io-std", "macros", "fs"] }
 
 [dev-dependencies]
 assert_cmd = "2.1"
