@@ -78,7 +78,7 @@ fn command_exists(cmd: &str) -> bool {
 }
 
 /// Extract error locations and messages from compiler output.
-fn parse_compiler_output(output: &str, lang: &str) -> Vec<CompileError> {
+fn parse_compiler_output(output: &str, _lang: &str) -> Vec<CompileError> {
     let mut errors = Vec::new();
 
     // Rust: error[E0308]: src/main.rs:10:5
