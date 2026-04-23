@@ -2,6 +2,7 @@ use anyhow::Result;
 use std::path::Path;
 use wasmtime::{Config, Engine, Module};
 
+#[allow(dead_code)]
 pub struct PluginHost {
     engine: Engine,
     module: Module,
