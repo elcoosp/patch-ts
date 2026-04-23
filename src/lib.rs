@@ -16,3 +16,4 @@ pub mod plugin_bindings;
 pub mod remote;
 pub mod history;
 pub mod lsp;
+pub mod validate;

@@ -19,6 +19,7 @@ use crate::patch::{
     PatchOptions,
 };
 use crate::repair::{balance_file, explain_error};
+use crate::validate;
 
 #[derive(Parser)]
 #[command(
