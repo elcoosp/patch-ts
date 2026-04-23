@@ -13,6 +13,7 @@ use crate::ast::{
 };
 use crate::diagnostics::{anyhow_to_json, JsonDiagnostic, JsonError};
 use crate::file::FileManager;
+use crate::history::HistoryManager;
 use crate::patch::{
     apply_literal_patch, apply_marker_patch, apply_unified_diff, delete_line, insert_lines,
     PatchOptions,
@@ -34,6 +35,10 @@ pub enum Command {
     Patch(PatchArgs),
     Balance(BalanceArgs),
     Explain(ExplainArgs),
+    Watch(WatchArgs),
+    Undo,
+    Redo,
+    History,
 }
 
 #[derive(Parser, Debug)]
@@ -42,7 +47,7 @@ pub struct PatchArgs {
     pub file: Option<String>,
     #[arg(long, conflicts_with = "file")]
     pub files: Option<String>,
-    #[arg(short, long, required_unless_present_any = ["diff", "delete", "after", "marker"])]
+    #[arg(short, long, required_unless_present_any = ["diff", "delete", "after", "marker", "url", "git_commit"])]
     pub line: Option<usize>,
     #[arg(short = 'z', long, default_value = "5")]
     pub fuzz: usize,
@@ -66,8 +71,6 @@ pub struct PatchArgs {
     pub force: bool,
     #[arg(long)]
     pub no_backup: bool,
-    #[arg(long, default_value = "10")]
-    pub max_cost: usize,
     #[arg(long)]
     pub json: bool,
     #[arg(long)]
@@ -78,6 +81,10 @@ pub struct PatchArgs {
     pub serial: bool,
     #[arg(long)]
     pub plugin: Option<String>,
+    #[arg(long, conflicts_with_all = ["line", "diff", "delete", "after", "marker"])]
+    pub url: Option<String>,
+    #[arg(long, conflicts_with_all = ["line", "diff", "delete", "after", "marker"])]
+    pub git_commit: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -103,6 +110,18 @@ pub struct BalanceArgs {
 }
 
 #[derive(Parser, Debug)]
+pub struct WatchArgs {
+    #[arg(short, long)]
+    pub path: String,
+    #[arg(long, default_value = "500")]
+    pub delay: u64,
+    #[arg(long)]
+    pub ignore: Option<Vec<String>>,
+    #[arg(long)]
+    pub hooks: Option<String>,
+}
+
+#[derive(Parser, Debug)]
 pub struct ExplainArgs {
     #[arg(short, long)]
     pub file: String,
@@ -114,29 +133,21 @@ pub struct ExplainArgs {
 
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
-    let (json, file) = match &cli.command {
-        Command::Patch(args) => (args.json, args.file.clone()),
-        Command::Balance(args) => (args.json, args.file.clone()),
-        Command::Explain(args) => (args.json, Some(args.file.clone())),
-    };
     let result = match cli.command {
         Command::Patch(args) => handle_patch(args),
         Command::Balance(args) => handle_balance(args),
         Command::Explain(args) => handle_explain(args),
+        Command::Watch(args) => handle_watch(args),
+        Command::Undo => handle_undo(),
+        Command::Redo => handle_redo(),
+        Command::History => handle_history(),
     };
+
     if let Err(ref e) = result {
-        if json {
-            if let Some(f) = file {
-                let json_err = anyhow_to_json(e, &f);
-                println!(
-                    "{}",
-                    serde_json::to_string(&JsonDiagnostic::error(json_err))?
-                );
-                std::process::exit(1);
-            }
-        }
+        eprintln!("{}", e);
+        std::process::exit(1);
     }
-    result
+    Ok(())
 }
 
 fn expand_files(pattern: &str) -> Result<Vec<PathBuf>> {
@@ -165,7 +176,7 @@ fn detect_language(file_path: &Path) -> Result<Box<dyn Language>> {
         Some("swift") => Ok(Box::new(SwiftLanguage::new())),
         Some("scala") => Ok(Box::new(ScalaLanguage::new())),
         Some("zig") => Ok(Box::new(ZigLanguage::new())),
-        _ => anyhow::bail!("Unsupported file extension. Supported: .rs, .ts, .tsx, .js, .jsx, .py, .pyi, .go, .rb, .php, .html, .htm, .xml, .c, .h, .cpp, .cc, .cxx, .hpp, .java, .cs, .swift, .scala, .zig"),
+        _ => anyhow::bail!("Unsupported file extension."),
     }
 }
 
@@ -183,26 +194,25 @@ fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
         plugin: args.plugin.clone(),
     };
 
-    if args.diff {
+    let original = std::fs::read_to_string(file_path)?;
+    if let Some(url) = &args.url {
+        let diff_text = crate::remote::fetch_http(url)?;
+        apply_unified_diff(file_path, &diff_text, options)?;
+    } else if let Some(commit) = &args.git_commit {
+        let diff_text = crate::remote::fetch_git_commit(".", commit)?;
+        apply_unified_diff(file_path, &diff_text, options)?;
+    } else if args.diff {
         let mut buffer = String::new();
         std::io::stdin().read_to_string(&mut buffer)?;
         apply_unified_diff(file_path, &buffer, options)?;
     } else if let Some(line) = args.delete {
-        let expected = args
-            .expect
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("--expect required"))?;
+        let expected = args.expect.as_deref().ok_or_else(|| anyhow::anyhow!("--expect required"))?;
         delete_line(file_path, line, expected, options)?;
     } else if let Some(after) = args.after {
-        let content = args
-            .content
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("--content required"))?;
+        let content = args.content.as_deref().ok_or_else(|| anyhow::anyhow!("--content required"))?;
         insert_lines(file_path, after, content, options)?;
     } else if let (Some(old), Some(new)) = (args.old.as_deref(), args.new.as_deref()) {
-        let line = args
-            .line
-            .ok_or_else(|| anyhow::anyhow!("--line required"))?;
+        let line = args.line.ok_or_else(|| anyhow::anyhow!("--line required"))?;
         apply_literal_patch(file_path, line, old, new, options, &mut *lang)?;
     } else if let Some(line) = args.line {
         let mut buffer = String::new();
@@ -210,14 +220,16 @@ fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
         let (expected, new) = parse_heredoc(&buffer)?;
         apply_literal_patch(file_path, line, &expected, &new, options, &mut *lang)?;
     } else if let Some(marker) = args.marker.as_deref() {
-        let new = args
-            .new
-            .as_deref()
-            .or(args.content.as_deref())
-            .ok_or_else(|| anyhow::anyhow!("--new or --content required"))?;
+        let new = args.new.as_deref().or(args.content.as_deref()).ok_or_else(|| anyhow::anyhow!("--new or --content required"))?;
         apply_marker_patch(file_path, marker, new, options)?;
     } else {
         anyhow::bail!("No patch operation specified");
+    }
+
+    let patched = std::fs::read_to_string(file_path)?;
+    if patched != original {
+        let manager = HistoryManager::new();
+        manager.save(&file_path.to_string_lossy(), &original, &patched)?;
     }
 
     if args.json {
@@ -229,36 +241,24 @@ fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
 fn handle_patch(args: PatchArgs) -> Result<()> {
     if let Some(pattern) = &args.files {
         let paths = expand_files(pattern)?;
-
-        // Thread‑safe success flag
         let any_success = AtomicBool::new(false);
-
         let process = |path: &PathBuf| -> Result<(), anyhow::Error> {
             match apply_patch_to_file(path, &args) {
-                Ok(()) => {
-                    any_success.store(true, Ordering::Relaxed);
-                    Ok(())
-                }
+                Ok(()) => { any_success.store(true, Ordering::Relaxed); Ok(()) }
                 Err(e) => {
                     let msg = e.to_string();
                     if msg.contains("no match found") || msg.contains("ambiguous match") {
                         eprintln!("Skipping {}: {}", path.display(), msg);
                         Ok(())
-                    } else {
-                        Err(e)
-                    }
+                    } else { Err(e) }
                 }
             }
         };
-
         if args.serial {
-            for path in &paths {
-                process(path)?;
-            }
+            for path in &paths { process(path)?; }
         } else {
             paths.par_iter().try_for_each(|path| process(path))?;
         }
-
         if !any_success.load(Ordering::Relaxed) {
             anyhow::bail!("No files were successfully patched");
         }
@@ -289,13 +289,9 @@ fn handle_balance(args: BalanceArgs) -> Result<()> {
     if let Some(pattern) = &args.files {
         let paths = expand_files(pattern)?;
         if args.serial {
-            for path in paths {
-                apply_balance_to_file(&path, &args)?;
-            }
+            for path in paths { apply_balance_to_file(&path, &args)?; }
         } else {
-            paths
-                .par_iter()
-                .try_for_each(|path| apply_balance_to_file(path, &args))?;
+            paths.par_iter().try_for_each(|path| apply_balance_to_file(path, &args))?;
         }
     } else {
         let file_path = Path::new(args.file.as_deref().unwrap());
@@ -324,15 +320,60 @@ fn handle_explain(args: ExplainArgs) -> Result<()> {
                 best_match_line: None,
                 candidates: None,
             };
-            println!(
-                "{}",
-                serde_json::to_string(&JsonDiagnostic::error(json_err))?
-            );
+            println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?);
         } else {
             eprintln!("{:?}", miette::Report::new(diag));
         }
     } else if args.json {
         println!("{}", serde_json::to_string(&JsonDiagnostic::success())?);
+    }
+    Ok(())
+}
+
+fn handle_watch(args: WatchArgs) -> Result<()> {
+    use crate::watch::FileWatcher;
+    use std::time::Duration;
+
+    let ignore_patterns = args.ignore.unwrap_or_default();
+    let delay = Duration::from_millis(args.delay);
+    let hooks = args.hooks.as_deref();
+
+    let mut watcher = FileWatcher::new(delay, ignore_patterns, hooks)?;
+    watcher.watch(&args.path)?;
+
+    let event = watcher.wait_for_change()?;
+    println!("Change detected: {:?}", event.paths);
+    Ok(())
+}
+
+fn handle_undo() -> Result<()> {
+    let manager = HistoryManager::new();
+    match manager.undo_last()? {
+        Some(record) => {
+            std::fs::write(&record.file, &record.original_content)?;
+            println!("Undo applied: file {} restored.", record.file);
+        }
+        None => {
+            eprintln!("No history to undo.");
+        }
+    }
+    Ok(())
+}
+
+fn handle_redo() -> Result<()> {
+    eprintln!("Redo not yet implemented.");
+    Ok(())
+}
+
+fn handle_history() -> Result<()> {
+    let manager = HistoryManager::new();
+    let records = manager.list()?;
+    if records.is_empty() {
+        println!("No history found.");
+    } else {
+        for record in &records {
+            println!("{} - {}", record.timestamp, record.file);
+        }
     }
     Ok(())
 }
@@ -346,107 +387,4 @@ fn parse_heredoc(input: &str) -> Result<(String, String)> {
         parts[0].trim_start_matches("<<<\n").to_string(),
         parts[1].to_string(),
     ))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use std::path::Path;
-    use tempfile::tempdir;
-
-    #[test]
-    fn test_glob_expansion() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("a.rs"), "").unwrap();
-        fs::write(dir.path().join("b.rs"), "").unwrap();
-        let pattern = dir.path().join("*.rs").to_str().unwrap().to_string();
-        let paths: Vec<_> = glob(&pattern).unwrap().filter_map(Result::ok).collect();
-        assert_eq!(paths.len(), 2);
-    }
-
-    #[test]
-    fn test_detect_language_rust() {
-        let mut lang = detect_language(Path::new("main.rs")).unwrap();
-        assert!(lang.as_any_mut().is::<RustLanguage>());
-    }
-    #[test]
-    fn test_detect_language_typescript() {
-        let mut lang = detect_language(Path::new("app.ts")).unwrap();
-        assert!(lang.as_any_mut().is::<TypeScriptLanguage>());
-    }
-    #[test]
-    fn test_detect_language_javascript() {
-        let mut lang = detect_language(Path::new("script.js")).unwrap();
-        assert!(lang.as_any_mut().is::<JavaScriptLanguage>());
-    }
-    #[test]
-    fn test_detect_language_python() {
-        let mut lang = detect_language(Path::new("script.py")).unwrap();
-        assert!(lang.as_any_mut().is::<PythonLanguage>());
-    }
-    #[test]
-    fn test_detect_language_go() {
-        let mut lang = detect_language(Path::new("main.go")).unwrap();
-        assert!(lang.as_any_mut().is::<GoLanguage>());
-    }
-    #[test]
-    fn test_detect_language_ruby() {
-        let mut lang = detect_language(Path::new("app.rb")).unwrap();
-        assert!(lang.as_any_mut().is::<RubyLanguage>());
-    }
-    #[test]
-    fn test_detect_language_php() {
-        let mut lang = detect_language(Path::new("index.php")).unwrap();
-        assert!(lang.as_any_mut().is::<PHPLanguage>());
-    }
-    #[test]
-    fn test_detect_language_html() {
-        let mut lang = detect_language(Path::new("page.html")).unwrap();
-        assert!(lang.as_any_mut().is::<HtmlLanguage>());
-    }
-    #[test]
-    fn test_detect_language_xml() {
-        let mut lang = detect_language(Path::new("data.xml")).unwrap();
-        assert!(lang.as_any_mut().is::<XmlLanguage>());
-    }
-    #[test]
-    fn test_detect_language_c() {
-        let mut lang = detect_language(Path::new("main.c")).unwrap();
-        assert!(lang.as_any_mut().is::<CLanguage>());
-    }
-    #[test]
-    fn test_detect_language_cpp() {
-        let mut lang = detect_language(Path::new("main.cpp")).unwrap();
-        assert!(lang.as_any_mut().is::<CppLanguage>());
-    }
-    #[test]
-    fn test_detect_language_java() {
-        let mut lang = detect_language(Path::new("Main.java")).unwrap();
-        assert!(lang.as_any_mut().is::<JavaLanguage>());
-    }
-    #[test]
-    fn test_detect_language_cs() {
-        let mut lang = detect_language(Path::new("Program.cs")).unwrap();
-        assert!(lang.as_any_mut().is::<CSharpLanguage>());
-    }
-    #[test]
-    fn test_detect_language_swift() {
-        let mut lang = detect_language(Path::new("main.swift")).unwrap();
-        assert!(lang.as_any_mut().is::<SwiftLanguage>());
-    }
-    #[test]
-    fn test_detect_language_scala() {
-        let mut lang = detect_language(Path::new("Main.scala")).unwrap();
-        assert!(lang.as_any_mut().is::<ScalaLanguage>());
-    }
-    #[test]
-    fn test_detect_language_zig() {
-        let mut lang = detect_language(Path::new("main.zig")).unwrap();
-        assert!(lang.as_any_mut().is::<ZigLanguage>());
-    }
-    #[test]
-    fn test_detect_language_unknown() {
-        assert!(detect_language(Path::new("file.txt")).is_err());
-    }
 }

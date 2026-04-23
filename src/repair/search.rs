@@ -1,7 +1,7 @@
 // src/repair/search.rs
 use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
-use crate::ast::{DelimiterError, Language, ParseResult, Span};
+use crate::ast::{DelimiterError, Language};
 
 /// An atomic edit action: insert a delimiter at a byte position, or delete a span.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -25,12 +25,10 @@ impl RepairState {
     }
 }
 
-/// Generate possible next states from a given state and a delimiter error.
 fn generate_next_states(state: &RepairState, error: &DelimiterError) -> Vec<RepairState> {
     let mut next_states = Vec::new();
     match error {
         DelimiterError::Extra { span, delimiter: _ } => {
-            // Create a state with the extra delimiter deleted
             let mut new_source = state.source.clone();
             new_source.replace_range(span.start_byte..span.end_byte, "");
             let mut new_actions = state.actions.clone();
@@ -45,7 +43,6 @@ fn generate_next_states(state: &RepairState, error: &DelimiterError) -> Vec<Repa
             });
         }
         DelimiterError::Missing { expected, insert_at, .. } => {
-            // Create a state with the missing delimiter inserted at the end of the span
             let insert_pos = insert_at.end_byte;
             let mut new_source = state.source.clone();
             new_source.insert(insert_pos, *expected);
@@ -71,7 +68,7 @@ fn generate_next_states(state: &RepairState, error: &DelimiterError) -> Vec<Repa
 /// Returns `None` if no repair is found.
 pub fn minimum_cost_repair(
     source: &str,
-    initial_errors: &[DelimiterError],
+    _initial_errors: &[DelimiterError],
     language: &mut dyn Language,
     max_cost: usize,
 ) -> Option<(String, Vec<RepairAction>, usize)> {
@@ -81,12 +78,10 @@ pub fn minimum_cost_repair(
         return Some((source.to_string(), Vec::new(), 0));
     }
 
-    // BFS queue ordered by cost (since each step increases cost by 1, we can use a simple VecDeque)
     let mut queue = VecDeque::new();
     let initial_state = RepairState::new(source.to_string());
     queue.push_back(initial_state);
 
-    // Memoization set to avoid re‑exploring identical source strings
     let mut visited = HashSet::new();
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     source.hash(&mut hasher);
@@ -98,12 +93,10 @@ pub fn minimum_cost_repair(
             return Some((state.source, state.actions, state.cost));
         }
 
-        // Do not expand states that have reached the cost limit
         if state.cost >= max_cost {
             continue;
         }
 
-        // Find delimiter errors in the current source
         let errors = language.find_delimiter_errors(&parse_result);
         for error in errors {
             let next_states = generate_next_states(&state, &error);
