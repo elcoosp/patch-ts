@@ -39,6 +39,7 @@ pub enum Command {
     Undo,
     Redo,
     History,
+    Lsp,
 }
 
 #[derive(Parser, Debug)]
@@ -141,6 +142,7 @@ pub fn run() -> Result<()> {
         Command::Undo => handle_undo(),
         Command::Redo => handle_redo(),
         Command::History => handle_history(),
+        Command::Lsp => handle_lsp(),
     };
 
     if let Err(ref e) = result {
@@ -375,6 +377,12 @@ fn handle_history() -> Result<()> {
             println!("{} - {}", record.timestamp, record.file);
         }
     }
+    Ok(())
+}
+
+fn handle_lsp() -> Result<()> {
+    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+    rt.block_on(crate::lsp::run_lsp())?;
     Ok(())
 }
 
