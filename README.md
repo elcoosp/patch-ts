@@ -1,6 +1,6 @@
 # patch-ts
 
-**Tree‑sitter‑aware patching CLI for AI agents and developers.**  
+**Tree‑sitter‑aware patching CLI for AI agents and developers.**
 Safely apply patches to **16+ languages** with fuzzy matching, AST validation, auto‑repair, marker‑based targeting, multi‑file bulk operations, parallel processing, an interactive TUI, watch mode, and a WASM plugin system.
 
 ---
@@ -10,7 +10,7 @@ Safely apply patches to **16+ languages** with fuzzy matching, AST validation, a
 - **Multi‑language support** – Rust, TypeScript, JavaScript, Python, Go, Ruby, PHP, HTML, XML, C, C++, Java, C#, Swift, Scala, Zig, and more. Language is detected automatically by file extension.
 - **AST‑aware patching** – Validates syntax after each patch using tree‑sitter, preventing silent corruption.
 - **Fuzzy matching** – Locates target lines/blocks even when line numbers have drifted (configurable fuzz radius).
-- **Auto‑repair** – Automatically fixes simple syntax errors (e.g., unbalanced delimiters) introduced by a patch.
+- **Auto‑repair** – Automatically fixes simple syntax errors (e.g., unbalanced delimiters) introduced by a patch, using a minimum‑cost search for the smallest valid edit.
 - **Context‑aware insertion** – Uses parent node information to place missing delimiters accurately.
 - **Batch repair** – Fixes multiple delimiter errors in a single pass with built‑in rollback protection.
 - **Marker‑based targeting** – Replace AST nodes anchored by `// PATCH-ME: <id>` comments.
@@ -29,13 +29,13 @@ Safely apply patches to **16+ languages** with fuzzy matching, AST validation, a
 
 ### From crates.io (recommended)
 
-```bash
+```
 cargo install patch-ts
 ```
 
 ### From source
 
-```bash
+```
 git clone https://github.com/elcoosp/patch-ts
 cd patch-ts
 cargo build --release
@@ -72,7 +72,7 @@ Language is automatically detected – no need for a `--lang` flag.
 
 ## Usage
 
-```bash
+```
 patch-ts <COMMAND> [OPTIONS]
 ```
 
@@ -93,7 +93,7 @@ Applies changes to one or more source files. You must specify **one** of the fol
 
 ### 1. Literal Replacement (exact or fuzzy)
 
-```bash
+```
 patch-ts patch --file <FILE> --line <LINE> --old <EXPECTED> --new <NEW> [OPTIONS]
 # or multi‑file
 patch-ts patch --files "<GLOB>" --line <LINE> --old <EXPECTED> --new <NEW> [OPTIONS]
@@ -106,25 +106,25 @@ patch-ts patch --files "<GLOB>" --line <LINE> --old <EXPECTED> --new <NEW> [OPTI
 
 ### 2. Delete a Line
 
-```bash
+```
 patch-ts patch --file <FILE> --delete <LINE> --expect <EXPECTED_CONTENT>
 ```
 
 ### 3. Insert After a Line
 
-```bash
+```
 patch-ts patch --file <FILE> --after <LINE> --content <NEW_CONTENT>
 ```
 
 ### 4. Apply Unified Diff
 
-```bash
+```
 patch-ts patch --file <FILE> --diff [--fuzz <N>] < diff.patch
 ```
 
 ### 5. Marker‑Based Replacement
 
-```bash
+```
 patch-ts patch --file <FILE> --marker <ID> --new <NEW_CONTENT>
 ```
 
@@ -147,15 +147,16 @@ patch-ts patch --file <FILE> --marker <ID> --new <NEW_CONTENT>
 
 ## The `balance` Command
 
-Attempts to fix unbalanced delimiters (`{}`, `()`, `[]`) using context‑aware insertion and batch repair.
+Attempts to fix unbalanced delimiters (`{}`, `()`, `[]`) using a **minimum‑cost repair engine** that finds the smallest set of edits to restore valid syntax. Automatically rolls back if a repair would introduce new errors.
 
-```bash
-patch-ts balance --file <FILE> [--files <GLOB>] [--apply] [--function <NAME>] [--no-backup] [--json]
+```
+patch-ts balance --file <FILE> [--files <GLOB>] [--apply] [--function <NAME>] [--no-backup] [--json] [--max-cost <N>]
 ```
 
 - `--apply` : Actually modify the file (default is dry‑run).
 - `--function <NAME>` : Restrict repairs to a specific function (Rust only).
 - `--files <GLOB>` : Balance multiple files at once.
+- `--max-cost <N>`  : Maximum number of edits the repair engine may perform (default: 10). Increase for more complex fixes.
 - `--serial` : Disable parallel processing.
 
 ---
@@ -164,7 +165,7 @@ patch-ts balance --file <FILE> [--files <GLOB>] [--apply] [--function <NAME>] [-
 
 Provides human‑readable or JSON explanation of a syntax error, with language‑specific suggestions.
 
-```bash
+```
 patch-ts explain --file <FILE> --line <LINE> [--json]
 ```
 
@@ -176,7 +177,7 @@ patch-ts explain --file <FILE> --line <LINE> [--json]
 
 Place a `patch-ts.toml` file in your project root (or any parent directory) to set default options:
 
-```toml
+```
 fuzz = 5                  # default fuzz radius
 backup = true             # create .bak files by default
 auto_repair = true        # enable auto‑repair
@@ -189,7 +190,7 @@ CLI flags override config file settings.
 
 Monitor files for changes and apply queued patches automatically:
 
-```bash
+```
 patch-ts watch --path src/ --queue patches.json
 ```
 
@@ -197,7 +198,7 @@ patch-ts watch --path src/ --queue patches.json
 
 Review patches in a terminal UI with syntax‑highlighted diffs before applying:
 
-```bash
+```
 patch-ts patch --file src/main.rs --tui ...
 ```
 
@@ -214,12 +215,12 @@ See the [Plugin Development Guide](docs/plugin-guide.md) for details.
 When `--json` is used, `patch-ts` prints a machine‑readable JSON object.
 
 **Success:**
-```json
+```
 { "success": true, "error": null }
 ```
 
 **Error:**
-```json
+```
 {
   "success": false,
   "error": {
@@ -247,25 +248,25 @@ Pre‑built binaries are also available on the [GitHub Releases](https://github.
 
 ### Fuzzy replace across multiple TypeScript files
 
-```bash
+```
 patch-ts patch --files "src/**/*.ts" --line 42 --old "const x = 1;" --new "const x = 2;" --fuzz 10
 ```
 
 ### Balance all Python files in a project (parallel)
 
-```bash
+```
 patch-ts balance --files "**/*.py" --apply
 ```
 
 ### Use a custom plugin to repair company‑specific DSL
 
-```bash
+```
 patch-ts balance --file main.custom --plugin my_dsl --apply
 ```
 
 ### Review a patch interactively before applying
 
-```bash
+```
 patch-ts patch --file src/lib.rs --line 10 --old "fn old()" --new "fn new()" --tui
 ```
 
