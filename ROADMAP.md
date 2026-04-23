@@ -38,16 +38,19 @@
 ### v1.3.0 — AI‑Resilience Features
 **Status:** ✅ Implemented
 
-### v1.4.0 — Platform‑Grade Patching (Current)
-**Goal:** Transform patch‑ts into a verifiable, self‑healing patching platform.
+### v1.4.0 — Platform‑Grade Patching
+**Status:** ✅ Implemented
 
-- [x] **MCP Server** – Exposes patch, balance, explain as JSON‑RPC 2.0 tools via stdio.
-- [x] **Compilation Validation** – Post‑patch compiler checks for Rust, TS, JS, Python, Go with graceful fallback.
-- [x] **Self‑Healing Feedback** – Structured retry prompts in JSON output for failed patches.
-- [x] **Semantic Symbol Index** – Tree‑sitter‑based function index for 5 languages.
-- [x] **Spec‑Driven Validation** – Cross‑references patches against specification documents.
-- [x] **Pipeline Mode** – Chained operations (patch → validate → test → commit).
-- [x] **Adaptive Thresholds** – Suggests optimal confidence thresholds from history.
+### v1.5.0 — LLM‑Input Resilience (Current)
+**Goal:** Make patch‑ts dramatically more resilient to malformed LLM output.
+
+- [x] **LLM Output Sanitizer** – Strips `<think>` blocks, repairs malformed JSON, extracts fenced blocks.
+- [x] **Format‑Agnostic Diff Extraction** – Detects and extracts diffs from prose and mixed‑content LLM output.
+- [x] **Ellipsis Pattern Support** – Handles `...` wildcards in heredoc search/replace blocks.
+- [x] **Uniqueness‑Adjusted Confidence** – Dynamically adjusts confidence thresholds based on target content uniqueness.
+- [x] **Multi‑Line Anchor Detection** – Falls back to paired unique lines when single‑line anchors fail.
+- [x] **Whitespace‑Flexible Diff Matching** – Ignores leading whitespace differences by default.
+- [x] **Enhanced Self‑Healing Feedback** – Error codes, context lines, and confidence breakdown in JSON output.
 
 ### Future Ideas
 
@@ -56,4 +59,4 @@
 - **WebAssembly playground** – Try patch‑ts in the browser.
 - **More language support** – Expand to cover Kotlin, Lua, Dart.
 
-*Last updated: 2026‑04‑23*
+*Last updated: 2026‑04‑24*

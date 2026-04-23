@@ -407,6 +407,8 @@ fn handle_explain(args: ExplainArgs) -> Result<()> {
                 best_score: None,
                 best_match_line: None,
                 candidates: None,
+                error_code: Some("E005".to_string()),
+                retry_prompt: Some(diag.details.clone()),
             };
             println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?);
         } else {
@@ -505,4 +507,27 @@ fn parse_heredoc(input: &str, no_strip_fence: bool, no_sanitize: bool) -> Result
         parts[0].trim_start_matches("<<<\n").to_string(),
         parts[1].to_string(),
     ))
+}
+
+fn build_heal_context(args: &PatchArgs, file_path: &Path, _matched: Option<&str>, actual: &str, confidence: f64, threshold: f64, strategy: Option<&str>, error_code: &str) -> crate::heal::HealContext {
+    let content = std::fs::read_to_string(file_path).unwrap_or_default();
+    let lines: Vec<&str> = content.lines().collect();
+    let line = args.line.unwrap_or(0);
+    let start = line.saturating_sub(4);
+    let end = (line + 3).min(lines.len());
+    let context_lines: Vec<String> = lines[start..end].iter().enumerate()
+        .map(|(i, s)| format!("  {}: {}", start + i + 1, s))
+        .collect();
+
+    crate::heal::HealContext {
+        file: file_path.to_string_lossy().to_string(),
+        line,
+        expected: args.old.clone().unwrap_or_default(),
+        actual: actual.to_string(),
+        confidence,
+        threshold,
+        strategy: strategy.map(|s| s.to_string()),
+        context_lines,
+        error_code: error_code.to_string(),
+    }
 }

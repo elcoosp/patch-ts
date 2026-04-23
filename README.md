@@ -1,19 +1,18 @@
 # patch-ts
 
 **Tree‑sitter‑aware patching CLI for AI agents and developers.**
-Safely apply patches to **16+ languages** with fuzzy matching, AST validation, auto‑repair, MCP server, compilation validation, and self‑healing feedback.
+Safely apply patches to **16+ languages** with fuzzy matching, AST validation, auto‑repair, MCP server, compilation validation, and LLM‑output sanitization.
 
 ---
 
-## What's New in v1.4.0
+## What's New in v1.5.0
 
-- **MCP Server** – Expose patch‑ts as a Model Context Protocol server. Any MCP‑compatible AI agent can invoke patch, balance, and explain as tools over stdio.
-- **Compilation Validation** – Patches are now checked against the actual compiler (cargo check, tsc, node --check, etc.) before being applied. Compilation failures trigger rollback with detailed diagnostics.
-- **Self‑Healing Feedback** – Failed patches return structured `retry_prompt` fields in JSON, enabling AI agents to self‑correct.
-- **Semantic Symbol Index** – Function‑scoped patching now works across Rust, TypeScript, JavaScript, Python, and Go using tree‑sitter queries.
-- **Spec‑Driven Validation** – Cross‑reference patches against project specification documents to catch semantic mismatches.
-- **Pipeline Mode** – Chain multiple operations (`patch‑ts pipeline --stages "patch,validate,test,commit"`) with gating at each stage.
-- **Adaptive Thresholds** – `patch‑ts suggest-threshold` analyzes your patch history and recommends an optimal confidence threshold.
+- **LLM Output Sanitizer** – Automatically strips `<think>` blocks, repairs malformed JSON (trailing commas, single quotes), and extracts diffs from prose‑heavy LLM output.
+- **Ellipsis Pattern Support** – Recognizes `...` wildcards in heredoc search/replace blocks.
+- **Uniqueness‑Adjusted Confidence** – Common lines (like `}`) now require higher confidence before being matched.
+- **Multi‑Line Anchor Detection** – When single‑line matching fails, falls back to pairs of unique lines.
+- **Whitespace‑Flexible Diff Matching** – Ignores leading whitespace in diff contexts by default.
+- **Enhanced Self‑Healing Feedback** – Failed patches now return error codes (`E001`–`E006`), surrounding context lines, and confidence breakdowns.
 
 ---
 
@@ -35,7 +34,7 @@ Rust | TypeScript | JavaScript | Python | Go | Ruby | PHP | HTML | XML | C | C++
 patch-ts <COMMAND> [OPTIONS]
 ```
 
-### New Commands in v1.4.0
+### New Commands in v1.5.0
 
 | Command | Description |
 |---------|-------------|
@@ -44,13 +43,17 @@ patch-ts <COMMAND> [OPTIONS]
 | `validate‑spec` | Validate code against a specification |
 | `suggest‑threshold` | Get a recommended confidence threshold |
 
-### New Options
+### New Options in v1.5.0
 
 | Option | Description |
 |--------|-------------|
+| `--no‑sanitize` | Disable LLM output sanitizer |
+| `--no‑ellipsis` | Disable ellipsis pattern support |
+| `--uniqueness‑weight <N>` | Adjust uniqueness influence on confidence (default 0.2) |
+| `--strict‑whitespace` | Disable whitespace‑flexible diff matching |
 | `--no‑compile‑check` | Skip post‑patch compilation validation |
 | `--compile‑timeout <N>` | Timeout for compilation check (default 30s) |
-| `--adaptive‑confidence` | Use history‑based confidence thresholds |
+| `--fix‑indent` | Automatically fix indentation of new content |
 
 ---
 
@@ -61,16 +64,21 @@ patch-ts <COMMAND> [OPTIONS]
   "success": false,
   "confidence": 0.72,
   "strategy": "fuzzy",
+  "uniqueness_score": 0.45,
+  "error_code": "E002",
+  "retry_prompt": "Error code: E002\nFile: src/main.rs, Line: 42\nConfidence: 0.72 (threshold: 0.90)\n...",
+  "context_lines": [
+    "  40: fn main() {",
+    "  41:     let y = 2;",
+    "  42:     println!(\"{}\", y);"
+  ],
   "compilation_errors": [
     {
       "file": "src/main.rs",
       "line": 42,
       "message": "cannot find value `timeout`"
     }
-  ],
-  "retry_prompt": "At line 42 of src/main.rs, replace `timeout` with `Duration::from_secs(timeout)`.",
-  "symbol_warnings": ["Identifier 'x' not found in original file"],
-  "spec_warnings": ["Function signature changed: expected `i32` but got `u64`"]
+  ]
 }
 ```
 

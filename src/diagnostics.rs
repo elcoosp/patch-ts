@@ -79,6 +79,8 @@ pub struct JsonError {
     pub best_score: Option<f64>,
     pub best_match_line: Option<usize>,
     pub candidates: Option<Vec<Candidate>>,
+    pub error_code: Option<String>,
+    pub retry_prompt: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -123,6 +125,7 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
     let mut best_score = None;
     let mut best_match_line = None;
     let mut suggestion = None;
+
     if msg.contains("no match found with similarity") {
         suggestion = Some("Try increasing --fuzz radius".to_string());
         if let Some(score_part) = msg.split("best was ").nth(1) {
@@ -135,6 +138,7 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
     } else if msg.contains("ambiguous match") {
         suggestion = Some("Provide more specific expected content".to_string());
     }
+
     if let Some(diag) = err.downcast_ref::<SyntaxErrorDiagnostic>() {
         return JsonError {
             code: "patch_ts::syntax_error".to_string(),
@@ -143,6 +147,8 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
             context: diag.details.clone(),
             suggestion: Some("Run `patch-ts balance` to attempt automatic fix".to_string()),
             best_score: None, best_match_line: None, candidates: None,
+            error_code: Some("E005".to_string()),
+            retry_prompt: Some(diag.details.clone()),
         };
     }
     if let Some(diag) = err.downcast_ref::<ContentMismatchError>() {
@@ -153,6 +159,8 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
             context: format!("expected '{}' but found '{}'", diag.expected, diag.actual),
             suggestion: Some("try increasing --fuzz radius".to_string()),
             best_score: None, best_match_line: None, candidates: None,
+            error_code: Some("E002".to_string()),
+            retry_prompt: Some(format!("expected '{}' but found '{}'", diag.expected, diag.actual)),
         };
     }
     JsonError {
@@ -164,6 +172,8 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
         best_score,
         best_match_line,
         candidates: None,
+        error_code: None,
+        retry_prompt: None,
     }
 }
 
