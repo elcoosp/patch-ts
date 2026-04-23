@@ -50,9 +50,10 @@ wit-bindgen = "0.41"
 reqwest = { version = "0.13", features = ["blocking", "rustls"] }
 git2 = "0.20"
 chrono = "0.4"
-wait-timeout = "0.2"
+jsonrepair = { version = "0.1", features = ["serde"] }
 tower-lsp = "0.20"
 tokio = { version = "1.51", features = ["rt-multi-thread", "io-std", "macros", "fs"] }
+wait-timeout = "0.2"
 
 [dev-dependencies]
 assert_cmd = "2.1"
