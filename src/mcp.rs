@@ -164,6 +164,8 @@ fn handle_patch_tool(args: Value) -> Value {
         fix_indent: false,
         no_compile_check: true,  // MCP doesn't run compilation by default
         compile_timeout: 30,
+        no_sanitize: false,
+        no_ellipsis: false,
     };
 
     let path = PathBuf::from(file);

@@ -26,3 +26,4 @@ pub mod symbols;
 pub mod spec_validate;
 pub mod pipeline;
 pub mod adaptive;
+pub mod sanitize;

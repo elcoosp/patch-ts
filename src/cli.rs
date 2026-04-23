@@ -100,6 +100,10 @@ pub struct PatchArgs {
     pub no_compile_check: bool,
     #[arg(long, default_value = "30")]
     pub compile_timeout: u64,
+    #[arg(long)]
+    pub no_sanitize: bool,
+    #[arg(long)]
+    pub no_ellipsis: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -246,7 +250,16 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     } else if args.diff {
         let mut buffer = String::new();
         std::io::stdin().read_to_string(&mut buffer)?;
-        apply_unified_diff(file_path, &buffer, options.clone())?;
+        let diff_text = if !args.no_sanitize {
+            if let Some((_, content)) = crate::sanitize::extract_fenced_block(&buffer) {
+                content.to_string()
+            } else {
+                buffer
+            }
+        } else {
+            buffer
+        };
+        apply_unified_diff(file_path, &diff_text, options.clone())?;
     } else if let Some(line) = args.delete {
         let expected = args.expect.as_deref().ok_or_else(|| anyhow::anyhow!("--expect required"))?;
         delete_line(file_path, line, expected, options.clone())?;
@@ -259,7 +272,7 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     } else if let Some(line) = args.line {
         let mut buffer = String::new();
         std::io::stdin().read_to_string(&mut buffer)?;
-        let (expected, new) = parse_heredoc(&buffer, args.no_strip_fence)?;
+        let (expected, new) = parse_heredoc(&buffer, args.no_strip_fence, args.no_sanitize)?;
         apply_literal_patch(file_path, line, &expected, &new, &mut options, &mut *lang)?;
     } else if let Some(marker) = args.marker.as_deref() {
         let new = args.new.as_deref().or(args.content.as_deref()).ok_or_else(|| anyhow::anyhow!("--new or --content required"))?;
@@ -270,14 +283,12 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
 
     let patched = std::fs::read_to_string(file_path)?;
 
-    // Post-patch compilation validation
     if !args.no_compile_check {
         let lang_str = file_path.extension()
             .and_then(|e| e.to_str())
             .unwrap_or("");
         let compile_result = crate::compile::compile_check(file_path, lang_str, args.compile_timeout)?;
         if !compile_result.success {
-            // Rollback to original
             std::fs::write(file_path, &original)?;
             let error_msg = compile_result.errors.iter()
                 .map(|e| format!("{}:{}:{}: {}", e.file, e.line, e.column, e.message))
@@ -292,7 +303,6 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
         manager.save(&file_path.to_string_lossy(), &original, &patched)?;
     }
 
-    // Identifier cross-validation (warnings only, not errors)
     let language_name = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let missing = crate::identifier::missing_identifiers(&original, &patched, language_name);
     if !missing.is_empty() {
@@ -461,12 +471,25 @@ fn handle_lsp() -> Result<()> {
     Ok(())
 }
 
-fn parse_heredoc(input: &str, no_strip_fence: bool) -> Result<(String, String)> {
+/// Parse a heredoc containing expected and new content.
+/// If `no_strip_fence` is false and the input is wrapped in ``` fences, strip them.
+/// If `no_sanitize` is false, first try to extract a fenced block from mixed‑content LLM output.
+fn parse_heredoc(input: &str, no_strip_fence: bool, no_sanitize: bool) -> Result<(String, String)> {
     let input = input.trim();
-    let content = if !no_strip_fence && input.starts_with("```") && input.ends_with("```") {
-        &input[3..input.len()-3]
+    // Sanitize: extract diff/heredoc from prose if present
+    let content = if !no_sanitize {
+        if let Some((_, extracted)) = crate::sanitize::extract_fenced_block(input) {
+            extracted.to_string()
+        } else {
+            input.to_string()
+        }
     } else {
-        input
+        input.to_string()
+    };
+    let content = if !no_strip_fence && content.starts_with("```") && content.ends_with("```") {
+        &content[3..content.len()-3]
+    } else {
+        &content
     };
     let parts: Vec<&str> = content.split("\n---\n").collect();
     if parts.len() != 2 {
