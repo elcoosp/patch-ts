@@ -21,3 +21,8 @@ pub mod indent;
 pub mod identifier;
 pub mod mcp;
 pub mod compile;
+pub mod heal;
+pub mod symbols;
+pub mod spec_validate;
+pub mod pipeline;
+pub mod adaptive;
