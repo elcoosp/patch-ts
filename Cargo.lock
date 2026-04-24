@@ -2805,6 +2805,7 @@ dependencies = [
  "git2",
  "glob",
  "hex",
+ "http-body-util",
  "hyper 1.9.0",
  "hyper-util",
  "jsonrepair",

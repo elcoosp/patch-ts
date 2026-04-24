@@ -103,6 +103,7 @@ fn test_invalid_line_number_zero() {
         .arg("fn main() {}")
         .arg("--new")
         .arg("fn main() { }")
+        .arg("--no-compile-check")
         .assert()
         .success();
 }

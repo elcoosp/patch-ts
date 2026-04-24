@@ -8,7 +8,7 @@ pub struct GeneratedTests {
 }
 
 /// Generate test cases for patched code using branch exploration.
-pub fn generate_tests(___________old: &str, new: &str, _function_name: &str) -> Result<GeneratedTests> {
+pub fn generate_tests(_______________old: &str, new: &str, _function_name: &str) -> Result<GeneratedTests> {
     // Simple heuristic: generate a test that calls the function with basic inputs
     let mut tests = Vec::new();
     if new.contains("fn ") {

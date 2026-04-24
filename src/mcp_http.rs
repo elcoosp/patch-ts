@@ -1,10 +1,10 @@
 use anyhow::Result;
 use hyper::body::Incoming;
-use hyper::body::to_bytes as body_to_bytes;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
+use http_body_util::BodyExt; // provides .collect()
 use serde_json::Value;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
@@ -41,9 +41,9 @@ async fn handle_request(req: Request<Incoming>, auth_token: Option<String>) -> R
         }
     }
 
-    // Read body using hyper::body::to_bytes (imported)
-    let body_bytes = match body_to_bytes(req.into_body()).await {
-        Ok(b) => b,
+    // Read body using http_body_util::BodyExt::collect
+    let body_bytes = match req.collect().await {
+        Ok(collected) => collected.to_bytes(),
         Err(_) => {
             let resp = Response::builder()
                 .status(StatusCode::BAD_REQUEST)

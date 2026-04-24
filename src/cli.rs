@@ -56,7 +56,7 @@ pub enum Command {
     History,
     Lsp,
     Mcp,
-////////    McpHttp(McpHttpArgs),
+    McpHttp(McpHttpArgs),
     AdaptThreshold,
     AdaptStrategy,
 }
@@ -435,7 +435,7 @@ pub fn run() -> Result<()> {
         Command::History => handle_history(),
         Command::Lsp => handle_lsp(),
         Command::Mcp => handle_mcp(),
-        // // // // Command::McpHttp(args) => handle_mcp_http(args),
+        Command::McpHttp(args) => handle_mcp_http(args),
         Command::AdaptThreshold => handle_adapt_threshold(),
         Command::AdaptStrategy => handle_adapt_strategy(),
     };
@@ -543,12 +543,12 @@ fn handle_balance(args: BalanceArgs) -> Result<()> { if let Some(pattern) = &arg
 fn handle_explain(args: ExplainArgs) -> Result<()> { let file_path = Path::new(&args.file); let mut lang = detect_language(file_path)?; let diag = explain_error(file_path, args.line, args.json, &mut *lang)?; if let Some(diag) = diag { if args.json { let json_err = JsonError { code: "patch_ts::syntax_error".to_string(), message: diag.details.clone(), span: crate::diagnostics::JsonSpan { file: args.file.clone(), line: args.line, column: 1 }, context: String::new(), suggestion: Some("Run `patch-ts balance` to attempt automatic fix".to_string()), best_score: None, best_match_line: None, candidates: None, error_code: Some("E005".to_string()), retry_prompt: Some(diag.details.clone()) }; println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?); } else { eprintln!("{:?}", miette::Report::new(diag)); } } else if args.json { println!("{}", serde_json::to_string(&JsonDiagnostic::success())?); } Ok(()) }
 fn handle_watch(args: WatchArgs) -> Result<()> { use crate::watch::FileWatcher; use std::time::Duration; let ignore_patterns = args.ignore.unwrap_or_default(); let delay = Duration::from_millis(args.delay); let hooks = args.hooks.as_deref(); let mut watcher = FileWatcher::new(delay, ignore_patterns, hooks)?; watcher.watch(&args.path)?; let event = watcher.wait_for_change()?; println!("Change detected: {:?}", event.paths); Ok(()) }
 fn handle_mcp() -> Result<()> { crate::mcp::run_mcp()?; Ok(()) }
-// fn handle_mcp_http(args: McpHttpArgs) -> Result<()> {
-//     let addr: std::net::SocketAddr = format!("{}:{}", args.bind, args.port).parse()?;
-//     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
-//     rt.block_on(crate::mcp_http::run_http_mcp(addr, args.auth_token))?;
-//     Ok(())
-// }
+fn handle_mcp_http(args: McpHttpArgs) -> Result<()> {
+    let addr: std::net::SocketAddr = format!("{}:{}", args.bind, args.port).parse()?;
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    rt.block_on(crate::mcp_http::run_http_mcp(addr, args.auth_token))?;
+    Ok(())
+}
 
 fn handle_undo() -> Result<()> { let manager = HistoryManager::new(); match manager.undo_last()? { Some(record) => { std::fs::write(&record.file, &record.original_content)?; println!("Undo applied: file {} restored.", record.file); } None => { eprintln!("No history to undo."); } } Ok(()) }
 fn handle_redo() -> Result<()> { eprintln!("Redo not yet implemented."); Ok(()) }

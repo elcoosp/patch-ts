@@ -41,7 +41,7 @@ pub mod dashboard;
 pub mod coverage;
 pub mod audit;
 pub mod evolve;
-// pub mod mcp_http;
+pub mod mcp_http;
 pub mod review;
 pub mod attest;
 pub mod curiosity;
