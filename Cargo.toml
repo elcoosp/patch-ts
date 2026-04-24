@@ -1,6 +1,6 @@
 [package]
 name = "patch-ts"
-version = "1.5.0"
+version = "1.6.0"
 edition = "2024"
 authors = ["Your Name <you@example.com>"]
 description = "Tree-sitter-backed patching CLI for AI agents"
