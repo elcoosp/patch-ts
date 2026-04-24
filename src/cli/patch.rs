@@ -184,3 +184,39 @@ pub fn handle_patch(args: PatchArgs) -> Result<()> {
     }
     Ok(())
 }
+
+use crate::word_diff::{word_diff, colorize_word_changes};
+
+fn print_colored_diff(original: &str, patched: &str) {
+    let old_lines: Vec<&str> = original.lines().collect();
+    let new_lines: Vec<&str> = patched.lines().collect();
+
+    for i in 0..std::cmp::max(old_lines.len(), new_lines.len()) {
+        let old = old_lines.get(i).copied().unwrap_or("");
+        let new = new_lines.get(i).copied().unwrap_or("");
+        if old == new {
+            println!("  {}", old);
+        } else if old.is_empty() {
+            // Inserted line
+            println!("+ {}", colorize_word_changes(&word_diff("", new).1));
+        } else if new.is_empty() {
+            // Deleted line
+            println!("- {}", colorize_word_changes(&word_diff(old, "").0));
+        } else {
+            // Modified line: show old removed words and new added words
+            let (old_changes, new_changes) = word_diff(old, new);
+            print!("~ ");
+            for w in &old_changes {
+                if w.change_type == crate::word_diff::ChangeType::Removed {
+                    print!("\x1b[41m{}\x1b[0m", w.text);
+                }
+            }
+            for w in &new_changes {
+                if w.change_type == crate::word_diff::ChangeType::Added {
+                    print!("\x1b[42m{}\x1b[0m", w.text);
+                }
+            }
+            println!();
+        }
+    }
+}
