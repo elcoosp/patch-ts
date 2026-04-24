@@ -2,11 +2,9 @@ use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::ast::Language;
-use crate::diagnostics::JsonError;
-use crate::heal::HealContext; // we'll reuse or adapt
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RecallContext {
@@ -303,35 +301,26 @@ fn get_strategies(code: &str, message: &str) -> Vec<StrategyInfo> {
 }
 
 /// Find the name of the function/struct/class that contains a given line.
-fn find_containing_symbol(source: &str, line: usize, language: &mut dyn Language) -> Option<(String, usize)> {
-    // Simplified: use find_symbol_node from RustLanguage; for other languages return None.
-    if let Some(_rust_lang) = language.as_any_mut().downcast_ref::<crate::ast::RustLanguage>() {
-        // Search for the nearest function item containing this line
-        let parse_result = language.parse(source);
-        let _root = parse_result.tree.root_node();
-        // Traverse to find a function_item whose span contains the line
-        // For simplicity, we return None for now; can be improved.
-        None
-    } else {
-        None
-    }
+fn find_containing_symbol(_source: &str, _line: usize, _language: &mut dyn crate::ast::Language) -> Option<(String, usize)> {
+    None
 }
 
-/// Count similar failures from recall history file.
-fn count_similar_failures(file_path: &Path, error_code: &str) -> usize {
-    let recall_file = PathBuf::from(".patch-ts/recall.jsonl");
+
+fn count_similar_failures(file_path: &std::path::Path, error_code: &str) -> usize {
+    let recall_file = std::path::PathBuf::from(".patch-ts/recall.jsonl");
     if !recall_file.exists() { return 0; }
-    let content = fs::read_to_string(&recall_file).unwrap_or_default();
+    let content = std::fs::read_to_string(&recall_file).unwrap_or_default();
     let file_name = file_path.file_name().and_then(|f| f.to_str()).unwrap_or("");
     content.lines()
         .filter(|line| {
             if let Ok(rec) = serde_json::from_str::<serde_json::Value>(line) {
-                rec.get("error").and_then(|e| e.get("code")) == Some(&serde_json::Value::String(error_code.to_string()))
+                rec.get("error_code").and_then(|e| e.as_str()) == Some(error_code)
                     && rec.get("file").and_then(|f| f.as_str()).map(|f| f.contains(file_name)).unwrap_or(false)
             } else { false }
         })
         .count()
 }
+
 
 #[cfg(test)]
 mod tests {

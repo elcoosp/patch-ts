@@ -38,6 +38,19 @@ pub struct EntityListParams { pub file: String }
 pub struct EntityReplaceParams { pub file: String, pub symbol: String, pub new: String }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
+pub struct RecallParams {
+    pub file: String,
+    pub line: usize,
+    pub old: String,
+    pub new: String,
+    pub error_code: String,
+    pub error_message: Option<String>,
+    #[serde(default = "default_context_lines")]
+    pub context_lines: usize,
+}
+fn default_context_lines() -> usize { 5 }
+
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct GateParams { pub file: String, pub stages: Option<String> }
 
 fn to_schema<T: schemars::JsonSchema>() -> Value { let schema = schemars::schema_for!(T); serde_json::to_value(schema).unwrap_or(Value::Null) }
@@ -65,6 +78,7 @@ pub fn run_mcp() -> Result<()> {
                     json!({"name":"entity_list","description":"List named entities in a file","inputSchema": to_schema::<EntityListParams>()}),
                     json!({"name":"entity_replace","description":"Replace entity by name","inputSchema": to_schema::<EntityReplaceParams>()}),
                     json!({"name":"gate","description":"Run validation gate","inputSchema": to_schema::<GateParams>()}),
+                    json!({"name":"recall","description":"Generate retry context when a patch fails","inputSchema": to_schema::<RecallParams>()}),
                 ];
                 json!({"jsonrpc":"2.0","id":id,"result":{"tools":tools}})
             },
@@ -81,6 +95,7 @@ pub fn run_mcp() -> Result<()> {
                     "entity_list" => handle_entity_list_tool(arguments),
                     "entity_replace" => handle_entity_replace_tool(arguments),
                     "gate" => handle_gate_tool(arguments),
+                    "recall" => handle_recall_tool(arguments),
                     _ => json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":format!("Unknown tool: {}", tool_name)}}),
                 }
             },
@@ -147,3 +162,29 @@ fn handle_semdiff_tool(args: Value) -> Value { let old = args.get("old").and_the
 fn handle_entity_list_tool(args: Value) -> Value { let file = args.get("file").and_then(|v| v.as_str()).unwrap_or("main.rs"); if let Ok(content) = std::fs::read_to_string(file) { if let Ok(mut lang) = crate::ast::detect_language(std::path::Path::new(file)) { let parse_result = lang.parse(&content); let entities = lang.find_all_entities(&parse_result); return json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":serde_json::to_string(&entities).unwrap_or_default()}]}}); } } json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Error reading file"}],"isError":true}}) }
 fn handle_entity_replace_tool(args: Value) -> Value { let file = args.get("file").and_then(|v| v.as_str()).unwrap_or("main.rs"); let symbol = args.get("symbol").and_then(|v| v.as_str()).unwrap_or(""); let new = args.get("new").and_then(|v| v.as_str()).unwrap_or(""); if let Ok(mut lang) = crate::ast::detect_language(std::path::Path::new(file)) { let options = crate::patch::PatchOptions::default(); match crate::patch::apply_symbol_patch(std::path::Path::new(file), symbol, new, &options, &mut *lang) { Ok(()) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Entity replaced."}]}}), Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}}) } } else { json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Unsupported file"}],"isError":true}}) } }
 fn handle_gate_tool(args: Value) -> Value { let file = args.get("file").and_then(|v| v.as_str()).unwrap_or("main.rs"); let stages_str = args.get("stages").and_then(|v| v.as_str()).unwrap_or("syntax,compile"); let stages: Vec<String> = stages_str.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect(); if let Ok(content) = std::fs::read_to_string(file) { match crate::gate::run_gate(&stages, std::path::Path::new(file), &content, &content, 30) { Ok(res) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":serde_json::to_string(&res).unwrap_or_default()}]}}), Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}}) } } else { json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"File not found"}],"isError":true}}) } }
+
+fn handle_recall_tool(args: Value) -> Value {
+    let file = args.get("file").and_then(|v| v.as_str()).unwrap_or("main.rs");
+    let line = args.get("line").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
+    let old = args.get("old").and_then(|v| v.as_str()).unwrap_or("");
+    let new = args.get("new").and_then(|v| v.as_str()).unwrap_or("");
+    let error_code = args.get("error_code").and_then(|v| v.as_str()).unwrap_or("E000");
+    let error_message = args.get("error_message").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let context_lines = args.get("context_lines").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+
+    let file_path = std::path::PathBuf::from(file);
+    if let Ok(mut lang) = crate::ast::detect_language(&file_path) {
+        match crate::recall::generate_recall_context(
+            &file_path, line, old, new, error_code,
+            error_message.as_deref(), context_lines, &mut *lang,
+        ) {
+            Ok(ctx) => {
+                let result = serde_json::to_string(&ctx).unwrap_or_default();
+                json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":result}]}})
+            }
+            Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}})
+        }
+    } else {
+        json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Unsupported file"}],"isError":true}})
+    }
+}
