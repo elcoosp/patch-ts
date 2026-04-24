@@ -55,17 +55,13 @@ pub struct GitArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum GitAction {
-    /// Apply the diff from a specific commit (or commit range) to a file
     Apply(GitApplyArgs),
-    /// Generate a diff between the current branch and a target branch
     Diff(GitDiffArgs),
 }
 
 #[derive(Parser, Debug)]
 pub struct GitApplyArgs {
-    /// Commit reference (e.g. abc123, HEAD~1, HEAD~1..HEAD)
     pub commit: String,
-    /// Target file path (if omitted, the whole diff is applied to all files)
     #[arg(long)]
     pub file: Option<String>,
     #[arg(long)]
@@ -82,9 +78,7 @@ pub struct GitApplyArgs {
 
 #[derive(Parser, Debug)]
 pub struct GitDiffArgs {
-    /// Target branch or commit to diff against (e.g. main, origin/main)
     pub target: String,
-    /// Optional specific file to diff
     #[arg(long)]
     pub file: Option<String>,
     #[arg(long)]
@@ -165,6 +159,8 @@ pub struct PatchArgs {
     pub uniqueness_weight: f64,
     #[arg(long)]
     pub strict_whitespace: bool,
+    #[arg(long)]
+    pub cross_file: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -356,10 +352,40 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     let language_name = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
     let missing = crate::identifier::missing_identifiers(&original, &patched, language_name);
     if !missing.is_empty() { eprintln!("Warning: new identifiers not found in original file: {:?}", missing); }
+
+    // Cross‑file analysis
+    let mut cross_file_warnings = Vec::new();
+    if args.cross_file {
+        let project_index = crate::crossfile::build_project_index(Path::new("."));
+        // Check for changed function names in the new content
+        if let (Some(old), Some(new)) = (args.old.as_deref(), args.new.as_deref()) {
+            if old != new {
+                // Try to detect function names being changed (simplistic: look for `fn name(`)
+                if let Some(old_name) = old.split("fn ").nth(1).and_then(|s| s.split('(').next()) {
+                    if let Some(new_name) = new.split("fn ").nth(1).and_then(|s| s.split('(').next()) {
+                        if old_name != new_name {
+                            let callers = crate::crossfile::find_callers(old_name, &project_index);
+                            for caller in callers {
+                                cross_file_warnings.push(format!(
+                                    "Function '{}' was renamed to '{}'. Caller found in {} at line {}",
+                                    old_name, new_name, caller.file, caller.line
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if args.json {
         let mut diag = JsonDiagnostic::success();
         if let Some(ref info) = options.match_info { diag.confidence = Some(info.confidence); diag.strategy = Some(info.strategy.clone()); }
+        if !cross_file_warnings.is_empty() { diag.warnings = Some(cross_file_warnings); }
         println!("{}", serde_json::to_string(&diag)?);
+    } else if !cross_file_warnings.is_empty() {
+        eprintln!("Cross‑file warnings:");
+        for warn in &cross_file_warnings { eprintln!("  {}", warn); }
     }
     Ok(())
 }
@@ -403,37 +429,21 @@ fn handle_git_apply(args: GitApplyArgs) -> Result<()> {
     let commit = rev.peel_to_commit()?;
     let tree = commit.tree()?;
 
-    let parent = if commit.parent_count() > 0 {
-        commit.parent(0)?.tree()?
-    } else {
-        tree.clone()
-    };
+    let parent = if commit.parent_count() > 0 { commit.parent(0)?.tree()? } else { tree.clone() };
 
     let diff = repo.diff_tree_to_tree(Some(&parent), Some(&tree), None)?;
     let mut diff_text = Vec::new();
-    diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
-        diff_text.extend_from_slice(line.content());
-        true
-    })?;
+    diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| { diff_text.extend_from_slice(line.content()); true })?;
     let diff_str = String::from_utf8(diff_text)?;
 
     if let Some(file_path) = &args.file {
-        let options = PatchOptions {
-            fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force,
-            no_backup: args.no_backup, ..Default::default()
-        };
+        let options = PatchOptions { fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force, no_backup: args.no_backup, ..Default::default() };
         apply_unified_diff(Path::new(file_path), &diff_str, options)?;
     } else {
         let mut files_to_patch = Vec::new();
-        diff.foreach(&mut |delta, _| {
-            if let Some(path) = delta.new_file().path() { files_to_patch.push(path.to_path_buf()); }
-            true
-        }, None, None, None)?;
+        diff.foreach(&mut |delta, _| { if let Some(path) = delta.new_file().path() { files_to_patch.push(path.to_path_buf()); } true }, None, None, None)?;
         for file in &files_to_patch {
-            let options = PatchOptions {
-                fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force,
-                no_backup: args.no_backup, ..Default::default()
-            };
+            let options = PatchOptions { fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force, no_backup: args.no_backup, ..Default::default() };
             apply_unified_diff(file, &diff_str, options.clone())?;
         }
     }
@@ -449,86 +459,38 @@ fn handle_git_diff(args: GitDiffArgs) -> Result<()> {
 
     let diff = repo.diff_tree_to_tree(Some(&target_tree), Some(&head_tree), None)?;
     let mut diff_text = Vec::new();
-    diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
-        diff_text.extend_from_slice(line.content());
-        true
-    })?;
+    diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| { diff_text.extend_from_slice(line.content()); true })?;
     let diff_str = String::from_utf8(diff_text)?;
 
     if args.apply {
-        if let Some(file_path) = &args.file {
-            let options = PatchOptions {
-                fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force,
-                no_backup: args.no_backup, ..Default::default()
-            };
-            apply_unified_diff(Path::new(file_path), &diff_str, options)?;
-        } else {
+        if let Some(file_path) = &args.file { let options = PatchOptions { fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force, no_backup: args.no_backup, ..Default::default() }; apply_unified_diff(Path::new(file_path), &diff_str, options)?; }
+        else {
             let mut files_to_patch = Vec::new();
-            diff.foreach(&mut |delta, _| {
-                if let Some(path) = delta.new_file().path() { files_to_patch.push(path.to_path_buf()); }
-                true
-            }, None, None, None)?;
-            for file in &files_to_patch {
-                let options = PatchOptions {
-                    fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force,
-                    no_backup: args.no_backup, ..Default::default()
-                };
-                apply_unified_diff(file, &diff_str, options.clone())?;
-            }
+            diff.foreach(&mut |delta, _| { if let Some(path) = delta.new_file().path() { files_to_patch.push(path.to_path_buf()); } true }, None, None, None)?;
+            for file in &files_to_patch { let options = PatchOptions { fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force, no_backup: args.no_backup, ..Default::default() }; apply_unified_diff(file, &diff_str, options.clone())?; }
         }
         if args.json { println!("{}", serde_json::to_string(&JsonDiagnostic::success())?); }
-    } else {
-        print!("{}", diff_str);
-    }
+    } else { print!("{}", diff_str); }
     Ok(())
 }
 
 fn handle_fix(args: FixArgs) -> Result<()> {
     use std::fs;
-    let error_text = if let Some(ref path) = args.error_file { fs::read_to_string(path)? } else {
-        let mut buf = String::new(); std::io::stdin().read_to_string(&mut buf)?; buf
-    };
-
-    let error = crate::fix::parse_compiler_error(&error_text)
-        .ok_or_else(|| anyhow::anyhow!("No fix pattern recognized in the provided error output."))?;
-
+    let error_text = if let Some(ref path) = args.error_file { fs::read_to_string(path)? } else { let mut buf = String::new(); std::io::stdin().read_to_string(&mut buf)?; buf };
+    let error = crate::fix::parse_compiler_error(&error_text).ok_or_else(|| anyhow::anyhow!("No fix pattern recognized in the provided error output."))?;
     let target_file = args.file.as_deref().unwrap_or(&error.file);
-    let content = if std::path::Path::new(target_file).exists() { fs::read_to_string(target_file)? }
-        else { anyhow::bail!("File '{}' not found. Specify --file if different from error output.", target_file) };
+    let content = if std::path::Path::new(target_file).exists() { fs::read_to_string(target_file)? } else { anyhow::bail!("File '{}' not found. Specify --file if different from error output.", target_file) };
     let mut lang = detect_language(Path::new(target_file))?;
-    let suggestion = crate::fix::suggest_fix(&error, &content, &mut *lang)
-        .ok_or_else(|| anyhow::anyhow!("Could not automatically suggest a fix for this error."))?;
-
+    let suggestion = crate::fix::suggest_fix(&error, &content, &mut *lang).ok_or_else(|| anyhow::anyhow!("Could not automatically suggest a fix for this error."))?;
     if args.json { println!("{}", serde_json::to_string(&suggestion)?); }
-    else {
-        println!("Suggested fix for {}:{}:{}", suggestion.file, suggestion.line, error.error_code);
-        println!("  Replace: `{}`", suggestion.old);
-        println!("  With:    `{}`", suggestion.new);
-        println!("  Confidence: {:.2}", suggestion.confidence);
-    }
-
-    if args.apply {
-        let patch_args = PatchArgs {
-            file: Some(target_file.to_string()), files: None, line: Some(suggestion.line),
-            fuzz: 5, old: Some(suggestion.old), new: Some(suggestion.new),
-            confidence: 0.9, fix_indent: false, diff: false, delete: None, expect: None,
-            after: None, content: None, dry_run: false, force: args.force, no_backup: false,
-            json: false, no_auto_repair: false, marker: None, serial: false, plugin: None,
-            allow_all_paths: false, url: None, git_commit: None, no_strip_fence: false,
-            no_compile_check: false, compile_timeout: 30, no_sanitize: false, no_ellipsis: false,
-            uniqueness_weight: 0.2, strict_whitespace: false,
-        };
-        apply_patch_to_file(Path::new(target_file), &patch_args)?;
-        println!("Fix applied to {}", target_file);
-    }
+    else { println!("Suggested fix for {}:{}:{}", suggestion.file, suggestion.line, error.error_code); println!("  Replace: `{}`", suggestion.old); println!("  With:    `{}`", suggestion.new); println!("  Confidence: {:.2}", suggestion.confidence); }
+    if args.apply { let patch_args = PatchArgs { file: Some(target_file.to_string()), files: None, line: Some(suggestion.line), fuzz: 5, old: Some(suggestion.old), new: Some(suggestion.new), confidence: 0.9, fix_indent: false, diff: false, delete: None, expect: None, after: None, content: None, dry_run: false, force: args.force, no_backup: false, json: false, no_auto_repair: false, marker: None, serial: false, plugin: None, allow_all_paths: false, url: None, git_commit: None, no_strip_fence: false, no_compile_check: false, compile_timeout: 30, no_sanitize: false, no_ellipsis: false, uniqueness_weight: 0.2, strict_whitespace: false, cross_file: false }; apply_patch_to_file(Path::new(target_file), &patch_args)?; println!("Fix applied to {}", target_file); }
     Ok(())
 }
 
 fn handle_balance(args: BalanceArgs) -> Result<()> {
-    if let Some(pattern) = &args.files {
-        let paths = expand_files(pattern)?;
-        if args.serial { for path in paths { apply_balance_to_file(&path, &args)?; } } else { paths.par_iter().try_for_each(|path| apply_balance_to_file(path, &args))?; }
-    } else { let file_path = Path::new(args.file.as_deref().unwrap()); apply_balance_to_file(file_path, &args)?; }
+    if let Some(pattern) = &args.files { let paths = expand_files(pattern)?; if args.serial { for path in paths { apply_balance_to_file(&path, &args)?; } } else { paths.par_iter().try_for_each(|path| apply_balance_to_file(path, &args))?; } }
+    else { let file_path = Path::new(args.file.as_deref().unwrap()); apply_balance_to_file(file_path, &args)?; }
     Ok(())
 }
 
@@ -536,63 +498,21 @@ fn handle_explain(args: ExplainArgs) -> Result<()> {
     let file_path = Path::new(&args.file);
     let mut lang = detect_language(file_path)?;
     let diag = explain_error(file_path, args.line, args.json, &mut *lang)?;
-    if let Some(diag) = diag {
-        if args.json {
-            let json_err = JsonError {
-                code: "patch_ts::syntax_error".to_string(), message: diag.details.clone(),
-                span: crate::diagnostics::JsonSpan { file: args.file.clone(), line: args.line, column: 1 },
-                context: String::new(), suggestion: Some("Run `patch-ts balance` to attempt automatic fix".to_string()),
-                best_score: None, best_match_line: None, candidates: None,
-                error_code: Some("E005".to_string()), retry_prompt: Some(diag.details.clone()),
-            };
-            println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?);
-        } else { eprintln!("{:?}", miette::Report::new(diag)); }
-    } else if args.json { println!("{}", serde_json::to_string(&JsonDiagnostic::success())?); }
+    if let Some(diag) = diag { if args.json { let json_err = JsonError { code: "patch_ts::syntax_error".to_string(), message: diag.details.clone(), span: crate::diagnostics::JsonSpan { file: args.file.clone(), line: args.line, column: 1 }, context: String::new(), suggestion: Some("Run `patch-ts balance` to attempt automatic fix".to_string()), best_score: None, best_match_line: None, candidates: None, error_code: Some("E005".to_string()), retry_prompt: Some(diag.details.clone()) }; println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?); } else { eprintln!("{:?}", miette::Report::new(diag)); } }
+    else if args.json { println!("{}", serde_json::to_string(&JsonDiagnostic::success())?); }
     Ok(())
 }
 
 fn handle_watch(args: WatchArgs) -> Result<()> {
-    use crate::watch::FileWatcher;
-    use std::time::Duration;
-    let ignore_patterns = args.ignore.unwrap_or_default();
-    let delay = Duration::from_millis(args.delay);
-    let hooks = args.hooks.as_deref();
-    let mut watcher = FileWatcher::new(delay, ignore_patterns, hooks)?;
-    watcher.watch(&args.path)?;
-    let event = watcher.wait_for_change()?;
-    println!("Change detected: {:?}", event.paths);
+    use crate::watch::FileWatcher; use std::time::Duration;
+    let ignore_patterns = args.ignore.unwrap_or_default(); let delay = Duration::from_millis(args.delay); let hooks = args.hooks.as_deref();
+    let mut watcher = FileWatcher::new(delay, ignore_patterns, hooks)?; watcher.watch(&args.path)?;
+    let event = watcher.wait_for_change()?; println!("Change detected: {:?}", event.paths);
     Ok(())
 }
-
 fn handle_mcp() -> Result<()> { crate::mcp::run_mcp()?; Ok(()) }
-fn handle_undo() -> Result<()> {
-    let manager = HistoryManager::new();
-    match manager.undo_last()? {
-        Some(record) => { std::fs::write(&record.file, &record.original_content)?; println!("Undo applied: file {} restored.", record.file); }
-        None => { eprintln!("No history to undo."); }
-    }
-    Ok(())
-}
+fn handle_undo() -> Result<()> { let manager = HistoryManager::new(); match manager.undo_last()? { Some(record) => { std::fs::write(&record.file, &record.original_content)?; println!("Undo applied: file {} restored.", record.file); } None => { eprintln!("No history to undo."); } } Ok(()) }
 fn handle_redo() -> Result<()> { eprintln!("Redo not yet implemented."); Ok(()) }
-fn handle_history() -> Result<()> {
-    let manager = HistoryManager::new();
-    let records = manager.list()?;
-    if records.is_empty() { println!("No history found."); } else { for record in &records { println!("{} - {}", record.timestamp, record.file); } }
-    Ok(())
-}
-fn handle_lsp() -> Result<()> {
-    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
-    rt.block_on(crate::lsp::run_lsp())?;
-    Ok(())
-}
-
-fn parse_heredoc(input: &str, no_strip_fence: bool, no_sanitize: bool) -> Result<(String, String)> {
-    let input = input.trim();
-    let content = if !no_sanitize {
-        if let Some((_, extracted)) = crate::sanitize::extract_fenced_block(input) { extracted.to_string() } else { input.to_string() }
-    } else { input.to_string() };
-    let content = if !no_strip_fence && content.starts_with("```") && content.ends_with("```") { &content[3..content.len()-3] } else { &content };
-    let parts: Vec<&str> = content.split("\n---\n").collect();
-    if parts.len() != 2 { anyhow::bail!("Heredoc must contain '<<<' expected block, then '---', then new block"); }
-    Ok((parts[0].trim_start_matches("<<<\n").to_string(), parts[1].to_string()))
-}
+fn handle_history() -> Result<()> { let manager = HistoryManager::new(); let records = manager.list()?; if records.is_empty() { println!("No history found."); } else { for record in &records { println!("{} - {}", record.timestamp, record.file); } } Ok(()) }
+fn handle_lsp() -> Result<()> { let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?; rt.block_on(crate::lsp::run_lsp())?; Ok(()) }
+fn parse_heredoc(input: &str, no_strip_fence: bool, no_sanitize: bool) -> Result<(String, String)> { let input = input.trim(); let content = if !no_sanitize { if let Some((_, extracted)) = crate::sanitize::extract_fenced_block(input) { extracted.to_string() } else { input.to_string() } } else { input.to_string() }; let content = if !no_strip_fence && content.starts_with("```") && content.ends_with("```") { &content[3..content.len()-3] } else { &content }; let parts: Vec<&str> = content.split("\n---\n").collect(); if parts.len() != 2 { anyhow::bail!("Heredoc must contain '<<<' expected block, then '---', then new block"); } Ok((parts[0].trim_start_matches("<<<\n").to_string(), parts[1].to_string())) }

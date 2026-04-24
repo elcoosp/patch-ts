@@ -168,6 +168,7 @@ fn handle_patch_tool(args: Value) -> Value {
         no_ellipsis: false,
         uniqueness_weight: 0.2,
         strict_whitespace: false,
+        cross_file: false,
     };
 
     let path = PathBuf::from(file);
