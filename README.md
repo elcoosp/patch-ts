@@ -1,46 +1,411 @@
-# patch-ts
+```markdown
+# 🔧 patch‑ts
 
-**Tree‑sitter‑aware patching CLI for AI agents and developers.**
-Safely apply patches to **16+ languages** with evolutionary repair, HTTP MCP, CRA attestation, and invariant verification.
+**Tree‑sitter‑backed universal patching CLI for AI agents**
 
----
+![Version](https://img.shields.io/badge/version-1.12.0-blue) ![Rust](https://img.shields.io/badge/rust-2021%20edition-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
-## What's New in v1.9.0
-
-- **Evolutionary Repair** — Generates and selects the best patch from a population of candidates.
-- **Streamable HTTP MCP** — Deploy patch‑ts as a remote governance service over HTTP.
-- **Agentic Code Review** — Multi‑agent findings dashboard in TUI and MCP App.
-- **CRA‑Ready Attestation** — Machine‑readable compliance evidence for EU Cyber Resilience Act.
-- **Curiosity‑Driven Tests** — Automatic test generation for patched code.
-- **Invariant Verification** — Extract and verify loop/function invariants from annotations.
+**patch‑ts** is a blazing‑fast, multi‑language code patching tool powered by [tree‑sitter](https://tree-sitter.github.io/tree-sitter/).  
+It applies AI‑generated changes to 16+ programming languages, validates syntax, runs security audits, and tracks every operation cryptographically – all from a single binary.  
+Whether you’re an AI agent (MCP, LSP) or a human developer, patch‑ts gives you safe, explainable, and visually rich code transformations.
 
 ---
 
-## Installation
+## ✨ Features
 
+- 🧠 **AI‑first design** – Built for LLM agents: fuzzy matching, heuristics, structured action spaces, MCP integration.
+- 🌳 **Tree‑sitter powered** – AST‑aware patching ensures syntax correctness for Rust, TypeScript, Python, Go, Java, and more.
+- 🔍 **Smart matching** – Cascade of exact, anchor, anchor‑pair, ellipsis, Jaccard similarity, and normalized Levenshtein strategies.
+- 🧩 **Balance & repair** – Detect and fix unbalanced delimiters via minimum‑cost search.
+- 🛡️ **Validation gate** – Multi‑stage pipeline: syntax → compile → cross‑file → semantic diff → security audit → benchmark gates.
+- 📜 **SCITT provenance** – Ed25519‑signed, hash‑chained audit trail; EU Cyber Resilience Act (CRA) attestations.
+- 🎨 **Syntax highlighting** – Colour‑coded output with selectable themes (dark, light, deuteranopia, highcontrast).
+- 📝 **Word‑level diff** – See exactly which tokens changed; gutter indicators ( `+` / `-` / `~` ) in CLI and TUI.
+- 🖥️ **Interactive TUI** – Side‑by‑side original vs patched view, syntax highlighting, comment collection.
+- 📊 **Scorecards** – Multi‑dimensional reliability score with colour‑gradient bars.
+- 📄 **Markdown reports** – Gate and review results as structured Markdown for PR comments.
+- 🔌 **MCP server** – Full Model Context Protocol support (stdio + HTTP) with 8 tools and 12 resources.
+- 🧬 **Entity patching** – Target functions/classes by name (`--symbol` or `entity replace`).
+- 🔑 **Key management** – Generate and rotate Ed25519 keys for SCITT signing.
+- 🌐 **Cross‑file impact** – Accurate call‑graph analysis via tree‑sitter queries.
+- ⚡ **High performance** – Parallel multi‑file processing with Rayon.
+- 🔄 **Atomic writes** – Patches are applied atomically with optional `.bak` backups.
+
+---
+
+## 📦 Installation
+
+### Homebrew (macOS/Linux)
+```bash
+brew install elcoosp/tap/patch-ts
+```
+
+### Scoop (Windows)
+```powershell
+scoop bucket add elcoosp https://github.com/elcoosp/scoop-patch-ts
+scoop install patch-ts
+```
+
+### Cargo (any platform)
 ```bash
 cargo install patch-ts
 ```
 
-## Supported Languages
-
-Rust | TypeScript | JavaScript | Python | Go | Ruby | PHP | HTML | XML | C | C++ | Java | C# | Swift | Scala | Zig
-
----
-
-## New Commands in v1.9.0
-
-| Command | Description |
-|---------|-------------|
-| `evolve` | Evolve the best patch from multiple candidates |
-| `mcp‑http` | Start HTTP MCP server |
-| `review` | Run multi‑agent code review |
-| `attest` | Generate CRA compliance evidence |
-| `generate‑tests` | Generate tests for patched code |
-| `verify` | Verify patch invariants |
+### Pre‑built binaries
+Grab the latest from [GitHub Releases](https://github.com/elcoosp/patch-ts/releases).
 
 ---
 
-## License
+## 🚀 Quick Start
 
-MIT
+```bash
+# Replace a line with fuzzy matching
+patch-ts patch --file src/main.rs --line 10 --old "let port = 3000;" --new "let port = 8080;"
+
+# Apply a full unified diff from stdin
+pbpaste | patch-ts patch --file src/lib.rs --diff
+
+# Balance unbalanced delimiters
+patch-ts balance --file src/broken.rs --apply
+
+# Explain a syntax error
+patch-ts explain --file src/main.rs --line 42
+
+# Run a multi‑stage validation gate
+patch-ts gate --file src/main.rs --stages syntax,compile,vuln-check --json
+```
+
+---
+
+## 🌍 Supported Languages
+
+| Language | Extensions |
+|----------|------------|
+| Rust | `.rs` |
+| TypeScript | `.ts`, `.tsx`, `.mts`, `.cts` |
+| JavaScript | `.js`, `.jsx`, `.mjs`, `.cjs` |
+| Python | `.py`, `.pyi` |
+| Go | `.go` |
+| Ruby | `.rb` |
+| PHP | `.php` |
+| HTML | `.html`, `.htm` |
+| XML | `.xml` |
+| C | `.c`, `.h` |
+| C++ | `.cpp`, `.cc`, `.cxx`, `.hpp` |
+| Java | `.java` |
+| C# | `.cs` |
+| Swift | `.swift` |
+| Scala | `.scala` |
+| Zig | `.zig` |
+
+Language detection is automatic based on file extension.  
+Unsupported files (`.toml`, `.json`, etc.) fall back to full‑file string replacement.
+
+---
+
+## 📖 Commands
+
+### `patch`
+
+Apply a source change using various strategies.
+
+```bash
+patch-ts patch --file <FILE> --line <N> --old "<EXPECTED>" --new "<REPLACEMENT>"
+patch-ts patch --file <FILE> --diff < diff.patch
+patch-ts patch --files "src/**/*.rs" --line 10 --old "foo" --new "bar"
+patch-ts patch --file <FILE> --symbol my_function --new "fn my_function() { ... }"
+patch-ts patch --file <FILE> --delete 5 --expect "old line"
+patch-ts patch --file <FILE> --after 5 --content "new line\nnew line 2"
+patch-ts patch --file <FILE> --marker PATCH-ME --new "replaced content"
+```
+
+**Key options**  
+`--fuzz <N>` (search radius, default 5)  
+`--confidence <0.0‑1.0>` (match confidence threshold, default 0.9)  
+`--fix‑indent` (auto‑apply original indentation style)  
+`--cross‑file` (check for callers after rename)  
+`--dry‑run` (print patched result without writing)  
+`--force` (skip AST validation)  
+`--no‑backup` (skip `.bak` creation)  
+`--json` (machine‑readable output)  
+`--theme <THEME>` (syntax highlighting theme: dark, light, deuteranopia, highcontrast)  
+`--word‑diff` (enable word‑level diff – default on)
+
+---
+
+### `balance`
+
+Fix unbalanced delimiters.
+
+```bash
+patch-ts balance --file <FILE> --apply
+patch-ts balance --files "*.rs" --apply
+patch-ts balance --file <FILE> --function my_func  # scoped to function (Rust only)
+patch-ts balance --file <FILE> --plugin plugin.wasm  # use a WASM plugin
+```
+
+**Options**  
+`--max‑cost <N>` (maximum repair cost, default 10)  
+`--json` (output list of insert/delete actions)
+
+---
+
+### `explain`
+
+Diagnose a syntax error at a given line.
+
+```bash
+patch-ts explain --file <FILE> --line <N> [--json] [--theme dark]
+```
+
+---
+
+### `fix`
+
+Auto‑suggest a fix from compiler error output.
+
+```bash
+cargo check 2>&1 | patch-ts fix --apply
+patch-ts fix --error-file errors.txt --file src/main.rs --apply
+```
+
+---
+
+### `git`
+
+Apply a git commit’s diff or diff against a target.
+
+```bash
+patch-ts git apply abc123 --file src/main.rs
+patch-ts git diff HEAD~1 --apply
+```
+
+---
+
+### `semdiff`
+
+Semantic (AST‑level) diff between two files.
+
+```bash
+patch-ts semdiff --old old.rs --new new.rs --json
+```
+
+---
+
+### `provenance`
+
+Query SCITT provenance records.
+
+```bash
+patch-ts provenance --since 2025-01-01 --file src/main.rs --json
+```
+
+---
+
+### `gate`
+
+Run a multi‑stage validation gate.
+
+```bash
+patch-ts gate --file src/main.rs --stages syntax,compile,cross‑file,semdiff,vuln‑check --json
+patch-ts gate --file src/main.rs --markdown  # output a Markdown table
+```
+
+**Available stages**  
+`syntax`, `compile`, `cross‑file`, `semdiff`, `test`, `swe‑bench`, `vuln‑check`, `regression`, `style`
+
+---
+
+### `score`
+
+Compute a reliability score for a patch.
+
+```bash
+patch-ts score --file src/main.rs --old "fn old()" --new "fn new()" --confidence 0.95
+```
+
+Displays a colour‑gradient scorecard unless `--json` is given.
+
+---
+
+### `index`
+
+Build and query a project symbol index.
+
+```bash
+patch-ts index --rebuild
+patch-ts index --callers my_function --json
+```
+
+---
+
+### `evolve`
+
+Run evolutionary search for optimal patch parameters.
+
+```bash
+patch-ts evolve --file src/main.rs --old "old" --new "new" --population-size 20 --apply
+```
+
+---
+
+### `review`
+
+Run a multi‑agent review across syntax, compile, coverage, security, and semantic diff.
+
+```bash
+patch-ts review --file src/main.rs --old "old content" --new "new content" --json
+```
+
+---
+
+### `attest`
+
+Generate a CRA‑ready attestation report.
+
+```bash
+patch-ts attest --since 2025-01-01 --json
+patch-ts attest --since 2025-01-01 --cra‑report --output cra.json
+```
+
+---
+
+### `verify`
+
+Check invariants expressed in comments (`//@ invariant`) between original and patched code.
+
+```bash
+patch-ts verify --file src/main.rs --json
+```
+
+---
+
+### `impact`
+
+Show callers of a symbol using the accurate tree‑sitter call graph.
+
+```bash
+patch-ts impact --symbol main --recursive
+```
+
+---
+
+### `entity`
+
+Structured action space: operate on named code entities.
+
+```bash
+patch-ts entity list --file src/main.rs
+patch-ts entity show --symbol foo --file src/main.rs
+patch-ts entity replace --symbol foo --file src/main.rs --new "fn foo() { ... }"
+patch-ts entity body --symbol foo --file src/main.rs --new "{ /* new body */ }"
+```
+
+---
+
+### `key`
+
+SCITT key management.
+
+```bash
+patch-ts key generate --output keypair.json
+```
+
+---
+
+### `watch`
+
+Watch a file and apply hooks on modification.
+
+```bash
+patch-ts watch --path src/ --hooks "echo %file% changed"
+```
+
+---
+
+### `lsp`
+
+Start a Language Server for editor integration.
+
+```bash
+patch-ts lsp
+```
+
+---
+
+### `mcp` / `mcp‑http`
+
+Start the MCP server (stdio or HTTP).
+
+```bash
+patch-ts mcp                          # stdio
+patch-ts mcp-http --port 9090        # HTTP
+```
+
+---
+
+## 🔌 MCP Integration
+
+patch‑ts exposes a comprehensive [Model Context Protocol](https://modelcontextprotocol.io/) server.
+
+**Tools (8):**  
+`patch`, `balance`, `explain`, `impact`, `semdiff`, `entity_list`, `entity_replace`, `gate`
+
+**Resources (12):**  
+`patch-ts://symbols/main.rs`, `history`, `provenance`, `dashboard`, `review`,  
+`entities/{file}`, `entity/{file}/{symbol}`, `impact/{symbol}`, `semdiff/{file}`,  
+`coverage/{file}`, `gate/{file}`, `score/{file}`, `provenance/{file}`
+
+---
+
+## 🎨 Visual Features
+
+- **Syntax highlighting** – via `syntect`, 4 themes, honouring `NO_COLOR`.
+- **Word‑level diff** – only changed tokens are highlighted; gutter column shown.
+- **TUI side‑by‑side** – press `s` in the TUI to toggle stacked/side‑by‑side view.
+- **Scorecard** – `patch-ts score` renders colour‑coded bars.
+- **Markdown gate reports** – `patch-ts gate --markdown` produces a table suitable for GitHub PRs.
+
+---
+
+## 🔐 SCITT & Supply Chain
+
+- Ed25519 key generation and rotation.
+- Hash‑chained provenance log (`.patch‑ts/provenance.jsonl`).
+- CRA‑ready attestation with SBOM.
+- Optional transparency service submission.
+
+---
+
+## 🧪 Testing & CI
+
+- Full test suite covering all commands, languages, and edge cases.
+- Property‑based testing (`proptest`) for repair and validation.
+- Fuzz testing of the CLI.
+- CI via GitHub Actions (macOS, Linux, Windows).
+
+---
+
+## 🚧 Upcoming (v1.13)
+
+- **WASM build target** for browser‑based agents.
+- **Workspace architecture** (split into multiple crates for faster compiles).
+- **Enterprise SCITT** (key rotation, Sigstore integration, transparency service).
+- **LSP integration** as a gate stage.
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.  
+Open an issue to discuss new features or report bugs.
+
+---
+
+## 📄 License
+
+MIT © [elcoosp](https://github.com/elcoosp)
+
+---
+
+*Built with Rust, tree‑sitter, and a lot of ☕*
