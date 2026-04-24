@@ -11,7 +11,8 @@ fn test_py_balance_removes_extra_paren() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();
@@ -29,7 +30,8 @@ fn test_py_balance_inserts_missing_paren() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();
@@ -46,10 +48,14 @@ fn test_py_patch_exact() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("1")
-        .arg("--old").arg("x = 1")
-        .arg("--new").arg("x = 42")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("1")
+        .arg("--old")
+        .arg("x = 1")
+        .arg("--new")
+        .arg("x = 42")
         .assert()
         .success();
 
@@ -66,8 +72,10 @@ fn test_py_explain_json() {
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     let output = cmd
         .arg("explain")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("1")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("1")
         .arg("--json")
         .assert()
         .success()

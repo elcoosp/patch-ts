@@ -6,17 +6,25 @@ use tempfile::tempdir;
 fn test_ts_balance_removes_extra_brace() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("sample.ts");
-    fs::write(&file_path, "function main() {\n  console.log(\"hi\");\n}\n}\n").unwrap();
+    fs::write(
+        &file_path,
+        "function main() {\n  console.log(\"hi\");\n}\n}\n",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();
 
     let _balanced = fs::read_to_string(&file_path).unwrap();
-    assert_eq!(_balanced.trim_end(), "function main() {\n  console.log(\"hi\");\n}");
+    assert_eq!(
+        _balanced.trim_end(),
+        "function main() {\n  console.log(\"hi\");\n}"
+    );
 }
 
 #[test]
@@ -27,7 +35,8 @@ fn test_ts_balance_inserts_missing_paren() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();
@@ -45,10 +54,14 @@ fn test_ts_patch_exact() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("1")
-        .arg("--old").arg("const a = 1;")
-        .arg("--new").arg("const a = 42;")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("1")
+        .arg("--old")
+        .arg("const a = 1;")
+        .arg("--new")
+        .arg("const a = 42;")
         .assert()
         .success();
 
@@ -64,11 +77,16 @@ fn test_ts_patch_fuzzy() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("2")
-        .arg("--old").arg("const a = 1;")
-        .arg("--new").arg("const a = 42;")
-        .arg("--fuzz").arg("2")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("2")
+        .arg("--old")
+        .arg("const a = 1;")
+        .arg("--new")
+        .arg("const a = 42;")
+        .arg("--fuzz")
+        .arg("2")
         .assert()
         .success();
 
@@ -85,8 +103,10 @@ fn test_ts_explain_json() {
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     let output = cmd
         .arg("explain")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("1")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("1")
         .arg("--json")
         .assert()
         .success()
@@ -108,10 +128,14 @@ fn test_ts_unsupported_extension_errors() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("1")
-        .arg("--old").arg("hello")
-        .arg("--new").arg("world")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("1")
+        .arg("--old")
+        .arg("hello")
+        .arg("--new")
+        .arg("world")
         .assert()
         .failure()
         .stderr(predicates::str::contains("Unsupported file extension"));
@@ -125,7 +149,8 @@ fn test_ts_balance_removes_extra_paren() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();

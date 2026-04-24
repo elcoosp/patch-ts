@@ -1,13 +1,18 @@
-use tree_sitter::{Parser, Query, QueryCursor};
-use tree_sitter::StreamingIterator;
 use std::collections::HashSet;
+use tree_sitter::StreamingIterator;
+use tree_sitter::{Parser, Query, QueryCursor};
 
 /// Extract all identifiers from source code using tree-sitter.
 pub fn extract_identifiers(source: &str, language: &str) -> Result<HashSet<String>, String> {
     let mut parser = Parser::new();
     let lang = match language {
         "rs" => tree_sitter_rust::LANGUAGE.into(),
-        _ => return Err(format!("Identifier extraction not supported for {}", language)),
+        _ => {
+            return Err(format!(
+                "Identifier extraction not supported for {}",
+                language
+            ))
+        }
     };
     parser.set_language(&lang).map_err(|e| e.to_string())?;
     let tree = parser.parse(source, None).ok_or("Failed to parse")?;

@@ -13,7 +13,8 @@ fn test_cli_balance_json_actions() {
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     let output = cmd
         .arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .arg("--json")
         .assert()
@@ -42,11 +43,13 @@ fn test_balance_max_cost_exceeded() {
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     let output = cmd
         .arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--max-cost").arg("3")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--max-cost")
+        .arg("3")
         .arg("--json")
         .assert()
-        .success()  // CLI exits 0, failure is in JSON body
+        .success() // CLI exits 0, failure is in JSON body
         .get_output()
         .stdout
         .clone();
@@ -54,7 +57,10 @@ fn test_balance_max_cost_exceeded() {
     let stdout = String::from_utf8(output).unwrap();
     let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(json["success"], false);
-    assert!(json["error"]["message"].as_str().unwrap().contains("max cost"));
+    assert!(json["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("max cost"));
 }
 
 #[test]
@@ -66,12 +72,17 @@ fn test_patch_json_confidence_anchor() {
     let mut cmd = assert_cmd::Command::cargo_bin("patch-ts").unwrap();
     let output = cmd
         .arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("1")
-        .arg("--old").arg("hello world")
-        .arg("--new").arg("hello patch-ts")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("1")
+        .arg("--old")
+        .arg("hello world")
+        .arg("--new")
+        .arg("hello patch-ts")
         .arg("--json")
-        .arg("--fuzz").arg("2")
+        .arg("--fuzz")
+        .arg("2")
         .assert()
         .success()
         .get_output()
@@ -94,12 +105,17 @@ fn test_fix_indent_spaces_to_tabs() {
 
     let mut cmd = assert_cmd::Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("1")
-        .arg("--old").arg("let x = 1;")
-        .arg("--new").arg("let x = 2;")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("1")
+        .arg("--old")
+        .arg("let x = 1;")
+        .arg("--new")
+        .arg("let x = 2;")
         .arg("--fix-indent")
-        .arg("--fuzz").arg("5")
+        .arg("--fuzz")
+        .arg("5")
         .assert()
         .success();
 

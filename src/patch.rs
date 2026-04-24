@@ -1,10 +1,10 @@
-use crate::matching::{find_best_block_match, cascade_match, MatchResult};
-use anyhow::{Context, Result};
-use std::fs;
-use std::path::Path;
 use crate::ast::Language;
 use crate::diagnostics::SyntaxErrorDiagnostic;
+use crate::matching::{cascade_match, find_best_block_match, MatchResult};
+use anyhow::{Context, Result};
 use miette::NamedSource;
+use std::fs;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct PatchOptions {
@@ -59,7 +59,11 @@ pub fn apply_literal_patch(
         anyhow::bail!("file is empty, cannot apply patch at line {}", line_num);
     }
     if line_num > lines.len() {
-        anyhow::bail!("line {} out of range (file has {} lines)", line_num, lines.len());
+        anyhow::bail!(
+            "line {} out of range (file has {} lines)",
+            line_num,
+            lines.len()
+        );
     }
 
     let target_idx = line_num.saturating_sub(1);
@@ -116,7 +120,11 @@ pub fn apply_literal_patch(
     let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
     new_lines[match_idx] = new_to_use;
     let mut new_content = new_lines.join("\n")
-        + if original_content.ends_with('\n') { "\n" } else { "" };
+        + if original_content.ends_with('\n') {
+            "\n"
+        } else {
+            ""
+        };
 
     if !options.force {
         let original_parse = language.parse(&original_content);

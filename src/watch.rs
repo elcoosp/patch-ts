@@ -62,15 +62,18 @@ impl FileWatcher {
                         }
                         self.last_event_time = now;
 
-                        let should_ignore = event.paths.iter().any(|p| {
-                            self.ignore_patterns.iter().any(|pat| pat.matches_path(p))
-                        });
+                        let should_ignore = event
+                            .paths
+                            .iter()
+                            .any(|p| self.ignore_patterns.iter().any(|pat| pat.matches_path(p)));
                         if should_ignore {
                             continue;
                         }
 
                         if let Some(ref hook) = self.hook_command {
-                            let file = event.paths.first()
+                            let file = event
+                                .paths
+                                .first()
                                 .map(|p| p.to_string_lossy().to_string())
                                 .unwrap_or_default();
                             let cmd = hook.replace("%file%", &file);

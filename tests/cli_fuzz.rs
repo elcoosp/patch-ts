@@ -1,7 +1,7 @@
-use proptest::prelude::*;
 use assert_cmd::Command;
-use tempfile::tempdir;
+use proptest::prelude::*;
 use std::fs;
+use tempfile::tempdir;
 
 proptest! {
     #![proptest_config(ProptestConfig {

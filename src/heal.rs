@@ -14,7 +14,10 @@ pub fn generate_feedback(error_msg: &str, category: &str, context: &HealContext)
     let mut parts = Vec::new();
     parts.push(format!("Error code: {}", context.error_code));
     parts.push(format!("File: {}, Line: {}", context.file, context.line));
-    parts.push(format!("Confidence: {:.2} (threshold: {:.2})", context.confidence, context.threshold));
+    parts.push(format!(
+        "Confidence: {:.2} (threshold: {:.2})",
+        context.confidence, context.threshold
+    ));
     if let Some(ref s) = context.strategy {
         parts.push(format!("Strategy attempted: {}", s));
     }

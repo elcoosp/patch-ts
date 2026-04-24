@@ -1,6 +1,6 @@
+use crate::symbols::SymbolIndex;
 use std::collections::HashMap;
 use std::path::Path;
-use crate::symbols::SymbolIndex;
 
 pub struct CallSite {
     pub file: String,
@@ -13,7 +13,10 @@ pub struct CallSite {
 pub fn build_project_index(root: &Path) -> HashMap<String, SymbolIndex> {
     let mut index = HashMap::new();
     let root = root.to_path_buf();
-    for entry in glob::glob(root.join("**").join("*.rs").to_str().unwrap_or("")).unwrap().flatten() {
+    for entry in glob::glob(root.join("**").join("*.rs").to_str().unwrap_or(""))
+        .unwrap()
+        .flatten()
+    {
         if let Ok(content) = std::fs::read_to_string(&entry) {
             if let Some(sym) = crate::symbols::build_index(&content, "rs") {
                 index.insert(entry.to_string_lossy().to_string(), sym);

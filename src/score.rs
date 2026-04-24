@@ -14,7 +14,7 @@ pub struct ScoreContext {
     pub compile_success: bool,
     pub confidence: f64,
     pub uniqueness_score: f64,
-    pub cross_file_impact: usize,   // number of callers affected
+    pub cross_file_impact: usize, // number of callers affected
     pub historical_success_rate: f64,
 }
 
@@ -27,7 +27,9 @@ pub fn calculate_score(context: &ScoreContext) -> ReliabilityScore {
     let cross_file = if context.cross_file_impact == 0 {
         100
     } else {
-        100usize.saturating_sub(context.cross_file_impact * 20).max(0) as u8
+        100usize
+            .saturating_sub(context.cross_file_impact * 20)
+            .max(0) as u8
     };
     let historical = (context.historical_success_rate * 100.0) as u8;
 
@@ -47,7 +49,10 @@ pub fn calculate_score(context: &ScoreContext) -> ReliabilityScore {
     dimensions.insert("cross_file_impact".to_string(), cross_file);
     dimensions.insert("historical".to_string(), historical);
 
-    ReliabilityScore { overall, dimensions }
+    ReliabilityScore {
+        overall,
+        dimensions,
+    }
 }
 
 /// Helper to compute historical success rate from provenance records.
@@ -68,7 +73,11 @@ pub fn historical_success_rate() -> f64 {
             }
         }
     }
-    if total == 0 { 0.5 } else { successes as f64 / total as f64 }
+    if total == 0 {
+        0.5
+    } else {
+        successes as f64 / total as f64
+    }
 }
 
 #[cfg(test)]

@@ -3,8 +3,7 @@ use std::path::Path;
 
 /// Fetch a unified diff from an HTTP(S) URL.
 pub fn fetch_http(url: &str) -> Result<String> {
-    let client = reqwest::blocking::Client::builder()
-        .build()?;
+    let client = reqwest::blocking::Client::builder().build()?;
     let resp = client.get(url).send()?;
     if !resp.status().is_success() {
         anyhow::bail!("HTTP error {} fetching {}", resp.status(), url);
@@ -19,7 +18,10 @@ pub fn fetch_http(url: &str) -> Result<String> {
 pub fn fetch_git_commit(repo_path: &str, commit: &str) -> Result<String> {
     use git2::Repository;
     // If repo_path is a URL, clone to a temp directory first
-    let repo = if repo_path.starts_with("http://") || repo_path.starts_with("https://") || repo_path.starts_with("git@") {
+    let repo = if repo_path.starts_with("http://")
+        || repo_path.starts_with("https://")
+        || repo_path.starts_with("git@")
+    {
         let tmp = tempfile::tempdir()?;
         Repository::clone(repo_path, tmp.path())?;
         Repository::open(tmp.path())?

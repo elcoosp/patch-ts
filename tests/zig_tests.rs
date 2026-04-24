@@ -10,10 +10,14 @@ fn test_zig_patch_exact() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("3")
-        .arg("--old").arg("    std.debug.print(\"hello\", .{});")
-        .arg("--new").arg("    std.debug.print(\"world\", .{});")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("3")
+        .arg("--old")
+        .arg("    std.debug.print(\"hello\", .{});")
+        .arg("--new")
+        .arg("    std.debug.print(\"world\", .{});")
         .assert()
         .success();
 

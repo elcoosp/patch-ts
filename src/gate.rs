@@ -24,7 +24,11 @@ fn gate_syntax(_file_path: &Path, content: &str) -> Result<StageResult> {
     Ok(StageResult {
         name: "syntax".to_string(),
         passed: valid,
-        details: if valid { "AST valid".to_string() } else { "Syntax error detected".to_string() },
+        details: if valid {
+            "AST valid".to_string()
+        } else {
+            "Syntax error detected".to_string()
+        },
     })
 }
 
@@ -35,7 +39,11 @@ fn gate_compile(file_path: &Path, timeout_secs: u64) -> Result<StageResult> {
     Ok(StageResult {
         name: "compile".to_string(),
         passed: compile_result.success,
-        details: if compile_result.success { "Compilation successful".to_string() } else { format!("{} errors", compile_result.errors.len()) },
+        details: if compile_result.success {
+            "Compilation successful".to_string()
+        } else {
+            format!("{} errors", compile_result.errors.len())
+        },
     })
 }
 
@@ -45,8 +53,14 @@ fn gate_cross_file(_file_path: &Path, old_content: &str, new_content: &str) -> R
     let mut warnings = Vec::new();
     // Simple heuristic: detect function name changes
     if let (Some(old_name), Some(new_name)) = (
-        old_content.split("fn ").nth(1).and_then(|s| s.split('(').next()),
-        new_content.split("fn ").nth(1).and_then(|s| s.split('(').next()),
+        old_content
+            .split("fn ")
+            .nth(1)
+            .and_then(|s| s.split('(').next()),
+        new_content
+            .split("fn ")
+            .nth(1)
+            .and_then(|s| s.split('(').next()),
     ) {
         if old_name != new_name {
             let callers = crate::crossfile::find_callers(old_name, &project_index);
@@ -59,7 +73,11 @@ fn gate_cross_file(_file_path: &Path, old_content: &str, new_content: &str) -> R
     Ok(StageResult {
         name: "cross‑file".to_string(),
         passed,
-        details: if passed { "No callers affected".to_string() } else { format!("{} callers affected: {:?}", warnings.len(), warnings) },
+        details: if passed {
+            "No callers affected".to_string()
+        } else {
+            format!("{} callers affected: {:?}", warnings.len(), warnings)
+        },
     })
 }
 
@@ -70,12 +88,22 @@ fn gate_test() -> Result<StageResult> {
     Ok(StageResult {
         name: "test".to_string(),
         passed,
-        details: if passed { "Tests passed".to_string() } else { "Tests failed".to_string() },
+        details: if passed {
+            "Tests passed".to_string()
+        } else {
+            "Tests failed".to_string()
+        },
     })
 }
 
 /// Execute a sequence of gate stages.
-pub fn run_gate(stages: &[String], file_path: &Path, old_content: &str, new_content: &str, compile_timeout: u64) -> Result<GateResult> {
+pub fn run_gate(
+    stages: &[String],
+    file_path: &Path,
+    old_content: &str,
+    new_content: &str,
+    compile_timeout: u64,
+) -> Result<GateResult> {
     let mut results = Vec::new();
     let mut all_passed = true;
     for stage in stages {
@@ -84,20 +112,31 @@ pub fn run_gate(stages: &[String], file_path: &Path, old_content: &str, new_cont
             "compile" => gate_compile(file_path, compile_timeout)?,
             "cross‑file" | "cross_file" => gate_cross_file(file_path, old_content, new_content)?,
             "test" => gate_test()?,
-            _ => StageResult { name: stage.clone(), passed: true, details: "Unknown stage – skipped".to_string() },
+            _ => StageResult {
+                name: stage.clone(),
+                passed: true,
+                details: "Unknown stage – skipped".to_string(),
+            },
         };
-        if !result.passed { all_passed = false; }
+        if !result.passed {
+            all_passed = false;
+        }
         results.push(result);
-        if !all_passed { break; } // Stop on first failure
+        if !all_passed {
+            break;
+        } // Stop on first failure
     }
-    Ok(GateResult { passed: all_passed, stages: results })
+    Ok(GateResult {
+        passed: all_passed,
+        stages: results,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn test_gate_syntax_valid() {

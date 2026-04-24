@@ -1,6 +1,6 @@
+use crate::ast::Span;
 use std::collections::HashMap;
 use tree_sitter::{Parser, Query, QueryCursor, StreamingIterator};
-use crate::ast::Span;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SymbolIndex {

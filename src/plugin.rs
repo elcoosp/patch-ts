@@ -18,11 +18,7 @@ impl PluginHost {
     }
 
     // Stub implementation – actual plugin execution is postponed.
-    pub fn repair(
-        &self,
-        _errors: &[crate::ast::DelimiterError],
-        source: &str,
-    ) -> Result<String> {
+    pub fn repair(&self, _errors: &[crate::ast::DelimiterError], source: &str) -> Result<String> {
         // TODO: Activate plugin call once wasmtime component API is stable.
         Ok(source.to_string())
     }

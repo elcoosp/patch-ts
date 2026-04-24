@@ -54,9 +54,16 @@ pub fn extract_entities(source: &str, lang: &str) -> Result<Vec<Entity>, String>
     let root = tree.root_node();
 
     let entity_kinds: Vec<&str> = vec![
-        "function_item", "struct_item", "enum_item", "impl_item", "trait_item",
-        "function_declaration", "class_declaration", "method_definition",
-        "function_definition", "class_definition",
+        "function_item",
+        "struct_item",
+        "enum_item",
+        "impl_item",
+        "trait_item",
+        "function_declaration",
+        "class_declaration",
+        "method_definition",
+        "function_definition",
+        "class_definition",
     ];
 
     let mut entities = Vec::new();
@@ -64,7 +71,12 @@ pub fn extract_entities(source: &str, lang: &str) -> Result<Vec<Entity>, String>
     Ok(entities)
 }
 
-fn collect_entities(node: &tree_sitter::Node, source: &str, entity_kinds: &[&str], entities: &mut Vec<Entity>) {
+fn collect_entities(
+    node: &tree_sitter::Node,
+    source: &str,
+    entity_kinds: &[&str],
+    entities: &mut Vec<Entity>,
+) {
     let kind = node.kind();
     if entity_kinds.contains(&kind) {
         if let Some(name_node) = node.child_by_field_name("name") {
@@ -120,7 +132,9 @@ pub fn diff_entities(old: &[Entity], new: &[Entity]) -> Vec<EntityChange> {
     // Modified (signature differs)
     for (name, new_entity) in &new_map {
         if let Some(old_entity) = old_map.get(name) {
-            if new_entity.signature != old_entity.signature || new_entity.start_byte != old_entity.start_byte {
+            if new_entity.signature != old_entity.signature
+                || new_entity.start_byte != old_entity.start_byte
+            {
                 changes.push(EntityChange {
                     change_type: ChangeType::Modified,
                     entity: (*new_entity).clone(),
@@ -150,11 +164,27 @@ mod tests {
 
     #[test]
     fn test_diff_added_removed() {
-        let old = vec![Entity { name: "foo".into(), kind: "function_item".into(), start_byte: 0, end_byte: 10, signature: "fn foo()".into() }];
-        let new = vec![Entity { name: "bar".into(), kind: "function_item".into(), start_byte: 0, end_byte: 10, signature: "fn bar()".into() }];
+        let old = vec![Entity {
+            name: "foo".into(),
+            kind: "function_item".into(),
+            start_byte: 0,
+            end_byte: 10,
+            signature: "fn foo()".into(),
+        }];
+        let new = vec![Entity {
+            name: "bar".into(),
+            kind: "function_item".into(),
+            start_byte: 0,
+            end_byte: 10,
+            signature: "fn bar()".into(),
+        }];
         let changes = diff_entities(&old, &new);
         assert_eq!(changes.len(), 2);
-        assert!(changes.iter().any(|c| matches!(c.change_type, ChangeType::Added)));
-        assert!(changes.iter().any(|c| matches!(c.change_type, ChangeType::Removed)));
+        assert!(changes
+            .iter()
+            .any(|c| matches!(c.change_type, ChangeType::Added)));
+        assert!(changes
+            .iter()
+            .any(|c| matches!(c.change_type, ChangeType::Removed)));
     }
 }

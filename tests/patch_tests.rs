@@ -13,7 +13,15 @@ fn test_replace_block_exact_match() {
 
     let mut lang = RustLanguage::new();
     let mut options = PatchOptions::default();
-    apply_literal_patch(&file_path, 2, "line2", "new line2", &mut &mut &mut options, &mut lang).unwrap();
+    apply_literal_patch(
+        &file_path,
+        2,
+        "line2",
+        "new line2",
+        &mut &mut &mut options,
+        &mut lang,
+    )
+    .unwrap();
 
     let new_content = fs::read_to_string(&file_path).unwrap();
     assert_eq!(new_content, "line1\nnew line2\nline3\n");
@@ -31,7 +39,14 @@ fn test_replace_block_mismatch_fails() {
         similarity_threshold: 1.0,
         ..Default::default()
     };
-    let result = apply_literal_patch(&file_path, 2, "wrong line", "new line2", &mut &mut &mut options, &mut lang);
+    let result = apply_literal_patch(
+        &file_path,
+        2,
+        "wrong line",
+        "new line2",
+        &mut &mut &mut options,
+        &mut lang,
+    );
     assert!(result.is_err());
     let err_msg = result.unwrap_err().to_string();
     assert!(err_msg.contains("expected line 2 to contain"));
@@ -49,7 +64,15 @@ fn test_replace_block_with_fuzz() {
         similarity_threshold: 0.9,
         ..Default::default()
     };
-    apply_literal_patch(&file_path, 2, "line2", "new line2", &mut &mut &mut options, &mut lang).unwrap();
+    apply_literal_patch(
+        &file_path,
+        2,
+        "line2",
+        "new line2",
+        &mut &mut &mut options,
+        &mut lang,
+    )
+    .unwrap();
 
     let new_content = fs::read_to_string(&file_path).unwrap();
     assert_eq!(new_content, "// added comment\nline1\nnew line2\nline3\n");
@@ -68,7 +91,14 @@ fn test_fuzzy_match_ambiguous() {
         ..Default::default()
     };
     // The cascade now returns the first match, so it succeeds.
-    let result = apply_literal_patch(&file_path, 2, "line A", "new line", &mut &mut &mut options, &mut lang);
+    let result = apply_literal_patch(
+        &file_path,
+        2,
+        "line A",
+        "new line",
+        &mut &mut &mut options,
+        &mut lang,
+    );
     assert!(result.is_ok());
     let content = fs::read_to_string(&file_path).unwrap();
     assert!(content.contains("new line"));
@@ -168,7 +198,14 @@ fn test_fuzzy_match_below_threshold_fails() {
         similarity_threshold: 0.99,
         ..Default::default()
     };
-    let result = apply_literal_patch(&file_path, 2, "line2", "new line", &mut &mut &mut options, &mut lang);
+    let result = apply_literal_patch(
+        &file_path,
+        2,
+        "line2",
+        "new line",
+        &mut &mut &mut options,
+        &mut lang,
+    );
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("no match found with any strategy"));
@@ -182,7 +219,14 @@ fn test_empty_search_range_fails() {
 
     let mut lang = RustLanguage::new();
     let mut options = PatchOptions::default();
-    let result = apply_literal_patch(&file_path, 1, "line", "new", &mut &mut &mut options, &mut lang);
+    let result = apply_literal_patch(
+        &file_path,
+        1,
+        "line",
+        "new",
+        &mut &mut &mut options,
+        &mut lang,
+    );
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("empty") || err.contains("out of range"));
@@ -241,7 +285,14 @@ fn test_apply_literal_patch_out_of_range() {
 
     let mut lang = RustLanguage::new();
     let mut options = PatchOptions::default();
-    let result = apply_literal_patch(&file_path, 100, "line1", "new", &mut &mut &mut options, &mut lang);
+    let result = apply_literal_patch(
+        &file_path,
+        100,
+        "line1",
+        "new",
+        &mut &mut &mut options,
+        &mut lang,
+    );
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("out of range"));
 }
@@ -276,5 +327,8 @@ fn test_apply_unified_diff_error() {
     let mut options = PatchOptions::default();
     let result = apply_unified_diff(&file_path, diff, options);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Failed to apply diff"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Failed to apply diff"));
 }

@@ -1,7 +1,7 @@
 // src/repair/search.rs
+use crate::ast::{DelimiterError, Language};
 use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
-use crate::ast::{DelimiterError, Language};
 
 /// An atomic edit action: insert a delimiter at a byte position, or delete a span.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -21,7 +21,11 @@ struct RepairState {
 
 impl RepairState {
     fn new(source: String) -> Self {
-        Self { source, cost: 0, actions: Vec::new() }
+        Self {
+            source,
+            cost: 0,
+            actions: Vec::new(),
+        }
     }
 }
 
@@ -42,7 +46,11 @@ fn generate_next_states(state: &RepairState, error: &DelimiterError) -> Vec<Repa
                 actions: new_actions,
             });
         }
-        DelimiterError::Missing { expected, insert_at, .. } => {
+        DelimiterError::Missing {
+            expected,
+            insert_at,
+            ..
+        } => {
             let insert_pos = insert_at.end_byte;
             let mut new_source = state.source.clone();
             new_source.insert(insert_pos, *expected);
@@ -118,7 +126,7 @@ pub fn minimum_cost_repair(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{RustLanguage, Language};
+    use crate::ast::{Language, RustLanguage};
 
     #[test]
     fn test_repair_single_missing_brace() {

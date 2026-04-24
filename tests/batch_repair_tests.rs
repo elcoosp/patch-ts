@@ -11,7 +11,8 @@ fn test_balance_fixes_multiple_errors() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();
@@ -30,7 +31,8 @@ fn test_balance_fixes_extra_and_missing() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();
@@ -38,5 +40,8 @@ fn test_balance_fixes_extra_and_missing() {
     let balanced = fs::read_to_string(&file_path).unwrap();
     assert!(balanced.contains("const x = (1 + 2);"));
     let after_foo = balanced.split("function foo() {").nth(1).unwrap_or("");
-    assert!(after_foo.contains('}'), "function foo should have a closing brace");
+    assert!(
+        after_foo.contains('}'),
+        "function foo should have a closing brace"
+    );
 }

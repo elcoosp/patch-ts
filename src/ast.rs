@@ -4,8 +4,7 @@ use tree_sitter::{Node, Parser, Tree};
 
 use crate::diagnostics::SyntaxErrorDiagnostic;
 
-#[derive(Debug, Clone, PartialEq)]
-#[derive(serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct Span {
     pub start_byte: usize,
     pub end_byte: usize,
@@ -56,8 +55,15 @@ impl Span {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DelimiterError {
-    Extra { span: Span, delimiter: char },
-    Missing { expected: char, insert_at: Span, parent_kind: Option<String> },
+    Extra {
+        span: Span,
+        delimiter: char,
+    },
+    Missing {
+        expected: char,
+        insert_at: Span,
+        parent_kind: Option<String>,
+    },
 }
 
 impl DelimiterError {
@@ -88,14 +94,20 @@ pub struct ParseResult {
 }
 
 impl ParseResult {
-    pub fn text(&self) -> &str { &self.source }
+    pub fn text(&self) -> &str {
+        &self.source
+    }
     pub fn node_at_line(&self, line: usize) -> Option<Node<'_>> {
         let root = self.tree.root_node();
         find_node_at_line(root, line, &self.index)
     }
 }
 
-fn find_node_at_line<'a>(node: Node<'a>, target_line: usize, index: &LineIndex) -> Option<Node<'a>> {
+fn find_node_at_line<'a>(
+    node: Node<'a>,
+    target_line: usize,
+    index: &LineIndex,
+) -> Option<Node<'a>> {
     let start_byte = node.start_byte();
     let start_pos = index.line_col(TextSize::from(start_byte as u32));
     if start_pos.line as usize + 1 == target_line {
@@ -143,13 +155,20 @@ fn traverse_for_delimiters(
     index: &LineIndex,
 ) {
     let kind = node.kind();
-    if kind.contains("string") || kind.contains("comment") || kind == "string_literal" || kind == "raw_string_literal" {
+    if kind.contains("string")
+        || kind.contains("comment")
+        || kind == "string_literal"
+        || kind == "raw_string_literal"
+    {
         return;
     }
     match kind {
         "(" | "[" | "{" => {
             let close = match kind {
-                "(" => ')', "[" => ']', "{" => '}', _ => unreachable!(),
+                "(" => ')',
+                "[" => ']',
+                "{" => '}',
+                _ => unreachable!(),
             };
             let parent_kind = node.parent().map(|p| p.kind().to_string());
             stack.push((close, node.start_byte(), parent_kind));
@@ -180,9 +199,13 @@ fn traverse_for_delimiters(
 }
 
 fn has_error_node(node: Node) -> bool {
-    if node.is_error() { return true; }
+    if node.is_error() {
+        return true;
+    }
     for child in node.children(&mut node.walk()) {
-        if has_error_node(child) { return true; }
+        if has_error_node(child) {
+            return true;
+        }
     }
     false
 }
@@ -193,7 +216,9 @@ fn has_error_node(node: Node) -> bool {
 
 macro_rules! impl_language {
     ($name:ident, $lang:expr) => {
-        pub struct $name { parser: Parser }
+        pub struct $name {
+            parser: Parser,
+        }
         impl $name {
             pub fn new() -> Self {
                 let mut parser = Parser::new();
@@ -205,24 +230,42 @@ macro_rules! impl_language {
             fn parse(&mut self, source: &str) -> ParseResult {
                 let tree = self.parser.parse(source, None).unwrap();
                 let index = LineIndex::new(source);
-                ParseResult { tree, source: source.to_string(), index }
+                ParseResult {
+                    tree,
+                    source: source.to_string(),
+                    index,
+                }
             }
-            fn is_valid(&self, result: &ParseResult) -> bool { !has_error_node(result.tree.root_node()) }
-            fn find_extra_delimiter(&self, _: &ParseResult) -> Option<Span> { None }
-            fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> {
+            fn is_valid(&self, result: &ParseResult) -> bool {
+                !has_error_node(result.tree.root_node())
+            }
+            fn find_extra_delimiter(&self, _: &ParseResult) -> Option<Span> {
+                None
+            }
+            fn explain_error(
+                &self,
+                result: &ParseResult,
+                line: usize,
+            ) -> Option<SyntaxErrorDiagnostic> {
                 let node = result.node_at_line(line)?;
                 if node.is_error() || node.has_error() {
                     let text = node.utf8_text(result.text().as_bytes()).unwrap_or("");
                     let details = format!("Syntax error near '{}'", text);
                     let span = Span::from_node(node, &result.index);
-                    return Some(SyntaxErrorDiagnostic { src: NamedSource::new("input", result.text().to_string()), error_span: (span.start_byte, span.end_byte - span.start_byte).into(), details });
+                    return Some(SyntaxErrorDiagnostic {
+                        src: NamedSource::new("input", result.text().to_string()),
+                        error_span: (span.start_byte, span.end_byte - span.start_byte).into(),
+                        details,
+                    });
                 }
                 None
             }
             fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
                 find_delimiter_errors_via_ast(result.tree.root_node(), &result.index)
             }
-            fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
             fn diagnostic_message(&self, error: &DelimiterError) -> String {
                 match error {
                     DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter),
@@ -234,7 +277,10 @@ macro_rules! impl_language {
 }
 
 impl_language!(RustLanguage, tree_sitter_rust::LANGUAGE);
-impl_language!(TypeScriptLanguage, tree_sitter_typescript::LANGUAGE_TYPESCRIPT);
+impl_language!(
+    TypeScriptLanguage,
+    tree_sitter_typescript::LANGUAGE_TYPESCRIPT
+);
 impl_language!(JavaScriptLanguage, tree_sitter_javascript::LANGUAGE);
 impl_language!(PythonLanguage, tree_sitter_python::LANGUAGE);
 impl_language!(GoLanguage, tree_sitter_go::LANGUAGE);
@@ -252,7 +298,11 @@ impl_language!(ZigLanguage, tree_sitter_zig::LANGUAGE);
 
 // Rust-specific extra methods
 impl RustLanguage {
-    pub fn find_function_body_range(&self, source: &str, function_name: &str) -> Option<(usize, usize)> {
+    pub fn find_function_body_range(
+        &self,
+        source: &str,
+        function_name: &str,
+    ) -> Option<(usize, usize)> {
         let pattern = format!("fn {}(", function_name);
         let mut start = 0;
         let mut found_range = None;
@@ -264,23 +314,40 @@ impl RustLanguage {
             let mut stack = 1;
             let mut close_byte = open_byte + 1;
             let chars = after_sig[open_brace_offset + 1..].chars();
-            let mut in_string = false; let mut in_char = false; let mut escape = false;
+            let mut in_string = false;
+            let mut in_char = false;
+            let mut escape = false;
             for c in chars {
                 let char_len = c.len_utf8();
                 if !in_string && !in_char {
-                    if c == '"' { in_string = true; }
-                    else if c == '\'' { in_char = true; }
-                    else if c == '{' { stack += 1; }
-                    else if c == '}' { stack -= 1; if stack == 0 { break; } }
+                    if c == '"' {
+                        in_string = true;
+                    } else if c == '\'' {
+                        in_char = true;
+                    } else if c == '{' {
+                        stack += 1;
+                    } else if c == '}' {
+                        stack -= 1;
+                        if stack == 0 {
+                            break;
+                        }
+                    }
                 } else {
-                    if escape { escape = false; }
-                    else if c == '\\' { escape = true; }
-                    else if (in_string && c == '"') || (in_char && c == '\'') { in_string = false; in_char = false; }
+                    if escape {
+                        escape = false;
+                    } else if c == '\\' {
+                        escape = true;
+                    } else if (in_string && c == '"') || (in_char && c == '\'') {
+                        in_string = false;
+                        in_char = false;
+                    }
                 }
                 close_byte += char_len;
             }
             let range = (open_byte, close_byte);
-            if found_range.is_some() { return None; }
+            if found_range.is_some() {
+                return None;
+            }
             found_range = Some(range);
             start = abs_pos + 1;
         }

@@ -10,10 +10,14 @@ fn test_scala_patch_exact() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("3")
-        .arg("--old").arg("    println(\"hello\")")
-        .arg("--new").arg("    println(\"world\")")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("3")
+        .arg("--old")
+        .arg("    println(\"hello\")")
+        .arg("--new")
+        .arg("    println(\"world\")")
         .assert()
         .success();
 

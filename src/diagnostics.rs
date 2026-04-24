@@ -14,10 +14,7 @@ pub struct FileNotFoundError {
 
 #[derive(Error, Debug, Diagnostic)]
 #[error("expected content not found")]
-#[diagnostic(
-    code(patch_ts::content_mismatch),
-    help("try increasing --fuzz radius")
-)]
+#[diagnostic(code(patch_ts::content_mismatch), help("try increasing --fuzz radius"))]
 pub struct ContentMismatchError {
     #[source_code]
     pub src: NamedSource<String>,
@@ -68,8 +65,7 @@ pub struct JsonDiagnostic {
     pub warnings: Option<Vec<String>>,
 }
 
-#[derive(serde::Serialize)]
-#[derive(Debug)]
+#[derive(serde::Serialize, Debug)]
 pub struct JsonError {
     pub code: String,
     pub message: String,
@@ -83,15 +79,13 @@ pub struct JsonError {
     pub retry_prompt: Option<String>,
 }
 
-#[derive(serde::Serialize)]
-#[derive(Debug)]
+#[derive(serde::Serialize, Debug)]
 pub struct Candidate {
     pub line: usize,
     pub score: f64,
 }
 
-#[derive(serde::Serialize)]
-#[derive(Debug)]
+#[derive(serde::Serialize, Debug)]
 pub struct JsonSpan {
     pub file: String,
     pub line: usize,
@@ -143,10 +137,16 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
         return JsonError {
             code: "patch_ts::syntax_error".to_string(),
             message: diag.to_string(),
-            span: JsonSpan { file: file.to_string(), line: 1, column: 1 },
+            span: JsonSpan {
+                file: file.to_string(),
+                line: 1,
+                column: 1,
+            },
             context: diag.details.clone(),
             suggestion: Some("Run `patch-ts balance` to attempt automatic fix".to_string()),
-            best_score: None, best_match_line: None, candidates: None,
+            best_score: None,
+            best_match_line: None,
+            candidates: None,
             error_code: Some("E005".to_string()),
             retry_prompt: Some(diag.details.clone()),
         };
@@ -155,18 +155,31 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
         return JsonError {
             code: "patch_ts::content_mismatch".to_string(),
             message: diag.to_string(),
-            span: JsonSpan { file: file.to_string(), line: 1, column: 1 },
+            span: JsonSpan {
+                file: file.to_string(),
+                line: 1,
+                column: 1,
+            },
             context: format!("expected '{}' but found '{}'", diag.expected, diag.actual),
             suggestion: Some("try increasing --fuzz radius".to_string()),
-            best_score: None, best_match_line: None, candidates: None,
+            best_score: None,
+            best_match_line: None,
+            candidates: None,
             error_code: Some("E002".to_string()),
-            retry_prompt: Some(format!("expected '{}' but found '{}'", diag.expected, diag.actual)),
+            retry_prompt: Some(format!(
+                "expected '{}' but found '{}'",
+                diag.expected, diag.actual
+            )),
         };
     }
     JsonError {
         code: "patch_ts::error".to_string(),
         message: msg,
-        span: JsonSpan { file: file.to_string(), line: 0, column: 0 },
+        span: JsonSpan {
+            file: file.to_string(),
+            line: 0,
+            column: 0,
+        },
         context: String::new(),
         suggestion,
         best_score,
@@ -177,17 +190,16 @@ pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
     }
 }
 
-#[derive(serde::Serialize)]
-#[derive(Debug)]
+#[derive(serde::Serialize, Debug)]
 pub struct BalanceResult {
     pub success: bool,
     pub actions: Vec<BalanceAction>,
-    #[serde(skip)] pub rolled_back: Vec<DelimiterError>,
+    #[serde(skip)]
+    pub rolled_back: Vec<DelimiterError>,
     pub error: Option<JsonError>,
 }
 
-#[derive(serde::Serialize)]
-#[derive(Debug)]
+#[derive(serde::Serialize, Debug)]
 pub struct BalanceAction {
     #[serde(rename = "type")]
     pub action_type: String,

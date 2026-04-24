@@ -10,10 +10,14 @@ fn test_xml_patch_exact() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("1")
-        .arg("--old").arg("<root><item>value</item></root>")
-        .arg("--new").arg("<root><item>new</item></root>")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("1")
+        .arg("--old")
+        .arg("<root><item>value</item></root>")
+        .arg("--new")
+        .arg("<root><item>new</item></root>")
         .assert()
         .success();
 

@@ -15,7 +15,9 @@ pub fn suggest_threshold(history_dir: &Path) -> Result<f64> {
             }
         }
     }
-    if total == 0 { return Ok(0.9); }
+    if total == 0 {
+        return Ok(0.9);
+    }
     let success_rate = (total - failures) as f64 / total as f64;
     // Simple heuristic: set threshold just above the current success rate
     let suggested = (success_rate + 0.05).min(0.99);

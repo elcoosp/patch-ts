@@ -16,7 +16,13 @@ pub struct ProvenanceRecord {
 }
 
 impl ProvenanceRecord {
-    pub fn new(file: &str, operation: &str, agent: Option<&str>, model: Option<&str>, validation_results: serde_json::Value) -> Self {
+    pub fn new(
+        file: &str,
+        operation: &str,
+        agent: Option<&str>,
+        model: Option<&str>,
+        validation_results: serde_json::Value,
+    ) -> Self {
         Self {
             timestamp: Utc::now().to_rfc3339(),
             tool: "patch-ts".to_string(),
@@ -50,10 +56,14 @@ pub fn query_provenance(since: Option<&str>, file: Option<&str>) -> Result<Vec<P
     for line in content.lines() {
         if let Ok(record) = serde_json::from_str::<ProvenanceRecord>(line) {
             if let Some(since_str) = since {
-                if record.timestamp.as_str() < since_str { continue; }
+                if record.timestamp.as_str() < since_str {
+                    continue;
+                }
             }
             if let Some(file_filter) = file {
-                if record.file != file_filter { continue; }
+                if record.file != file_filter {
+                    continue;
+                }
             }
             records.push(record);
         }
@@ -64,15 +74,21 @@ pub fn query_provenance(since: Option<&str>, file: Option<&str>) -> Result<Vec<P
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::env;
+    use tempfile::tempdir;
 
     #[test]
     fn test_emit_and_query() {
         let dir = tempdir().unwrap();
         env::set_current_dir(dir.path()).unwrap();
         let _ = fs::create_dir_all(".patch-ts");
-        let record = ProvenanceRecord::new("src/main.rs", "patch", Some("Claude Code"), Some("sonnet"), serde_json::json!({"syntax": true}));
+        let record = ProvenanceRecord::new(
+            "src/main.rs",
+            "patch",
+            Some("Claude Code"),
+            Some("sonnet"),
+            serde_json::json!({"syntax": true}),
+        );
         emit_record(&record).unwrap();
         let records = query_provenance(None, None).unwrap();
         assert_eq!(records.len(), 1);

@@ -17,9 +17,15 @@ fn normalize_line(s: &str) -> String {
 
 pub fn compute_uniqueness(line: &str, all_lines: &[&str]) -> f64 {
     let trimmed = line.trim();
-    if trimmed.is_empty() { return 0.5; }
+    if trimmed.is_empty() {
+        return 0.5;
+    }
     let count = all_lines.iter().filter(|l| l.trim() == trimmed).count();
-    if count == 0 { 1.0 } else { 1.0 / (count as f64) }
+    if count == 0 {
+        1.0
+    } else {
+        1.0 / (count as f64)
+    }
 }
 
 fn adjusted_threshold(base_threshold: f64, uniqueness: f64, weight: f64) -> f64 {
@@ -28,8 +34,14 @@ fn adjusted_threshold(base_threshold: f64, uniqueness: f64, weight: f64) -> f64 
 }
 
 #[allow(unused_variables)]
-fn most_unique_lines<'a>(lines: &'a [&str], all_lines: &[&str], n: usize) -> Vec<(usize, &'a str, f64)> {
-    let mut scored: Vec<(usize, &str, f64)> = lines.iter().enumerate()
+fn most_unique_lines<'a>(
+    lines: &'a [&str],
+    all_lines: &[&str],
+    n: usize,
+) -> Vec<(usize, &'a str, f64)> {
+    let mut scored: Vec<(usize, &str, f64)> = lines
+        .iter()
+        .enumerate()
         .map(|(i, &l)| (i, l, compute_uniqueness(l, all_lines)))
         .collect();
     scored.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap());
@@ -44,9 +56,13 @@ fn try_anchor_pair(
     fuzz_radius: usize,
     max_gap: usize,
 ) -> Option<usize> {
-    if expected_lines.len() < 2 { return None; }
+    if expected_lines.len() < 2 {
+        return None;
+    }
     let best_pair = most_unique_lines(expected_lines, lines, 2);
-    if best_pair.len() < 2 { return None; }
+    if best_pair.len() < 2 {
+        return None;
+    }
     let (i1, line1, _) = best_pair[0];
     let (i2, line2, _) = best_pair[1];
     let (anchor1, anchor2) = if i1 < i2 { (i1, i2) } else { (i2, i1) };
@@ -56,7 +72,9 @@ fn try_anchor_pair(
     let end = (lines.len().saturating_sub(1)).min(lines.len().saturating_sub(gap) + fuzz_radius);
 
     for i in start..=end {
-        if i + anchor1 >= lines.len() || i + anchor2 >= lines.len() { continue; }
+        if i + anchor1 >= lines.len() || i + anchor2 >= lines.len() {
+            continue;
+        }
         if lines[i + anchor1] == line1 && lines[i + anchor2] == line2 {
             return Some(i);
         }
@@ -64,11 +82,7 @@ fn try_anchor_pair(
     None
 }
 
-fn try_ellipsis_match(
-    lines: &[&str],
-    expected: &str,
-    fuzz_radius: usize,
-) -> Option<MatchResult> {
+fn try_ellipsis_match(lines: &[&str], expected: &str, fuzz_radius: usize) -> Option<MatchResult> {
     let expected_lines: Vec<&str> = expected.lines().collect();
     let ellipsis_pos = expected_lines.iter().position(|l| l.trim() == "...")?;
     let before: Vec<&str> = expected_lines[..ellipsis_pos].to_vec();
@@ -79,24 +93,39 @@ fn try_ellipsis_match(
     let end = (target_idx + fuzz_radius).min(lines.len().saturating_sub(1));
 
     for i in start..=end {
-        if i + before.len() > lines.len() { continue; }
+        if i + before.len() > lines.len() {
+            continue;
+        }
         let mut matches = true;
         for (j, bline) in before.iter().enumerate() {
-            if lines[i + j] != *bline { matches = false; break; }
+            if lines[i + j] != *bline {
+                matches = false;
+                break;
+            }
         }
-        if !matches { continue; }
+        if !matches {
+            continue;
+        }
         let after_start = i + before.len();
         for gap in 0..(lines.len() - after_start) {
             let aj = after_start + gap;
-            if aj + after.len() > lines.len() { break; }
+            if aj + after.len() > lines.len() {
+                break;
+            }
             let mut after_matches = true;
             for (k, aline) in after.iter().enumerate() {
-                if lines[aj + k] != *aline { after_matches = false; break; }
+                if lines[aj + k] != *aline {
+                    after_matches = false;
+                    break;
+                }
             }
             if after_matches {
                 return Some(MatchResult {
-                    index: i, score: 1.0, confidence: 0.95,
-                    strategy: "ellipsis".to_string(), uniqueness_score: 1.0,
+                    index: i,
+                    score: 1.0,
+                    confidence: 0.95,
+                    strategy: "ellipsis".to_string(),
+                    uniqueness_score: 1.0,
                 });
             }
         }
@@ -121,13 +150,17 @@ pub fn cascade_match(
     }
 
     let uniqueness = compute_uniqueness(expected, lines);
-    let effective_threshold = adjusted_threshold(similarity_threshold, uniqueness, uniqueness_weight);
+    let effective_threshold =
+        adjusted_threshold(similarity_threshold, uniqueness, uniqueness_weight);
 
     // 1. Exact match at target line
     if target_idx < lines.len() && lines[target_idx] == expected {
         return Ok(MatchResult {
-            index: target_idx, score: 1.0, confidence: 1.0,
-            strategy: "exact".to_string(), uniqueness_score: uniqueness,
+            index: target_idx,
+            score: 1.0,
+            confidence: 1.0,
+            strategy: "exact".to_string(),
+            uniqueness_score: uniqueness,
         });
     }
 
@@ -135,18 +168,29 @@ pub fn cascade_match(
     for i in start..=end {
         if lines[i] == expected {
             return Ok(MatchResult {
-                index: i, score: 1.0, confidence: 1.0,
-                strategy: "anchor".to_string(), uniqueness_score: uniqueness,
+                index: i,
+                score: 1.0,
+                confidence: 1.0,
+                strategy: "anchor".to_string(),
+                uniqueness_score: uniqueness,
             });
         }
     }
 
     // 2b. Multi‑line anchor fallback (try pair of unique lines)
     if expected.lines().count() >= 2 {
-        if let Some(idx) = try_anchor_pair(lines, &expected.lines().collect::<Vec<_>>(), fuzz_radius, 10) {
+        if let Some(idx) = try_anchor_pair(
+            lines,
+            &expected.lines().collect::<Vec<_>>(),
+            fuzz_radius,
+            10,
+        ) {
             return Ok(MatchResult {
-                index: idx, score: 0.98, confidence: 0.98,
-                strategy: "anchor_pair".to_string(), uniqueness_score: uniqueness,
+                index: idx,
+                score: 0.98,
+                confidence: 0.98,
+                strategy: "anchor_pair".to_string(),
+                uniqueness_score: uniqueness,
             });
         }
     }
@@ -166,13 +210,23 @@ pub fn cascade_match(
         let actual_tokens: HashSet<&str> = lines[i].split_whitespace().collect();
         let intersection = expected_tokens.intersection(&actual_tokens).count();
         let union = expected_tokens.union(&actual_tokens).count();
-        let conf = if union == 0 { 0.0 } else { intersection as f64 / union as f64 };
-        if conf > best_conf { best_conf = conf; best_idx = i; }
+        let conf = if union == 0 {
+            0.0
+        } else {
+            intersection as f64 / union as f64
+        };
+        if conf > best_conf {
+            best_conf = conf;
+            best_idx = i;
+        }
     }
     if best_conf >= effective_threshold {
         return Ok(MatchResult {
-            index: best_idx, score: best_conf, confidence: best_conf,
-            strategy: "similarity".to_string(), uniqueness_score: uniqueness,
+            index: best_idx,
+            score: best_conf,
+            confidence: best_conf,
+            strategy: "similarity".to_string(),
+            uniqueness_score: uniqueness,
         });
     }
 
@@ -183,8 +237,11 @@ pub fn cascade_match(
         let score = normalized_levenshtein(&normalized_expected, &normalized_actual);
         if score >= effective_threshold {
             return Ok(MatchResult {
-                index: i, score, confidence: score,
-                strategy: "fuzzy".to_string(), uniqueness_score: uniqueness,
+                index: i,
+                score,
+                confidence: score,
+                strategy: "fuzzy".to_string(),
+                uniqueness_score: uniqueness,
             });
         }
     }
@@ -204,7 +261,14 @@ pub fn fuzzy_match_line(
     similarity_threshold: f64,
     uniqueness_weight: f64,
 ) -> Result<MatchResult> {
-    cascade_match(lines, target_line, expected, fuzz_radius, similarity_threshold, uniqueness_weight)
+    cascade_match(
+        lines,
+        target_line,
+        expected,
+        fuzz_radius,
+        similarity_threshold,
+        uniqueness_weight,
+    )
 }
 
 // Block matching
@@ -245,7 +309,11 @@ fn jaccard_similarity(tokens1: &[String], tokens2: &[String]) -> f64 {
     let set2: HashSet<_> = tokens2.iter().collect();
     let intersection = set1.intersection(&set2).count();
     let union = set1.union(&set2).count();
-    if union == 0 { 1.0 } else { intersection as f64 / union as f64 }
+    if union == 0 {
+        1.0
+    } else {
+        intersection as f64 / union as f64
+    }
 }
 
 #[allow(unused_variables)]
@@ -256,7 +324,9 @@ pub fn find_best_block_match(
     similarity_threshold: f64,
 ) -> Result<BlockMatchResult> {
     let expected_lines: Vec<&str> = expected.lines().collect();
-    if expected_lines.is_empty() { anyhow::bail!("expected block cannot be empty"); }
+    if expected_lines.is_empty() {
+        anyhow::bail!("expected block cannot be empty");
+    }
     let expected_tokens = tokenize_rust(expected);
     let window_size = expected_lines.len();
     let search_start = 0usize;
@@ -268,17 +338,34 @@ pub fn find_best_block_match(
         let candidate = lines[i..i + window_size].join("\n");
         let candidate_tokens = tokenize_rust(&candidate);
         let score = jaccard_similarity(&expected_tokens, &candidate_tokens);
-        if score > best_score { best_score = score; best_index = Some(i); tie_count = 1; }
-        else if (score - best_score).abs() < f64::EPSILON { tie_count += 1; }
+        if score > best_score {
+            best_score = score;
+            best_index = Some(i);
+            tie_count = 1;
+        } else if (score - best_score).abs() < f64::EPSILON {
+            tie_count += 1;
+        }
     }
     let idx = best_index.ok_or_else(|| anyhow!("no block match found"))?;
     if best_score < similarity_threshold {
-        anyhow::bail!("block match score {:.2} below threshold {:.2}", best_score, similarity_threshold);
+        anyhow::bail!(
+            "block match score {:.2} below threshold {:.2}",
+            best_score,
+            similarity_threshold
+        );
     }
     if tie_count > 1 {
-        anyhow::bail!("ambiguous block match: {} candidates with score {:.2}", tie_count, best_score);
+        anyhow::bail!(
+            "ambiguous block match: {} candidates with score {:.2}",
+            tie_count,
+            best_score
+        );
     }
-    Ok(BlockMatchResult { start_index: idx, end_index: idx + window_size - 1, score: best_score })
+    Ok(BlockMatchResult {
+        start_index: idx,
+        end_index: idx + window_size - 1,
+        score: best_score,
+    })
 }
 
 #[cfg(test)]
@@ -294,7 +381,7 @@ mod tests {
     #[test]
     fn test_uniqueness_common_line() {
         let lines = vec!["a", "a", "a"];
-        assert!((compute_uniqueness("a", &lines) - 1.0/3.0).abs() < 0.01);
+        assert!((compute_uniqueness("a", &lines) - 1.0 / 3.0).abs() < 0.01);
     }
 
     #[test]
@@ -311,7 +398,12 @@ mod tests {
 
     #[test]
     fn test_ellipsis_match_simple() {
-        let lines = vec!["fn main() {", "    let x = 1;", "    println!(\"{}\", x);", "}"];
+        let lines = vec![
+            "fn main() {",
+            "    let x = 1;",
+            "    println!(\"{}\", x);",
+            "}",
+        ];
         let expected = "fn main() {\n...\n}";
         let result = cascade_match(&lines, 0, expected, 2, 0.9, 0.2).unwrap();
         assert_eq!(result.strategy, "ellipsis");
@@ -319,7 +411,15 @@ mod tests {
 
     #[test]
     fn test_anchor_pair_finds_match() {
-        let lines = vec!["// comment", "fn foo() {", "    let x = 1;", "}", "fn bar() {", "    let y = 2;", "}"];
+        let lines = vec![
+            "// comment",
+            "fn foo() {",
+            "    let x = 1;",
+            "}",
+            "fn bar() {",
+            "    let y = 2;",
+            "}",
+        ];
         let expected = "fn foo() {\n    let x = 1;\n}";
         let result = cascade_match(&lines, 0, expected, 3, 0.9, 0.2).unwrap();
         assert!(["anchor", "anchor_pair"].contains(&result.strategy.as_str()));

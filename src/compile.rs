@@ -3,7 +3,7 @@ use regex::Regex;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::Duration;
-use wait_timeout::ChildExt;  // from wait-timeout crate; we'll add it
+use wait_timeout::ChildExt; // from wait-timeout crate; we'll add it
 
 #[derive(Debug, Clone)]
 pub struct CompileError {
@@ -26,15 +26,29 @@ pub fn compile_check(file_path: &Path, lang: &str, timeout_secs: u64) -> Result<
         "rs" => ("cargo", vec!["check", "--message-format=short"]),
         "ts" | "tsx" => ("tsc", vec!["--noEmit", file_path.to_str().unwrap()]),
         "js" | "jsx" | "mjs" | "cjs" => ("node", vec!["--check", file_path.to_str().unwrap()]),
-        "py" | "pyi" => ("python3", vec!["-m", "py_compile", file_path.to_str().unwrap()]),
-        "go" => ("go", vec!["build", "-o", "/dev/null", file_path.to_str().unwrap()]),
-        _ => return Ok(CompileResult { success: true, errors: vec![] }),
+        "py" | "pyi" => (
+            "python3",
+            vec!["-m", "py_compile", file_path.to_str().unwrap()],
+        ),
+        "go" => (
+            "go",
+            vec!["build", "-o", "/dev/null", file_path.to_str().unwrap()],
+        ),
+        _ => {
+            return Ok(CompileResult {
+                success: true,
+                errors: vec![],
+            })
+        }
     };
 
     // If the compiler is not installed, skip validation successfully
     if !command_exists(cmd) {
         eprintln!("Warning: {} not found; skipping compilation check.", cmd);
-        return Ok(CompileResult { success: true, errors: vec![] });
+        return Ok(CompileResult {
+            success: true,
+            errors: vec![],
+        });
     }
 
     let mut child = Command::new(cmd)
@@ -66,15 +80,25 @@ pub fn compile_check(file_path: &Path, lang: &str, timeout_secs: u64) -> Result<
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
     if status_code == 0 {
-        return Ok(CompileResult { success: true, errors: vec![] });
+        return Ok(CompileResult {
+            success: true,
+            errors: vec![],
+        });
     }
 
     let errors = parse_compiler_output(&stderr, lang);
-    Ok(CompileResult { success: false, errors })
+    Ok(CompileResult {
+        success: false,
+        errors,
+    })
 }
 
 fn command_exists(cmd: &str) -> bool {
-    std::process::Command::new("which").arg(cmd).output().map(|o| o.status.success()).unwrap_or(false)
+    std::process::Command::new("which")
+        .arg(cmd)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 /// Extract error locations and messages from compiler output.
@@ -88,7 +112,11 @@ fn parse_compiler_output(output: &str, _lang: &str) -> Vec<CompileError> {
             file: cap[2].to_string(),
             line: cap[3].parse().unwrap_or(0),
             column: cap[4].parse().unwrap_or(0),
-            message: output.lines().nth(0).unwrap_or("Compilation error").to_string(),
+            message: output
+                .lines()
+                .nth(0)
+                .unwrap_or("Compilation error")
+                .to_string(),
         });
     }
 
@@ -142,7 +170,8 @@ mod tests {
 
     #[test]
     fn test_parse_typescript_error() {
-        let output = "src/app.ts(10,5): error TS2322: Type 'string' is not assignable to type 'number'.";
+        let output =
+            "src/app.ts(10,5): error TS2322: Type 'string' is not assignable to type 'number'.";
         let errors = parse_compiler_output(output, "ts");
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].line, 10);

@@ -30,7 +30,11 @@ pub fn sanitize_and_extract_diff(input: &str) -> Option<String> {
     }
     // Then try to find diff hunks directly
     let diffs = extract_diffs(input);
-    if diffs.is_empty() { None } else { Some(diffs[0].clone()) }
+    if diffs.is_empty() {
+        None
+    } else {
+        Some(diffs[0].clone())
+    }
 }
 
 #[cfg(test)]
@@ -47,7 +51,8 @@ mod tests {
 
     #[test]
     fn test_sanitize_and_extract_from_prose() {
-        let input = "Sure! I'll apply this patch:\n```diff\n@@ -1 +1 @@\n-old\n+new\n```\nHope that helps!";
+        let input =
+            "Sure! I'll apply this patch:\n```diff\n@@ -1 +1 @@\n-old\n+new\n```\nHope that helps!";
         let diff = sanitize_and_extract_diff(input).unwrap();
         assert!(diff.contains("old"));
     }

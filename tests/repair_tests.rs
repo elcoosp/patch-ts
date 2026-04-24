@@ -1,8 +1,8 @@
+use line_index::LineIndex;
 use patch_ts::ast::RustLanguage;
-use patch_ts::repair::{balance_file, explain_error, quick_balance};
 use patch_ts::ast::{DelimiterError, Span};
 use patch_ts::repair::apply_repair;
-use line_index::LineIndex;
+use patch_ts::repair::{balance_file, explain_error, quick_balance};
 use std::fs;
 use tempfile::tempdir;
 
@@ -63,7 +63,10 @@ fn test_apply_repair_extra() {
         end_line: 1,
         end_column: 28,
     };
-    let error = DelimiterError::Extra { span, delimiter: ')' };
+    let error = DelimiterError::Extra {
+        span,
+        delimiter: ')',
+    };
     let repaired = apply_repair(content, &error, &index);
     assert_eq!(repaired, "fn main() { let x = (1 + 2); }");
 }

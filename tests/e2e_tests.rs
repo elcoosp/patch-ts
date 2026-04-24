@@ -24,8 +24,10 @@ impl RouterState {
 "#;
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("3")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("3")
         .write_stdin(heredoc)
         .assert()
         .success();
@@ -42,7 +44,8 @@ fn e2e_balance_removes_extra_brace() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();

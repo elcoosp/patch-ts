@@ -35,8 +35,10 @@ fn test_cli_balance_with_plugin() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--plugin").arg("tests/fixtures/sample_plugin.wasm")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--plugin")
+        .arg("tests/fixtures/sample_plugin.wasm")
         .arg("--apply")
         .assert()
         .success();

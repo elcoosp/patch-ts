@@ -14,7 +14,9 @@ pub struct MarkerLocation {
 pub fn find_marker(source: &str, marker_id: &str) -> Result<Vec<MarkerLocation>> {
     let _lang = RustLanguage::new();
     let mut parser = Parser::new();
-    parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
+    parser
+        .set_language(&tree_sitter_rust::LANGUAGE.into())
+        .unwrap();
     let tree = parser.parse(source, None).unwrap();
     let root = tree.root_node();
 
@@ -29,7 +31,13 @@ pub fn find_marker(source: &str, marker_id: &str) -> Result<Vec<MarkerLocation>>
     Ok(markers)
 }
 
-fn find_markers_in_node(node: Node, source: &str, pattern: &str, block_pattern: &str, markers: &mut Vec<MarkerLocation>) {
+fn find_markers_in_node(
+    node: Node,
+    source: &str,
+    pattern: &str,
+    block_pattern: &str,
+    markers: &mut Vec<MarkerLocation>,
+) {
     if node.kind() == "line_comment" || node.kind() == "block_comment" {
         if let Ok(text) = node.utf8_text(source.as_bytes()) {
             if text.contains(pattern) || text.contains(block_pattern) {
@@ -62,7 +70,9 @@ pub fn replace_marker_node(source: &str, marker_id: &str, new_content: &str) -> 
 
     let marker_node = find_node_at_byte(root, marker.byte_range.0)?;
     let _cursor = marker_node.walk();
-    let node_to_replace = marker_node.next_sibling().or_else(|| marker_node.parent().and_then(|p| p.next_sibling()));
+    let node_to_replace = marker_node
+        .next_sibling()
+        .or_else(|| marker_node.parent().and_then(|p| p.next_sibling()));
 
     if let Some(node) = node_to_replace {
         let mut new_source = source.to_string();

@@ -6,17 +6,25 @@ use tempfile::tempdir;
 fn test_go_balance_removes_extra_brace() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("sample.go");
-    fs::write(&file_path, "package main\nfunc main() {\n\tprintln(\"hi\")\n}\n}\n").unwrap();
+    fs::write(
+        &file_path,
+        "package main\nfunc main() {\n\tprintln(\"hi\")\n}\n}\n",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();
 
     let balanced = fs::read_to_string(&file_path).unwrap();
-    assert_eq!(balanced.trim_end(), "package main\nfunc main() {\n\tprintln(\"hi\")\n}");
+    assert_eq!(
+        balanced.trim_end(),
+        "package main\nfunc main() {\n\tprintln(\"hi\")\n}"
+    );
 }
 
 #[test]
@@ -27,10 +35,14 @@ fn test_go_patch_exact() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("4")
-        .arg("--old").arg("\tx := 1")
-        .arg("--new").arg("\tx := 42")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("4")
+        .arg("--old")
+        .arg("\tx := 1")
+        .arg("--new")
+        .arg("\tx := 42")
         .assert()
         .success();
 
@@ -47,8 +59,10 @@ fn test_go_explain_json() {
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     let output = cmd
         .arg("explain")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("3")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("3")
         .arg("--json")
         .assert()
         .success()

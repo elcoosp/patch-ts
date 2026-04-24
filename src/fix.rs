@@ -76,7 +76,11 @@ pub fn parse_compiler_error(output: &str) -> Option<CompilerError> {
 }
 
 /// Suggest a fix for a given compiler error by looking at syntax issues.
-pub fn suggest_fix(error: &CompilerError, file_content: &str, lang: &mut dyn Language) -> Option<PatchSuggestion> {
+pub fn suggest_fix(
+    error: &CompilerError,
+    file_content: &str,
+    lang: &mut dyn Language,
+) -> Option<PatchSuggestion> {
     if let Some(fixed) = crate::repair::quick_balance(file_content, lang) {
         let original_lines: Vec<&str> = file_content.lines().collect();
         let fixed_lines: Vec<&str> = fixed.lines().collect();
@@ -112,7 +116,8 @@ mod tests {
 
     #[test]
     fn test_parse_ts_error() {
-        let output = "src/app.ts(10,5): error TS2322: Type 'string' is not assignable to type 'number'.";
+        let output =
+            "src/app.ts(10,5): error TS2322: Type 'string' is not assignable to type 'number'.";
         let err = parse_compiler_error(output).unwrap();
         assert_eq!(err.error_code, "TS2322");
         assert_eq!(err.line, 10);
@@ -120,7 +125,8 @@ mod tests {
 
     #[test]
     fn test_parse_python_error() {
-        let output = "  File \"script.py\", line 10\n    print(\"hello\"\nSyntaxError: invalid syntax";
+        let output =
+            "  File \"script.py\", line 10\n    print(\"hello\"\nSyntaxError: invalid syntax";
         let err = parse_compiler_error(output).unwrap();
         assert_eq!(err.error_code, "SyntaxError");
         assert_eq!(err.line, 10);

@@ -10,10 +10,14 @@ fn test_cs_patch_exact() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("3")
-        .arg("--old").arg("        System.Console.WriteLine(\"hello\");")
-        .arg("--new").arg("        System.Console.WriteLine(\"world\");")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("3")
+        .arg("--old")
+        .arg("        System.Console.WriteLine(\"hello\");")
+        .arg("--new")
+        .arg("        System.Console.WriteLine(\"world\");")
         .assert()
         .success();
 

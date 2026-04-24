@@ -14,8 +14,7 @@ impl FileManager {
 
     /// Read entire file to string.
     pub fn read(&self, path: &Path) -> Result<String> {
-        fs::read_to_string(path)
-            .with_context(|| format!("Failed to read file: {}", path.display()))
+        fs::read_to_string(path).with_context(|| format!("Failed to read file: {}", path.display()))
     }
 
     /// Write content atomically using tempfile + rename.
@@ -29,14 +28,14 @@ impl FileManager {
 
         // Write to temp file in same directory
         let parent = path.parent().unwrap_or_else(|| Path::new("."));
-        let temp_file = NamedTempFile::new_in(parent)
-            .with_context(|| "Failed to create temp file")?;
+        let temp_file =
+            NamedTempFile::new_in(parent).with_context(|| "Failed to create temp file")?;
 
-        fs::write(temp_file.path(), content)
-            .with_context(|| "Failed to write to temp file")?;
+        fs::write(temp_file.path(), content).with_context(|| "Failed to write to temp file")?;
 
         // Persist (atomic rename)
-        temp_file.persist(path)
+        temp_file
+            .persist(path)
             .map_err(|e| anyhow::anyhow!("Failed to persist file: {}", e))?;
 
         Ok(())

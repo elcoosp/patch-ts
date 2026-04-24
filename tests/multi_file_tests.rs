@@ -12,15 +12,23 @@ fn test_multi_file_patch() {
     let pattern = pattern_path.to_str().unwrap();
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--files").arg(pattern)
-        .arg("--line").arg("1")
-        .arg("--old").arg("fn a() {}")
-        .arg("--new").arg("fn a_new() {}")
+        .arg("--files")
+        .arg(pattern)
+        .arg("--line")
+        .arg("1")
+        .arg("--old")
+        .arg("fn a() {}")
+        .arg("--new")
+        .arg("fn a_new() {}")
         .assert()
         .success();
 
-    assert!(fs::read_to_string(dir.path().join("a.rs")).unwrap().contains("fn a_new()"));
-    assert!(!fs::read_to_string(dir.path().join("b.rs")).unwrap().contains("fn a_new()"));
+    assert!(fs::read_to_string(dir.path().join("a.rs"))
+        .unwrap()
+        .contains("fn a_new()"));
+    assert!(!fs::read_to_string(dir.path().join("b.rs"))
+        .unwrap()
+        .contains("fn a_new()"));
 }
 
 #[test]
@@ -33,7 +41,8 @@ fn test_multi_file_balance() {
     let pattern = pattern_path.to_str().unwrap();
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--files").arg(pattern)
+        .arg("--files")
+        .arg(pattern)
         .arg("--apply")
         .assert()
         .success();
@@ -51,10 +60,14 @@ fn test_glob_no_match_error() {
     let pattern = pattern_path.to_str().unwrap();
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--files").arg(pattern)
-        .arg("--line").arg("1")
-        .arg("--old").arg("x")
-        .arg("--new").arg("y")
+        .arg("--files")
+        .arg(pattern)
+        .arg("--line")
+        .arg("1")
+        .arg("--old")
+        .arg("x")
+        .arg("--new")
+        .arg("y")
         .assert()
         .failure()
         .stderr(predicates::str::contains("No files matched pattern"));

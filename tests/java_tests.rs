@@ -10,10 +10,14 @@ fn test_java_patch_exact() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("3")
-        .arg("--old").arg("        System.out.println(\"hello\");")
-        .arg("--new").arg("        System.out.println(\"world\");")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("3")
+        .arg("--old")
+        .arg("        System.out.println(\"hello\");")
+        .arg("--new")
+        .arg("        System.out.println(\"world\");")
         .assert()
         .success();
 

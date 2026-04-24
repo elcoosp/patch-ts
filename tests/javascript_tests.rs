@@ -6,17 +6,25 @@ use tempfile::tempdir;
 fn test_js_balance_removes_extra_brace() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("sample.js");
-    fs::write(&file_path, "function main() {\n  console.log(\"hi\");\n}\n}\n").unwrap();
+    fs::write(
+        &file_path,
+        "function main() {\n  console.log(\"hi\");\n}\n}\n",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();
 
     let _balanced = fs::read_to_string(&file_path).unwrap();
-    assert_eq!(_balanced.trim_end(), "function main() {\n  console.log(\"hi\");\n}");
+    assert_eq!(
+        _balanced.trim_end(),
+        "function main() {\n  console.log(\"hi\");\n}"
+    );
 }
 
 #[test]
@@ -27,7 +35,8 @@ fn test_js_balance_inserts_missing_brace_disabled() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();
@@ -45,10 +54,14 @@ fn test_js_patch_exact() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("1")
-        .arg("--old").arg("let a = 1;")
-        .arg("--new").arg("let a = 42;")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("1")
+        .arg("--old")
+        .arg("let a = 1;")
+        .arg("--new")
+        .arg("let a = 42;")
         .assert()
         .success();
 
@@ -60,11 +73,16 @@ fn test_js_patch_exact() {
 fn test_jsx_balance() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("component.jsx");
-    fs::write(&file_path, "const Comp = () => {\n  return <div>hi</div>;\n}\n}\n").unwrap();
+    fs::write(
+        &file_path,
+        "const Comp = () => {\n  return <div>hi</div>;\n}\n}\n",
+    )
+    .unwrap();
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();
@@ -82,8 +100,10 @@ fn test_js_explain_json() {
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     let output = cmd
         .arg("explain")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("1")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("1")
         .arg("--json")
         .assert()
         .success()
@@ -105,7 +125,8 @@ fn test_js_balance_removes_extra_paren() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("balance")
-        .arg("--file").arg(file_path.to_str().unwrap())
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
         .arg("--apply")
         .assert()
         .success();

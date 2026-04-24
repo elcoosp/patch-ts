@@ -1,6 +1,6 @@
-use proptest::prelude::*;
-use patch_ts::ast::{RustLanguage, Language};
+use patch_ts::ast::{Language, RustLanguage};
 use patch_ts::repair::quick_balance;
+use proptest::prelude::*;
 
 proptest! {
     #![proptest_config(ProptestConfig {

@@ -9,10 +9,14 @@ fn test_rb_patch_exact() {
     fs::write(&file_path, "x = 1\ny = 2\n").unwrap();
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--line").arg("1")
-        .arg("--old").arg("x = 1")
-        .arg("--new").arg("x = 42")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--line")
+        .arg("1")
+        .arg("--old")
+        .arg("x = 1")
+        .arg("--new")
+        .arg("x = 42")
         .assert()
         .success();
     let content = fs::read_to_string(&file_path).unwrap();

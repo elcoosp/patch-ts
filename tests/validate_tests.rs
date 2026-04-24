@@ -1,4 +1,4 @@
-use patch_ts::validate::{validate_string, validate_path};
+use patch_ts::validate::{validate_path, validate_string};
 
 #[test]
 fn test_reject_null() {
