@@ -210,6 +210,12 @@ pub struct RecallArgs {
     #[arg(long, default_value = "5")] pub context_lines: usize,
     #[arg(long)] pub json: bool,
     #[arg(long)] pub prompt: bool,
+    #[arg(long)] pub entropy: bool,
+    #[arg(long, default_value = "2.5")] pub entropy_threshold: f64,
+    #[arg(long)] pub pre_fetch: bool,
+    #[arg(long)] pub minimal: bool,
+    #[arg(long)] pub session: Option<String>,
+    #[arg(long)] pub max_tokens: Option<usize>,
 }
 
 #[derive(Parser, Debug)]

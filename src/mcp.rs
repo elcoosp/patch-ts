@@ -47,8 +47,15 @@ pub struct RecallParams {
     pub error_message: Option<String>,
     #[serde(default = "default_context_lines")]
     pub context_lines: usize,
+    #[serde(default)]
+    pub entropy: bool,
+    #[serde(default = "default_entropy_threshold")]
+    pub entropy_threshold: f64,
+    #[serde(default)]
+    pub pre_fetch: bool,
 }
 fn default_context_lines() -> usize { 5 }
+fn default_entropy_threshold() -> f64 { 2.5 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct GateParams { pub file: String, pub stages: Option<String> }
@@ -171,12 +178,19 @@ fn handle_recall_tool(args: Value) -> Value {
     let error_code = args.get("error_code").and_then(|v| v.as_str()).unwrap_or("E000");
     let error_message = args.get("error_message").and_then(|v| v.as_str()).map(|s| s.to_string());
     let context_lines = args.get("context_lines").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+    let entropy = args.get("entropy").and_then(|v| v.as_bool()).unwrap_or(false);
+    let entropy_threshold = args.get("entropy_threshold").and_then(|v| v.as_f64()).unwrap_or(2.5);
+    let pre_fetch = args.get("pre_fetch").and_then(|v| v.as_bool()).unwrap_or(false);
+    let entropy = args.get("entropy").and_then(|v| v.as_bool()).unwrap_or(false);
+    let entropy_threshold = args.get("entropy_threshold").and_then(|v| v.as_f64()).unwrap_or(2.5);
+    let pre_fetch = args.get("pre_fetch").and_then(|v| v.as_bool()).unwrap_or(false);
 
     let file_path = std::path::PathBuf::from(file);
     if let Ok(mut lang) = crate::ast::detect_language(&file_path) {
         match crate::recall::generate_recall_context(
             &file_path, line, old, new, error_code,
             error_message.as_deref(), context_lines, &mut *lang,
+            entropy, entropy_threshold, pre_fetch,
         ) {
             Ok(ctx) => {
                 let result = serde_json::to_string(&ctx).unwrap_or_default();

@@ -7,7 +7,7 @@ resolver = "2"
 
 [package]
 name = "patch-ts"
-version = "1.13.0"
+version = "1.14.0"
 edition = "2021"
 authors = ["Your Name <you@example.com>"]
 description = "Tree-sitter-backed patching CLI for AI agents"

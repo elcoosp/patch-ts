@@ -340,6 +340,44 @@ The recall output includes:
 Token savings compared to full file re‑read: **~86–90%** for typical retries.
 
 
+### Enhanced Recall Options (v1.14.0)
+
+The `recall` command now includes smarter context selection and session management:
+
+```bash
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --entropy --pre-fetch
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --minimal
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --session fix-port --max-tokens 500
+```
+
+**New flags**
+- `--entropy` – select only the highest information-density lines for context.
+- `--entropy-threshold <FLOAT>` – minimum entropy score to include a line (default: 2.5).
+- `--pre-fetch` – include callers/callees from the call graph and the containing function body.
+- `--minimal` – output a compact JSON with only error, line, and the single best strategy.
+- `--session <ID>` – track retries across multiple calls; strategies are re‑ranked based on past success.
+- `--max-tokens <N>` – enforce a hard token budget; output is intelligently truncated.
+
+
+### Enhanced Recall Options (v1.14.0)
+
+The `recall` command now includes smarter context selection and session management:
+
+```bash
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --entropy --pre-fetch
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --minimal
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --session fix-port --max-tokens 500
+```
+
+**New flags**
+- `--entropy` – select only the highest information-density lines for context.
+- `--entropy-threshold <FLOAT>` – minimum entropy score to include a line (default: 2.5).
+- `--pre-fetch` – include callers/callees from the call graph and the containing function body.
+- `--minimal` – output a compact JSON with only error, line, and the single best strategy.
+- `--session <ID>` – track retries across multiple calls; strategies are re‑ranked based on past success.
+- `--max-tokens <N>` – enforce a hard token budget; output is intelligently truncated.
+
+
 ### `recall`
 
 Generate a token‑efficient retry context when a patch fails.
