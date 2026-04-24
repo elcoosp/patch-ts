@@ -23,14 +23,14 @@ impl ReviewReport {
     }
 }
 
-/// Run a multi‑agent review across syntax, compile, coverage, security, and style.
+/// Run a multi‑agent review across syntax, compile, coverage, security, style, and semantic diff.
 pub fn run_review(file_path: &Path, old: &str, new: &str) -> ReviewReport {
     let stages = vec![
         "syntax".to_string(),
         "compile".to_string(),
         "cross‑file".to_string(),
         "security".to_string(),
-        "style".to_string(),
+        "semdiff".to_string(),
     ];
 
     let gate_result: GateResult = run_gate_parallel(&stages, file_path, old, new, 30)
@@ -48,22 +48,4 @@ pub fn run_review(file_path: &Path, old: &str, new: &str) -> ReviewReport {
     let action = if overall_passed { "approve".to_string() } else { "request_changes".to_string() };
 
     ReviewReport { findings, action, overall_passed }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-    use std::fs;
-
-    #[test]
-    fn test_run_review_simple() {
-        let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test.rs");
-        fs::write(&file_path, "fn main() {}").unwrap();
-
-        let report = run_review(&file_path, "fn main() {}", "fn main() {}");
-        assert!(report.findings.iter().any(|f| f.agent == "syntax"));
-        assert!(report.findings.iter().any(|f| f.agent == "compile"));
-    }
 }

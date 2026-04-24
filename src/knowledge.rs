@@ -48,7 +48,7 @@ pub fn build_project_index(root: &Path) -> KnowledgeGraph {
                         kg.symbols.insert(name.clone(), SymbolInfo {
                             kind: entity.kind,
                             file: file_path.clone(),
-                            line: entity.signature.lines().next().map(|l| l.len()).unwrap_or(0), // placeholder
+                            line: entity.signature.lines().next().map(|l: &str| l.len()).unwrap_or(0), // placeholder
                             column: 0,
                         });
                         // Build call edges: for each function call in the file, add an edge

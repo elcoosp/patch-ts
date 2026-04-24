@@ -69,6 +69,19 @@ fn gate_cross_file(_file_path: &Path, old_content: &str, new_content: &str) -> R
     })
 }
 
+fn gate_semdiff(file_path: &Path, old_content: &str, new_content: &str) -> Result<StageResult> {
+    let lang = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let changes = crate::semdiff::compute_semantic_diff(old_content, new_content, lang);
+    let passed = changes.is_empty();
+    let details = if passed {
+        "No semantic changes detected".to_string()
+    } else {
+        format!("{} entity changes detected", changes.len())
+    };
+    Ok(StageResult { name: "semdiff".to_string(), passed, details })
+}
+
+
 fn gate_test() -> Result<StageResult> {
     let status = std::process::Command::new("just").arg("test").status()?;
     let passed = status.success();

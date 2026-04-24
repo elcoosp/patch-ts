@@ -188,3 +188,26 @@ mod tests {
             .any(|c| matches!(c.change_type, ChangeType::Removed)));
     }
 }
+
+/// Compute a semantic diff between two versions of a file (or two strings).
+/// Returns a list of EntityChange with body comparison.
+pub fn compute_semantic_diff(old_content: &str, new_content: &str, lang: &str) -> Vec<EntityChange> {
+    let old_entities = extract_entities(old_content, lang).unwrap_or_default();
+    let new_entities = extract_entities(new_content, lang).unwrap_or_default();
+    let mut changes = diff_entities(&old_entities, &new_entities);
+    // For Modified/Moved, we can add a simple body diff placeholder.
+    for change in &mut changes {
+        if let ChangeType::Modified = change.change_type {
+            // Provide a diff of the signatures (or a simple string diff)
+            if let Some(old_entity) = &change.old_entity {
+                let old_sig = &old_entity.signature;
+                let new_sig = &change.entity.signature;
+                if old_sig != new_sig {
+                    change.diff = Some(format!("- {}\n+ {}", old_sig, new_sig));
+                }
+            }
+        }
+    }
+    changes
+}
+
