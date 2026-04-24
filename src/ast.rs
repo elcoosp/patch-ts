@@ -129,6 +129,7 @@ pub trait Language {
     fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError>;
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
     fn diagnostic_message(&self, error: &DelimiterError) -> String;
+    fn find_symbol_node(&self, result: &ParseResult, name: &str) -> Option<(usize, usize)>;
 }
 
 // ----------------------------------------------------------------------
@@ -272,6 +273,7 @@ macro_rules! impl_language {
                     DelimiterError::Missing { expected, .. } => format!("Missing '{}'", expected),
                 }
             }
+    fn find_symbol_node(&self, _result: &ParseResult, _name: &str) -> Option<(usize, usize)> { None }
         }
     };
 }

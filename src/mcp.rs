@@ -139,10 +139,11 @@ fn handle_patch_tool(args: Value) -> Value {
         diff: false, delete: None, expect: None, after: None, content: None,
         dry_run, force, no_backup: false, json: false, no_auto_repair: false,
         marker: None, serial: false, plugin: None, allow_all_paths: false,
-        url: None, git_commit: None, no_strip_fence: false, no_compile_check: true,
-        compile_timeout: 30, no_sanitize: false, no_ellipsis: false,
-        uniqueness_weight: 0.2, strict_whitespace: false, cross_file: false,
-        agent: None, model: None, no_provenance: true, fix_indent: false,
+        symbol: None, url: None, git_commit: None, no_strip_fence: false,
+        no_compile_check: true, compile_timeout: 30, no_sanitize: false,
+        no_ellipsis: false, uniqueness_weight: 0.2, strict_whitespace: false,
+        cross_file: false, agent: None, model: None, no_provenance: true,
+        fix_indent: false,
     };
     let path = PathBuf::from(file);
     match crate::cli::apply_patch_to_file(&path, &cli_args) {
