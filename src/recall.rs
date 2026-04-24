@@ -305,10 +305,10 @@ fn get_strategies(code: &str, message: &str) -> Vec<StrategyInfo> {
 /// Find the name of the function/struct/class that contains a given line.
 fn find_containing_symbol(source: &str, line: usize, language: &mut dyn Language) -> Option<(String, usize)> {
     // Simplified: use find_symbol_node from RustLanguage; for other languages return None.
-    if let Some(rust_lang) = language.as_any_mut().downcast_ref::<crate::ast::RustLanguage>() {
+    if let Some(_rust_lang) = language.as_any_mut().downcast_ref::<crate::ast::RustLanguage>() {
         // Search for the nearest function item containing this line
         let parse_result = language.parse(source);
-        let root = parse_result.tree.root_node();
+        let _root = parse_result.tree.root_node();
         // Traverse to find a function_item whose span contains the line
         // For simplicity, we return None for now; can be improved.
         None

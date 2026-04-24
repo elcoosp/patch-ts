@@ -3,7 +3,8 @@ pub mod types;
 pub mod patch; pub mod balance; pub mod explain; pub mod fix; pub mod git; pub mod semdiff;
 pub mod provenance; pub mod gate; pub mod score; pub mod index; pub mod evolve; pub mod review;
 pub mod attest; pub mod generate_tests; pub mod verify; pub mod watch; pub mod mcp; pub mod undo;
-pub mod lsp; pub mod adapt; pub mod trace_verify; pub mod heredoc; pub mod impact; pub mod entity; pub mod key;
+pub mod lsp; pub mod adapt; pub mod trace_verify; pub mod heredoc; pub mod impact; pub mod entity;
+pub mod key; pub mod recall;
 
 use anyhow::Result;
 use types::*;
@@ -44,6 +45,7 @@ pub fn run() -> Result<()> {
         Command::Impact(args) => impact::handle_impact(args),
         Command::Entity(args) => entity::handle_entity(args),
         Command::Key(args) => key::handle_key(args),
+        Command::Recall(args) => recall::handle_recall(args),
         Command::Undo => undo::handle_undo(),
         Command::Redo => undo::handle_redo(),
         Command::History => undo::handle_history(),

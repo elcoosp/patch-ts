@@ -29,6 +29,7 @@ pub enum Command {
     Impact(ImpactArgs),
     Entity(EntityArgs),
     Key(KeyArgs),
+    Recall(RecallArgs),
     Undo,
     Redo,
     History,
@@ -196,6 +197,19 @@ pub struct KeyArgs { #[command(subcommand)] pub action: KeyAction }
 pub enum KeyAction {
     Generate { #[arg(long, default_value = "keypair.json")] output: String },
     Rotate { #[arg(long)] key: Option<String> },
+}
+
+#[derive(Parser, Debug)]
+pub struct RecallArgs {
+    #[arg(short, long)] pub file: String,
+    #[arg(short, long)] pub line: usize,
+    #[arg(long)] pub old: String,
+    #[arg(long)] pub new: String,
+    #[arg(long)] pub error_code: String,
+    #[arg(long)] pub error_message: Option<String>,
+    #[arg(long, default_value = "5")] pub context_lines: usize,
+    #[arg(long)] pub json: bool,
+    #[arg(long)] pub prompt: bool,
 }
 
 #[derive(Parser, Debug)]
