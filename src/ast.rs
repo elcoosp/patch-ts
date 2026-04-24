@@ -1,7 +1,6 @@
 use line_index::{LineIndex, TextSize};
-use tree_sitter::StreamingIterator;
 use miette::NamedSource;
-use tree_sitter::{Node, Parser, Tree};
+use tree_sitter::{Node, Parser, Tree, StreamingIterator};
 
 use crate::diagnostics::SyntaxErrorDiagnostic;
 
@@ -95,31 +94,31 @@ pub struct ParseResult {
 }
 
 impl ParseResult {
-    pub fn text(&self) -> &str {
-        &self.source
-    }
+    pub fn text(&self) -> &str { &self.source }
     pub fn node_at_line(&self, line: usize) -> Option<Node<'_>> {
         let root = self.tree.root_node();
         find_node_at_line(root, line, &self.index)
     }
 }
 
-fn find_node_at_line<'a>(
-    node: Node<'a>,
-    target_line: usize,
-    index: &LineIndex,
-) -> Option<Node<'a>> {
+fn find_node_at_line<'a>(node: Node<'a>, target_line: usize, index: &LineIndex) -> Option<Node<'a>> {
     let start_byte = node.start_byte();
     let start_pos = index.line_col(TextSize::from(start_byte as u32));
-    if start_pos.line as usize + 1 == target_line {
-        return Some(node);
-    }
+    if start_pos.line as usize + 1 == target_line { return Some(node); }
     for child in node.children(&mut node.walk()) {
-        if let Some(found) = find_node_at_line(child, target_line, index) {
-            return Some(found);
-        }
+        if let Some(found) = find_node_at_line(child, target_line, index) { return Some(found); }
     }
     None
+}
+
+/// Represents a named code entity (function, struct, class, etc.)
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Entity {
+    pub name: String,
+    pub kind: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub signature: String,
 }
 
 pub trait Language {
@@ -131,47 +130,25 @@ pub trait Language {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
     fn diagnostic_message(&self, error: &DelimiterError) -> String;
     fn find_symbol_node(&self, result: &ParseResult, name: &str) -> Option<(usize, usize)>;
+    fn find_all_entities(&self, _result: &ParseResult) -> Vec<Entity> { vec![] }
 }
 
-// ----------------------------------------------------------------------
-// AST traversal for delimiter errors (language-agnostic)
-// ----------------------------------------------------------------------
 pub(crate) fn find_delimiter_errors_via_ast(root: Node, index: &LineIndex) -> Vec<DelimiterError> {
     let mut errors = Vec::new();
     let mut stack: Vec<(char, usize, Option<String>)> = Vec::new();
     traverse_for_delimiters(root, &mut stack, &mut errors, index);
     for (expected, open_byte, parent_kind) in stack {
-        errors.push(DelimiterError::Missing {
-            expected,
-            insert_at: Span::from_byte_range(open_byte, open_byte + 1, index),
-            parent_kind,
-        });
+        errors.push(DelimiterError::Missing { expected, insert_at: Span::from_byte_range(open_byte, open_byte + 1, index), parent_kind });
     }
     errors
 }
 
-fn traverse_for_delimiters(
-    node: Node,
-    stack: &mut Vec<(char, usize, Option<String>)>,
-    errors: &mut Vec<DelimiterError>,
-    index: &LineIndex,
-) {
+fn traverse_for_delimiters(node: Node, stack: &mut Vec<(char, usize, Option<String>)>, errors: &mut Vec<DelimiterError>, index: &LineIndex) {
     let kind = node.kind();
-    if kind.contains("string")
-        || kind.contains("comment")
-        || kind == "string_literal"
-        || kind == "raw_string_literal"
-    {
-        return;
-    }
+    if kind.contains("string") || kind.contains("comment") || kind == "string_literal" || kind == "raw_string_literal" { return; }
     match kind {
         "(" | "[" | "{" => {
-            let close = match kind {
-                "(" => ')',
-                "[" => ']',
-                "{" => '}',
-                _ => unreachable!(),
-            };
+            let close = match kind { "(" => ')', "[" => ']', "{" => '}', _ => unreachable!() };
             let parent_kind = node.parent().map(|p| p.kind().to_string());
             stack.push((close, node.start_byte(), parent_kind));
         }
@@ -179,111 +156,44 @@ fn traverse_for_delimiters(
             let close_char = kind.chars().next().unwrap();
             if let Some((expected, open_byte, _)) = stack.pop() {
                 if expected != close_char {
-                    errors.push(DelimiterError::Extra {
-                        span: Span::from_node(node, index),
-                        delimiter: close_char,
-                    });
+                    errors.push(DelimiterError::Extra { span: Span::from_node(node, index), delimiter: close_char });
                     stack.push((expected, open_byte, None));
                 }
-            } else {
-                errors.push(DelimiterError::Extra {
-                    span: Span::from_node(node, index),
-                    delimiter: close_char,
-                });
-            }
+            } else { errors.push(DelimiterError::Extra { span: Span::from_node(node, index), delimiter: close_char }); }
         }
         _ => {}
     }
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        traverse_for_delimiters(child, stack, errors, index);
-    }
+    for child in node.children(&mut node.walk()) { traverse_for_delimiters(child, stack, errors, index); }
 }
 
 fn has_error_node(node: Node) -> bool {
-    if node.is_error() {
-        return true;
-    }
-    for child in node.children(&mut node.walk()) {
-        if has_error_node(child) {
-            return true;
-        }
-    }
+    if node.is_error() { return true; }
+    for child in node.children(&mut node.walk()) { if has_error_node(child) { return true; } }
     false
 }
 
-// ----------------------------------------------------------------------
-// Language Implementations (via macro)
-// ----------------------------------------------------------------------
-
 macro_rules! impl_language {
     ($name:ident, $lang:expr) => {
-        pub struct $name {
-            parser: Parser,
-        }
+        pub struct $name { parser: Parser }
         impl $name {
-            pub fn new() -> Self {
-                let mut parser = Parser::new();
-                parser.set_language(&$lang.into()).unwrap();
-                Self { parser }
-            }
+            pub fn new() -> Self { let mut parser = Parser::new(); parser.set_language(&$lang.into()).unwrap(); Self { parser } }
+            pub fn parser_mut(&mut self) -> &mut Parser { &mut self.parser }
         }
         impl Language for $name {
-            fn parse(&mut self, source: &str) -> ParseResult {
-                let tree = self.parser.parse(source, None).unwrap();
-                let index = LineIndex::new(source);
-                ParseResult {
-                    tree,
-                    source: source.to_string(),
-                    index,
-                }
-            }
-            fn is_valid(&self, result: &ParseResult) -> bool {
-                !has_error_node(result.tree.root_node())
-            }
-            fn find_extra_delimiter(&self, _: &ParseResult) -> Option<Span> {
-                None
-            }
-            fn explain_error(
-                &self,
-                result: &ParseResult,
-                line: usize,
-            ) -> Option<SyntaxErrorDiagnostic> {
-                let node = result.node_at_line(line)?;
-                if node.is_error() || node.has_error() {
-                    let text = node.utf8_text(result.text().as_bytes()).unwrap_or("");
-                    let details = format!("Syntax error near '{}'", text);
-                    let span = Span::from_node(node, &result.index);
-                    return Some(SyntaxErrorDiagnostic {
-                        src: NamedSource::new("input", result.text().to_string()),
-                        error_span: (span.start_byte, span.end_byte - span.start_byte).into(),
-                        details,
-                    });
-                }
-                None
-            }
-            fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
-                find_delimiter_errors_via_ast(result.tree.root_node(), &result.index)
-            }
-            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-                self
-            }
-            fn diagnostic_message(&self, error: &DelimiterError) -> String {
-                match error {
-                    DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter),
-                    DelimiterError::Missing { expected, .. } => format!("Missing '{}'", expected),
-                }
-            }
-    fn find_symbol_node(&self, _result: &ParseResult, _name: &str) -> Option<(usize, usize)> { None }
+            fn parse(&mut self, source: &str) -> ParseResult { let tree = self.parser.parse(source, None).unwrap(); let index = LineIndex::new(source); ParseResult { tree, source: source.to_string(), index } }
+            fn is_valid(&self, result: &ParseResult) -> bool { !has_error_node(result.tree.root_node()) }
+            fn find_extra_delimiter(&self, _: &ParseResult) -> Option<Span> { None }
+            fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> { let node = result.node_at_line(line)?; if node.is_error() || node.has_error() { let text = node.utf8_text(result.text().as_bytes()).unwrap_or(""); let details = format!("Syntax error near '{}'", text); let span = Span::from_node(node, &result.index); return Some(SyntaxErrorDiagnostic { src: NamedSource::new("input", result.text().to_string()), error_span: (span.start_byte, span.end_byte - span.start_byte).into(), details }); } None }
+            fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> { find_delimiter_errors_via_ast(result.tree.root_node(), &result.index) }
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
+            fn diagnostic_message(&self, error: &DelimiterError) -> String { match error { DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter), DelimiterError::Missing { expected, .. } => format!("Missing '{}'", expected) } }
+            fn find_symbol_node(&self, _result: &ParseResult, _name: &str) -> Option<(usize, usize)> { None }
         }
     };
 }
 
 impl_language!(RustLanguage, tree_sitter_rust::LANGUAGE);
-impl_language!(
-    TypeScriptLanguage,
-    tree_sitter_typescript::LANGUAGE_TYPESCRIPT
-);
+impl_language!(TypeScriptLanguage, tree_sitter_typescript::LANGUAGE_TYPESCRIPT);
 impl_language!(JavaScriptLanguage, tree_sitter_javascript::LANGUAGE);
 impl_language!(PythonLanguage, tree_sitter_python::LANGUAGE);
 impl_language!(GoLanguage, tree_sitter_go::LANGUAGE);
@@ -299,63 +209,24 @@ impl_language!(SwiftLanguage, tree_sitter_swift::LANGUAGE);
 impl_language!(ScalaLanguage, tree_sitter_scala::LANGUAGE);
 impl_language!(ZigLanguage, tree_sitter_zig::LANGUAGE);
 
-// Rust-specific extra methods
 impl RustLanguage {
-    pub fn find_function_body_range(
-        &self,
-        source: &str,
-        function_name: &str,
-    ) -> Option<(usize, usize)> {
+    pub fn find_function_body_range(&self, source: &str, function_name: &str) -> Option<(usize, usize)> {
         let pattern = format!("fn {}(", function_name);
-        let mut start = 0;
-        let mut found_range = None;
+        let mut start = 0; let mut found_range = None;
         while let Some(pos) = source[start..].find(&pattern) {
-            let abs_pos = start + pos;
-            let after_sig = &source[abs_pos..];
-            let open_brace_offset = after_sig.find('{')?;
-            let open_byte = abs_pos + open_brace_offset;
-            let mut stack = 1;
-            let mut close_byte = open_byte + 1;
-            let chars = after_sig[open_brace_offset + 1..].chars();
-            let mut in_string = false;
-            let mut in_char = false;
-            let mut escape = false;
-            for c in chars {
-                let char_len = c.len_utf8();
-                if !in_string && !in_char {
-                    if c == '"' {
-                        in_string = true;
-                    } else if c == '\'' {
-                        in_char = true;
-                    } else if c == '{' {
-                        stack += 1;
-                    } else if c == '}' {
-                        stack -= 1;
-                        if stack == 0 {
-                            break;
-                        }
-                    }
-                } else {
-                    if escape {
-                        escape = false;
-                    } else if c == '\\' {
-                        escape = true;
-                    } else if (in_string && c == '"') || (in_char && c == '\'') {
-                        in_string = false;
-                        in_char = false;
-                    }
-                }
-                close_byte += char_len;
+            let abs_pos = start + pos; let after_sig = &source[abs_pos..];
+            let open_brace_offset = after_sig.find('{')?; let open_byte = abs_pos + open_brace_offset;
+            let mut stack = 1; let mut close_byte = open_byte + 1;
+            for c in after_sig[open_brace_offset + 1..].chars() {
+                if c == '{' { stack += 1; } else if c == '}' { stack -= 1; if stack == 0 { break; } }
+                close_byte += c.len_utf8();
             }
-            let range = (open_byte, close_byte);
-            if found_range.is_some() {
-                return None;
-            }
-            found_range = Some(range);
-            start = abs_pos + 1;
+            if found_range.is_some() { return None; }
+            found_range = Some((open_byte, close_byte)); start = abs_pos + 1;
         }
         found_range
     }
+
     fn find_symbol_node(&self, result: &ParseResult, name: &str) -> Option<(usize, usize)> {
         let query = tree_sitter::Query::new(&tree_sitter_rust::LANGUAGE.into(), "(function_item name: (identifier) @name) @item").unwrap();
         let mut cursor = tree_sitter::QueryCursor::new();
@@ -374,6 +245,31 @@ impl RustLanguage {
             }
         }
         None
+    }
+
+    fn find_all_entities(&self, result: &ParseResult) -> Vec<Entity> {
+        let query_str = "(function_item name: (identifier) @name) @item";
+        let query = tree_sitter::Query::new(&tree_sitter_rust::LANGUAGE.into(), query_str).unwrap();
+        let mut cursor = tree_sitter::QueryCursor::new();
+        let root = result.tree.root_node();
+        let mut matches = cursor.matches(&query, root, result.text().as_bytes());
+        let mut entities = Vec::new();
+        while let Some(m) = matches.next() {
+            if let Some(item) = m.captures.iter().find(|c| c.node.kind() == "function_item") {
+                if let Some(name_node) = m.captures.iter().find(|c| c.node.kind() == "identifier") {
+                    if let Ok(name_text) = name_node.node.utf8_text(result.text().as_bytes()) {
+                        entities.push(Entity {
+                            name: name_text.to_string(),
+                            kind: "function_item".to_string(),
+                            start_byte: item.node.start_byte(),
+                            end_byte: item.node.end_byte(),
+                            signature: item.node.utf8_text(result.text().as_bytes()).unwrap_or("").to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        entities
     }
 }
 
@@ -398,4 +294,3 @@ pub fn detect_language(file_path: &std::path::Path) -> anyhow::Result<Box<dyn La
         _ => anyhow::bail!("Unsupported file extension."),
     }
 }
-
