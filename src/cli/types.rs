@@ -146,6 +146,8 @@ pub struct GateArgs {
     pub compile_timeout: u64,
     #[arg(long)]
     pub parallel: bool,
+    #[arg(long)]
+    pub markdown: bool,
 }
 
 #[derive(Parser, Debug)]

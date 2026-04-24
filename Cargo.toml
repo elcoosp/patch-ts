@@ -1,6 +1,6 @@
 [package]
 name = "patch-ts"
-version = "1.10.0"
+version = "1.11.0"
 edition = "2021"
 authors = ["Your Name <you@example.com>"]
 description = "Tree-sitter-backed patching CLI for AI agents"
@@ -62,6 +62,7 @@ hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
 sha2 = "0.10"
 rand = "0.8"
+termimad = "0.20"
 similar = "2.5"
 unicode-segmentation = "1.11"
 syntect = { version = "5.2", default-features = false, features = ["default-fancy"] }
