@@ -386,4 +386,6 @@ pub struct ExplainArgs {
     pub line: usize,
     #[arg(long)]
     pub json: bool,
+    #[arg(long, default_value = "dark")]
+    pub theme: Option<String>,
 }

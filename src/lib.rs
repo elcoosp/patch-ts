@@ -46,3 +46,4 @@ pub mod review;
 pub mod attest;
 pub mod curiosity;
 pub mod invariant;
+pub mod highlight;
