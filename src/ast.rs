@@ -1,4 +1,5 @@
 use line_index::{LineIndex, TextSize};
+use tree_sitter::StreamingIterator;
 use miette::NamedSource;
 use tree_sitter::{Node, Parser, Tree};
 
@@ -355,4 +356,46 @@ impl RustLanguage {
         }
         found_range
     }
+    fn find_symbol_node(&self, result: &ParseResult, name: &str) -> Option<(usize, usize)> {
+        let query = tree_sitter::Query::new(&tree_sitter_rust::LANGUAGE.into(), "(function_item name: (identifier) @name) @item").unwrap();
+        let mut cursor = tree_sitter::QueryCursor::new();
+        let root = result.tree.root_node();
+        let mut matches = cursor.matches(&query, root, result.text().as_bytes());
+        while let Some(match_) = matches.next() {
+            for capture in match_.captures {
+                if capture.node.kind() == "identifier" {
+                    if let Ok(text) = capture.node.utf8_text(result.text().as_bytes()) {
+                        if text == name {
+                            let item = match_.captures.iter().find(|c| c.node.kind() == "function_item").unwrap().node;
+                            return Some((item.start_byte(), item.end_byte()));
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
 }
+
+pub fn detect_language(file_path: &std::path::Path) -> anyhow::Result<Box<dyn Language>> {
+    match file_path.extension().and_then(|e| e.to_str()) {
+        Some("rs") => Ok(Box::new(RustLanguage::new())),
+        Some("ts")|Some("tsx")|Some("mts")|Some("cts") => Ok(Box::new(TypeScriptLanguage::new())),
+        Some("js")|Some("jsx")|Some("mjs")|Some("cjs") => Ok(Box::new(JavaScriptLanguage::new())),
+        Some("py")|Some("pyi") => Ok(Box::new(PythonLanguage::new())),
+        Some("go") => Ok(Box::new(GoLanguage::new())),
+        Some("rb") => Ok(Box::new(RubyLanguage::new())),
+        Some("php") => Ok(Box::new(PHPLanguage::new())),
+        Some("html")|Some("htm") => Ok(Box::new(HtmlLanguage::new())),
+        Some("xml") => Ok(Box::new(XmlLanguage::new())),
+        Some("c")|Some("h") => Ok(Box::new(CLanguage::new())),
+        Some("cpp")|Some("cc")|Some("cxx")|Some("hpp") => Ok(Box::new(CppLanguage::new())),
+        Some("java") => Ok(Box::new(JavaLanguage::new())),
+        Some("cs") => Ok(Box::new(CSharpLanguage::new())),
+        Some("swift") => Ok(Box::new(SwiftLanguage::new())),
+        Some("scala") => Ok(Box::new(ScalaLanguage::new())),
+        Some("zig") => Ok(Box::new(ZigLanguage::new())),
+        _ => anyhow::bail!("Unsupported file extension."),
+    }
+}
+

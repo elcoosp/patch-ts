@@ -1,4 +1,7 @@
 use crate::ast::RustLanguage;
+use crate::cli::balance::apply_balance_to_file;
+use crate::cli::patch::apply_patch_to_file;
+use crate::cli::types::{PatchArgs, BalanceArgs};
 use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -133,7 +136,7 @@ fn handle_patch_tool(args: Value) -> Value {
     let confidence = args.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.9);
     let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
     let force = args.get("force").and_then(|v| v.as_bool()).unwrap_or(false);
-    let cli_args = crate::cli::PatchArgs {
+    let cli_args = PatchArgs {
         file: Some(file.to_string()), files: None, line: Some(line), fuzz,
         old: Some(old.to_string()), new: Some(new.to_string()), confidence,
         diff: false, delete: None, expect: None, after: None, content: None,
@@ -146,7 +149,7 @@ fn handle_patch_tool(args: Value) -> Value {
         fix_indent: false,
     };
     let path = PathBuf::from(file);
-    match crate::cli::apply_patch_to_file(&path, &cli_args) {
+    match apply_patch_to_file(&path, &cli_args) {
         Ok(()) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Patch applied successfully."}]}}),
         Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}}),
     }
@@ -156,13 +159,13 @@ fn handle_balance_tool(args: Value) -> Value {
     let file = args.get("file").and_then(|v| v.as_str()).unwrap_or("");
     let apply = args.get("apply").and_then(|v| v.as_bool()).unwrap_or(false);
     let max_cost = args.get("max_cost").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
-    let cli_args = crate::cli::BalanceArgs {
+    let cli_args = BalanceArgs {
         file: Some(file.to_string()), files: None, function: None, apply,
         no_backup: false, max_cost, json: false, serial: false, plugin: None,
         allow_all_paths: false,
     };
     let path = PathBuf::from(file);
-    match crate::cli::apply_balance_to_file(&path, &cli_args) {
+    match apply_balance_to_file(&path, &cli_args) {
         Ok(()) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Balance completed."}]}}),
         Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}}),
     }

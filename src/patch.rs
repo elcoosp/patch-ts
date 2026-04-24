@@ -289,3 +289,24 @@ pub fn apply_marker_patch(
     }
     Ok(())
 }
+
+pub fn apply_symbol_patch(
+    file_path: &Path,
+    symbol: &str,
+    new: &str,
+    options: &PatchOptions,
+    language: &mut dyn Language,
+) -> Result<()> {
+    let original = std::fs::read_to_string(file_path)?;
+    let parse_result = language.parse(&original);
+    let (start, end) = language.find_symbol_node(&parse_result, symbol)
+        .ok_or_else(|| anyhow::anyhow!("Symbol {} not found", symbol))?;
+    let mut patched = original.clone();
+    patched.replace_range(start..end, new);
+    if !options.dry_run {
+        std::fs::write(file_path, &patched)?;
+    } else {
+        println!("{}", patched);
+    }
+    Ok(())
+}
