@@ -1,6 +1,6 @@
 [package]
 name = "patch-ts"
-version = "1.7.0"
+version = "1.8.0"
 edition = "2021"
 authors = ["Your Name <you@example.com>"]
 description = "Tree-sitter-backed patching CLI for AI agents"
@@ -55,6 +55,8 @@ tower-lsp = "0.20"
 tokio = { version = "1.51", features = ["rt-multi-thread", "io-std", "macros", "fs"] }
 wait-timeout = "0.2"
 schemars = { version = "1.2", features = ["derive"] }
+ed25519-dalek = "2.0"
+rand = "0.8"
 
 [dev-dependencies]
 assert_cmd = "2.1"
