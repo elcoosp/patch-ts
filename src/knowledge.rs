@@ -38,7 +38,7 @@ impl KnowledgeGraph {
 pub fn build_project_index(root: &Path) -> KnowledgeGraph {
     let mut kg = KnowledgeGraph::new();
     let pattern = root.join("**").join("*.rs"); // Focus on Rust for now
-    if let Ok(pattern_str) = pattern.to_str() {
+    if let Some(pattern_str) = pattern.to_str() {
         for entry in glob(pattern_str).unwrap().flatten() {
             if let Ok(content) = std::fs::read_to_string(&entry) {
                 if let Ok(entities) = crate::semdiff::extract_entities(&content, "rs") {

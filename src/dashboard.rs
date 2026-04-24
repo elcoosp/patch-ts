@@ -14,10 +14,6 @@ pub struct DashboardState {
 pub fn render_dashboard(state: &DashboardState) -> String {
     let template = include_str!("../assets/dashboard.html");
     let data_json = serde_json::to_string(state).unwrap_or_else(|_| "{}".to_string());
-
-    // Embed data as a script tag before the closing body tag
     let data_script = format!("<script id=\"patch-data\" type=\"application/json\">{}</script>", data_json);
-
-    // Insert the data script before </body>
     template.replace("</body>", &format!("{}\n</body>", data_script))
 }

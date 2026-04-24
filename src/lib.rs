@@ -38,3 +38,5 @@ pub mod watch;
 pub mod knowledge;
 pub mod scitt;
 pub mod dashboard;
+pub mod coverage;
+pub mod audit;
