@@ -28,3 +28,4 @@ pub mod pipeline;
 pub mod adaptive;
 pub mod sanitize;
 pub mod extract;
+pub mod fix;
