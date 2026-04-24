@@ -31,3 +31,6 @@ pub mod extract;
 pub mod fix;
 pub mod crossfile;
 pub mod history_adaptive;
+pub mod semdiff;
+pub mod provenance;
+pub mod gate;
