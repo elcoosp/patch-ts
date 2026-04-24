@@ -313,6 +313,60 @@ patch-ts key generate --output keypair.json
 
 ---
 
+### `recall`
+
+Generate a token‑efficient retry context when a patch fails.
+Instead of re‑reading the entire file, provides the minimal context an AI agent needs to fix the error.
+
+```bash
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --json
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --prompt
+```
+
+**Options**
+`--error-message <MSG>` – the full error message from the failed patch
+`--context-lines <N>` – number of surrounding lines to include (default: 5)
+`--json` – output structured JSON for agent consumption
+`--prompt` – output a ready‑to‑use LLM prompt
+`--agent <NAME>`, `--model <NAME>` – record provenance for the recall
+
+The recall output includes:
+- The attempted edit (old → new)
+- The error code and message
+- Surrounding source context with line numbers
+- Suggested retry strategies based on the error type
+- Recall history statistics for similar failures
+
+Token savings compared to full file re‑read: **~86–90%** for typical retries.
+
+
+### `recall`
+
+Generate a token‑efficient retry context when a patch fails.
+Instead of re‑reading the entire file, provides the minimal context an AI agent needs to fix the error.
+
+```bash
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --json
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --prompt
+```
+
+**Options**
+`--error-message <MSG>` – the full error message from the failed patch
+`--context-lines <N>` – number of surrounding lines to include (default: 5)
+`--json` – output structured JSON for agent consumption
+`--prompt` – output a ready‑to‑use LLM prompt
+`--agent <NAME>`, `--model <NAME>` – record provenance for the recall
+
+The recall output includes:
+- The attempted edit (old → new)
+- The error code and message
+- Surrounding source context with line numbers
+- Suggested retry strategies based on the error type
+- Recall history statistics for similar failures
+
+Token savings compared to full file re‑read: **~86–90%** for typical retries.
+
+
 ### `watch`
 
 Watch a file and apply hooks on modification.
