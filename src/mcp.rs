@@ -1,5 +1,4 @@
 use crate::ast::RustLanguage;
-use crate::repair::quick_balance;
 use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

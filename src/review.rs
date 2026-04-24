@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::path::Path;
 
-use crate::gate::{run_gate_parallel, StageResult, GateResult};
+use crate::gate::{run_gate_parallel, GateResult};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentFinding {

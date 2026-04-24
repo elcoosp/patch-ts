@@ -156,7 +156,6 @@ mod tests {
 
     #[test]
     #[ignore = "fix in v1.8.1 – hash chain verification needs review"]
-    #[ignore = "fix in v1.8.1 – hash chain verification needs review"]
     fn test_detect_tampered() {
         let dir = tempdir().unwrap();
         let log_path = dir.path().join("provenance.jsonl");

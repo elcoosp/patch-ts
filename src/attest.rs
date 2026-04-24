@@ -19,7 +19,7 @@ pub struct FileEntry {
 
 /// Generate a CRA‑ready attestation report.
 pub fn generate_attestation(since: &str, output_path: Option<&Path>) -> Result<AttestationReport> {
-    let provenance_path = Path::new(".patch-ts/provenance.jsonl");
+    let _provenance_path = Path::new(".patch-ts/provenance.jsonl");
     let records = crate::provenance::query_provenance(Some(since), None)?;
 
     let mut sbom = Vec::new();

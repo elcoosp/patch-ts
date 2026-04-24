@@ -33,10 +33,10 @@ pub fn calculate_score(context: &ScoreContext) -> ReliabilityScore {
     };
     let historical = (context.historical_success_rate * 100.0) as u8;
     // Namespace awareness: check identifiers against knowledge graph (placeholder)
-    let namespace_penalty = 0u8; // Will be implemented when knowledge graph is integrated
+    let _namespace_penalty = 0u8; // Will be implemented when knowledge graph is integrated
 
     // Namespace awareness: check identifiers against knowledge graph (placeholder)
-    let namespace_penalty = 0u8; // Will be implemented when knowledge graph is integrated
+
 
 
     // Weighted average: syntax (20%), compile (25%), confidence (15%), uniqueness (10%), cross‑file (20%), historical (10%)
