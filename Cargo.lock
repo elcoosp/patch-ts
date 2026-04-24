@@ -3024,6 +3024,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "patch-ts-wasm"
+version = "1.14.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "peg"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
