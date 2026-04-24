@@ -34,3 +34,4 @@ pub mod history_adaptive;
 pub mod semdiff;
 pub mod provenance;
 pub mod gate;
+pub mod score;

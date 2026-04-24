@@ -44,19 +44,22 @@
 ### v1.5.0 — LLM‑Input Resilience
 **Status:** ✅ Implemented
 
-### v1.6.0 — Intelligent & Integrated Patching (Current)
-**Goal:** Close the loop between compiler errors, Git, CI, and cross‑file analysis.
+### v1.6.0 — Intelligent & Integrated Patching
+**Status:** ✅ Implemented
 
-- [x] **Compiler‑error‑driven fix** – `patch‑ts fix` parses compiler output and suggests patches.
-- [x] **Git‑native commands** – `patch‑ts git apply` and `git diff` for commit‑based patching.
-- [x] **Cross‑file semantic analysis** – Warns when a patch changes symbols used in other files.
-- [x] **CI/CD integration** – Pre‑built GitHub Action and GitLab CI template.
-- [x] **Adaptive threshold tuning** – `patch‑ts adapt‑threshold` suggests optimal confidence from history.
+### v1.7.0 — Trustworthy & Traceable (Current)
+**Goal:** Governance layer for AI‑assisted code changes.
+
+- [x] **Entity‑level semantic diff** – `patch‑ts sem‑diff` shows ⊕ added, ∆ modified, ⊖ deleted.
+- [x] **AI provenance tracking** – Agent Trace records emitted automatically; `patch‑ts provenance`.
+- [x] **Quality gate pipeline** – `patch‑ts gate` with syntax, compile, cross‑file, test stages.
+- [x] **Patch reliability scoring** – `patch‑ts score` returns a multi‑dimensional reliability score.
+- [x] **MCP Server 2.0** – Full JSON Schemas, resources (symbols, history, provenance), sampling.
+- [x] **TUI enhancements** – Entity‑level navigation, inline commenting, approve/reject workflow.
 
 ### Future Ideas
 
 - **Machine learning‑based repair** – Train a small model to predict correct fixes.
 - **WebAssembly playground** – Try patch‑ts in the browser.
-- **More language support** – Expand to cover Kotlin, Lua, Dart.
 
 *Last updated: 2026‑04‑24*

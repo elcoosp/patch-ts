@@ -36,13 +36,10 @@ pub fn highlight(code: &str, lang: &str) -> Result<Vec<(String, Style)>> {
         "swift" => (tree_sitter_swift::LANGUAGE.into(), false),
         "scala" => (tree_sitter_scala::LANGUAGE.into(), false),
         "zig" => (tree_sitter_zig::LANGUAGE.into(), false),
-        _ => {
-            anyhow::bail!("Unsupported language: {}", lang);
-        }
+        _ => anyhow::bail!("Unsupported language: {}", lang),
     };
     parser.set_language(&language)?;
     let tree = parser.parse(code, None).ok_or_else(|| anyhow::anyhow!("Failed to parse code"))?;
-
     let root = tree.root_node();
     let mut spans = Vec::new();
     collect_styled_spans(&root, code, &mut spans);
@@ -90,15 +87,20 @@ pub struct TuiApp {
     pub new_content: String,
     pub editing: bool,
     pub accepted: bool,
+    pub entities: Vec<String>,
+    pub current_entity: usize,
+    pub comments: Vec<String>,
+    pub collecting_comment: bool,
+    pub current_comment: String,
 }
 
 impl TuiApp {
     pub fn new(original: String, patched: String) -> Self {
         Self {
-            original_content: original,
-            new_content: patched,
-            editing: false,
-            accepted: false,
+            original_content: original, new_content: patched, editing: false,
+            accepted: false, entities: vec!["(no entities)".to_string()],
+            current_entity: 0, comments: Vec::new(), collecting_comment: false,
+            current_comment: String::new(),
         }
     }
 
@@ -109,23 +111,15 @@ impl TuiApp {
             let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
             hook(info);
         }));
-
         enable_raw_mode()?;
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
-
         let res = self.run_app(&mut terminal);
-
         disable_raw_mode()?;
-        execute!(
-            terminal.backend_mut(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        )?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
         terminal.show_cursor()?;
-
         res?;
         Ok(self.accepted)
     }
@@ -135,29 +129,48 @@ impl TuiApp {
             terminal.draw(|f| self.ui(f))?;
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
+                    if self.collecting_comment {
+                        match key.code {
+                            KeyCode::Enter => {
+                                self.comments.push(self.current_comment.clone());
+                                self.current_comment.clear();
+                                self.collecting_comment = false;
+                            }
+                            KeyCode::Esc => {
+                                self.current_comment.clear();
+                                self.collecting_comment = false;
+                            }
+                            KeyCode::Char(c) => { self.current_comment.push(c); }
+                            KeyCode::Backspace => { self.current_comment.pop(); }
+                            _ => {}
+                        }
+                        continue;
+                    }
                     match key.code {
                         KeyCode::Char('y') | KeyCode::Char('Y') => {
-                            if self.editing {
-                                self.editing = false;
-                            } else {
-                                self.accepted = true;
-                                return Ok(());
-                            }
+                            if self.editing { self.editing = false; }
+                            else { self.accepted = true; return Ok(()); }
                         }
                         KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-                            if self.editing {
-                                self.editing = false;
-                            } else {
-                                self.accepted = false;
-                                return Ok(());
-                            }
+                            if self.editing { self.editing = false; }
+                            else { self.accepted = false; return Ok(()); }
                         }
                         KeyCode::Char('e') | KeyCode::Char('E') => {
                             self.editing = !self.editing;
                         }
-                        KeyCode::Tab => {
-                            // future: toggle view
+                        KeyCode::Char('c') | KeyCode::Char('C') => {
+                            self.collecting_comment = true;
+                            self.current_comment.clear();
                         }
+                        KeyCode::Char('[') if !self.editing => {
+                            if self.current_entity > 0 { self.current_entity -= 1; }
+                        }
+                        KeyCode::Char(']') if !self.editing => {
+                            if self.current_entity + 1 < self.entities.len() {
+                                self.current_entity += 1;
+                            }
+                        }
+                        KeyCode::Tab => {}
                         KeyCode::Up | KeyCode::Down | KeyCode::PageUp | KeyCode::PageDown => {}
                         _ => {}
                     }
@@ -168,52 +181,49 @@ impl TuiApp {
 
     fn ui(&self, f: &mut Frame) {
         let area = f.area();
-
-        let vert = Layout::default()
-            .direction(Direction::Vertical)
-            .margin(0)
-            .constraints([Constraint::Min(3), Constraint::Length(3)])
-            .split(area);
-
+        let vert = Layout::default().direction(Direction::Vertical).margin(0)
+            .constraints([Constraint::Min(3), Constraint::Length(4)]).split(area);
         let top = vert[0];
         let bottom = vert[1];
 
-        let horiz = Layout::default()
-            .direction(Direction::Horizontal)
-            .margin(0)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(top);
+        let horiz = Layout::default().direction(Direction::Horizontal).margin(0)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)]).split(top);
 
-        let left_block = Block::default()
-            .borders(Borders::ALL)
-            .title(" Original ")
+        let left_block = Block::default().borders(Borders::ALL).title(" Original ")
             .title_alignment(Alignment::Center);
         let left = Paragraph::new(self.original_content.as_str())
-            .block(left_block)
-            .wrap(Wrap { trim: true });
+            .block(left_block).wrap(Wrap { trim: true });
         f.render_widget(left, horiz[0]);
 
-        let right_title = if self.editing {
+        let right_title = if self.collecting_comment {
+            " Comment (Enter to save, Esc to cancel) "
+        } else if self.editing {
             " Editing (e to toggle) "
         } else {
             " Patched "
         };
-        let right_block = Block::default()
-            .borders(Borders::ALL)
-            .title(right_title)
+        let right_block = Block::default().borders(Borders::ALL).title(right_title)
             .title_alignment(Alignment::Center);
         let right = Paragraph::new(self.new_content.as_str())
-            .block(right_block)
-            .wrap(Wrap { trim: true });
+            .block(right_block).wrap(Wrap { trim: true });
         f.render_widget(right, horiz[1]);
 
-        let help_text = vec![Line::from(vec![
+        let help_first = Line::from(vec![
             Span::styled(" [Y] Accept ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
             Span::styled(" [N] Reject ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
             Span::styled(" [E] Edit  ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::styled(" [ESC] Quit ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        ])];
-        let help = Paragraph::new(help_text)
+            Span::styled(" [C] Comment ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(format!(" [[/]] Entity ({}/{}) ", self.current_entity + 1, self.entities.len()),
+                Style::default().fg(Color::White)),
+        ]);
+        let mut help_lines = vec![help_first];
+        if !self.comments.is_empty() {
+            help_lines.push(Line::from(vec![
+                Span::styled(format!(" Comments: {}", self.comments.join("; ")),
+                    Style::default().fg(Color::Cyan))
+            ]));
+        }
+        let help = Paragraph::new(help_lines)
             .block(Block::default().borders(Borders::ALL))
             .alignment(Alignment::Center);
         f.render_widget(help, bottom);

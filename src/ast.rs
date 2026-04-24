@@ -5,6 +5,7 @@ use tree_sitter::{Node, Parser, Tree};
 use crate::diagnostics::SyntaxErrorDiagnostic;
 
 #[derive(Debug, Clone, PartialEq)]
+#[derive(serde::Serialize)]
 pub struct Span {
     pub start_byte: usize,
     pub end_byte: usize,

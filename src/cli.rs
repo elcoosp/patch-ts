@@ -19,6 +19,7 @@ use crate::patch::{
     PatchOptions,
 };
 use crate::repair::{balance_file, explain_error};
+use crate::semdiff::ChangeType;
 use crate::validate;
 
 #[derive(Parser)]
@@ -41,6 +42,7 @@ pub enum Command {
     SemDiff(SemDiffArgs),
     Provenance(ProvenanceQueryArgs),
     Gate(GateArgs),
+    Score(ScoreArgs),
     Watch(WatchArgs),
     Undo,
     Redo,
@@ -52,8 +54,25 @@ pub enum Command {
 }
 
 #[derive(Parser, Debug)]
+pub struct ScoreArgs {
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub old: String,
+    #[arg(long)]
+    pub new: String,
+    #[arg(long)]
+    pub confidence: Option<f64>,
+    #[arg(long)]
+    pub uniqueness_score: Option<f64>,
+    #[arg(long)]
+    pub cross_file_impact: Option<usize>,
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
 pub struct GateArgs {
-    /// Comma‑separated list of stages: syntax,compile,cross‑file,test
     #[arg(long, default_value = "syntax,compile")]
     pub stages: String,
     #[arg(short, long)]
@@ -298,6 +317,7 @@ pub fn run() -> Result<()> {
         Command::SemDiff(args) => handle_sem_diff(args),
         Command::Provenance(args) => handle_provenance_query(args),
         Command::Gate(args) => handle_gate(args),
+        Command::Score(args) => handle_score(args),
         Command::Watch(args) => handle_watch(args),
         Command::Undo => handle_undo(),
         Command::Redo => handle_redo(),
@@ -388,23 +408,43 @@ pub fn apply_balance_to_file(file_path: &Path, args: &BalanceArgs) -> Result<()>
 fn handle_git(git_args: GitArgs) -> Result<()> { match git_args.action { GitAction::Apply(args) => handle_git_apply(args), GitAction::Diff(args) => handle_git_diff(args) } }
 fn handle_git_apply(args: GitApplyArgs) -> Result<()> { let repo = git2::Repository::open(".")?; let rev = repo.revparse_single(&args.commit)?; let commit = rev.peel_to_commit()?; let tree = commit.tree()?; let parent = if commit.parent_count() > 0 { commit.parent(0)?.tree()? } else { tree.clone() }; let diff = repo.diff_tree_to_tree(Some(&parent), Some(&tree), None)?; let mut diff_text = Vec::new(); diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| { diff_text.extend_from_slice(line.content()); true })?; let diff_str = String::from_utf8(diff_text)?; if let Some(file_path) = &args.file { let options = PatchOptions { fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force, no_backup: args.no_backup, ..Default::default() }; apply_unified_diff(Path::new(file_path), &diff_str, options)?; } else { let mut files_to_patch = Vec::new(); diff.foreach(&mut |delta, _| { if let Some(path) = delta.new_file().path() { files_to_patch.push(path.to_path_buf()); } true }, None, None, None)?; for file in &files_to_patch { let options = PatchOptions { fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force, no_backup: args.no_backup, ..Default::default() }; apply_unified_diff(file, &diff_str, options.clone())?; } } if args.json { println!("{}", serde_json::to_string(&JsonDiagnostic::success())?); } Ok(()) }
 fn handle_git_diff(args: GitDiffArgs) -> Result<()> { let repo = git2::Repository::open(".")?; let target_ref = repo.revparse_single(&args.target)?; let target_tree = target_ref.peel_to_tree()?; let head_tree = repo.head()?.peel_to_tree()?; let diff = repo.diff_tree_to_tree(Some(&target_tree), Some(&head_tree), None)?; let mut diff_text = Vec::new(); diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| { diff_text.extend_from_slice(line.content()); true })?; let diff_str = String::from_utf8(diff_text)?; if args.apply { if let Some(file_path) = &args.file { let options = PatchOptions { fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force, no_backup: args.no_backup, ..Default::default() }; apply_unified_diff(Path::new(file_path), &diff_str, options)?; } else { let mut files_to_patch = Vec::new(); diff.foreach(&mut |delta, _| { if let Some(path) = delta.new_file().path() { files_to_patch.push(path.to_path_buf()); } true }, None, None, None)?; for file in &files_to_patch { let options = PatchOptions { fuzz_radius: args.fuzz, dry_run: args.dry_run, force: args.force, no_backup: args.no_backup, ..Default::default() }; apply_unified_diff(file, &diff_str, options.clone())?; } } if args.json { println!("{}", serde_json::to_string(&JsonDiagnostic::success())?); } } else { print!("{}", diff_str); } Ok(()) }
-fn handle_sem_diff(args: SemDiffArgs) -> Result<()> { let old_content = std::fs::read_to_string(&args.old)?; let new_content = std::fs::read_to_string(&args.new)?; let lang = if let Some(ref file) = args.file { Path::new(file).extension().and_then(|e| e.to_str()).unwrap_or("rs") } else { Path::new(&args.old).extension().and_then(|e| e.to_str()).unwrap_or("rs") }; let old_entities = crate::semdiff::extract_entities(&old_content, lang).map_err(|e| anyhow::anyhow!("Failed to extract entities from old file: {}", e))?; let new_entities = crate::semdiff::extract_entities(&new_content, lang).map_err(|e| anyhow::anyhow!("Failed to extract entities from new file: {}", e))?; let changes = crate::semdiff::diff_entities(&old_entities, &new_entities); if args.json { println!("{}", serde_json::to_string(&changes)?); } else { for change in &changes { let symbol = match change.change_type { crate::semdiff::ChangeType::Added => "⊕", crate::semdiff::ChangeType::Removed => "⊖", crate::semdiff::ChangeType::Modified => "∆", crate::semdiff::ChangeType::Moved => "⇢" }; println!("{} {} {}", symbol, change.entity.kind, change.entity.name); } } Ok(()) }
+fn handle_sem_diff(args: SemDiffArgs) -> Result<()> { let old_content = std::fs::read_to_string(&args.old)?; let new_content = std::fs::read_to_string(&args.new)?; let lang = if let Some(ref file) = args.file { Path::new(file).extension().and_then(|e| e.to_str()).unwrap_or("rs") } else { Path::new(&args.old).extension().and_then(|e| e.to_str()).unwrap_or("rs") }; let old_entities = crate::semdiff::extract_entities(&old_content, lang).map_err(|e| anyhow::anyhow!("Failed to extract entities from old file: {}", e))?; let new_entities = crate::semdiff::extract_entities(&new_content, lang).map_err(|e| anyhow::anyhow!("Failed to extract entities from new file: {}", e))?; let changes = crate::semdiff::diff_entities(&old_entities, &new_entities); if args.json { println!("{}", serde_json::to_string(&changes)?); } else { for change in &changes { let symbol = match change.change_type { ChangeType::Added => "⊕", ChangeType::Removed => "⊖", ChangeType::Modified => "∆", ChangeType::Moved => "⇢" }; println!("{} {} {}", symbol, change.entity.kind, change.entity.name); } } Ok(()) }
 fn handle_provenance_query(args: ProvenanceQueryArgs) -> Result<()> { let records = crate::provenance::query_provenance(args.since.as_deref(), args.file.as_deref())?; if let Some(ref output) = args.output { let jsonl = records.iter().map(|r| serde_json::to_string(r).unwrap()).collect::<Vec<_>>().join("\n"); std::fs::write(output, jsonl)?; } if args.json { println!("{}", serde_json::to_string(&records)?); } else { for record in &records { println!("{} {} {} {} {}", record.timestamp, record.tool, record.file, record.operation, record.agent.as_deref().unwrap_or("unknown")); } } Ok(()) }
+fn handle_gate(args: GateArgs) -> Result<()> { let file_path = Path::new(&args.file); let content = std::fs::read_to_string(file_path)?; let stages: Vec<String> = args.stages.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect(); let result = crate::gate::run_gate(&stages, file_path, &content, &content, args.compile_timeout)?; if args.json { println!("{}", serde_json::to_string(&result)?); } else { for stage in &result.stages { let status = if stage.passed { "✅" } else { "❌" }; println!("{} {} – {}", status, stage.name, stage.details); } if !result.passed { std::process::exit(1); } } Ok(()) }
 
-fn handle_gate(args: GateArgs) -> Result<()> {
-    let file_path = Path::new(&args.file);
-    let content = std::fs::read_to_string(file_path)?;
-    let stages: Vec<String> = args.stages.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
-    let result = crate::gate::run_gate(&stages, file_path, &content, &content, args.compile_timeout)?;
+fn handle_score(args: ScoreArgs) -> Result<()> {
+    let content = std::fs::read_to_string(&args.file)?;
+    // Determine syntax validity by parsing
+    let syntax_valid = {
+        let mut lang = detect_language(Path::new(&args.file))?;
+        let parse_result = lang.parse(&content);
+        lang.is_valid(&parse_result)
+    };
+    // Compilation check (quick)
+    let compile_success = {
+        let result = crate::compile::compile_check(Path::new(&args.file), "rs", 30)?;
+        result.success
+    };
+    let confidence = args.confidence.unwrap_or(0.9);
+    let uniqueness_score = args.uniqueness_score.unwrap_or(0.5);
+    let cross_file_impact = args.cross_file_impact.unwrap_or(0);
+    let historical_success_rate = crate::score::historical_success_rate();
+
+    let ctx = crate::score::ScoreContext {
+        syntax_valid,
+        compile_success,
+        confidence,
+        uniqueness_score,
+        cross_file_impact,
+        historical_success_rate,
+    };
+    let score = crate::score::calculate_score(&ctx);
     if args.json {
-        println!("{}", serde_json::to_string(&result)?);
+        println!("{}", serde_json::to_string(&score)?);
     } else {
-        for stage in &result.stages {
-            let status = if stage.passed { "✅" } else { "❌" };
-            println!("{} {} – {}", status, stage.name, stage.details);
-        }
-        if !result.passed {
-            std::process::exit(1);
+        println!("Overall reliability score: {}/100", score.overall);
+        for (dim, val) in &score.dimensions {
+            println!("  {}: {}/100", dim, val);
         }
     }
     Ok(())
