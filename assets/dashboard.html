@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>patch-ts Dashboard</title>
+    <style>
+        :root {
+            --bg: #1e1e2e;
+            --surface: #313244;
+            --text: #cdd6f4;
+            --accent: #89b4fa;
+            --green: #a6e3a1;
+            --red: #f38ba8;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: var(--accent); margin-bottom: 20px; }
+        .card { background: var(--surface); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .card h2 { margin-top: 0; color: var(--accent); font-size: 1.2em; }
+        .diff { font-family: 'SF Mono', 'Fira Code', monospace; white-space: pre-wrap; background: #11111b; padding: 15px; border-radius: 4px; margin: 10px 0; font-size: 13px; line-height: 1.5; }
+        .diff .add { color: var(--green); }
+        .diff .del { color: var(--red); }
+        .score-bar { height: 20px; background: var(--bg); border-radius: 10px; margin: 10px 0; overflow: hidden; position: relative; }
+        .score-fill { height: 100%; background: linear-gradient(90deg, var(--red), #f9e2af, var(--green)); border-radius: 10px; transition: width 0.5s; }
+        .score-label { position: absolute; width: 100%; text-align: center; line-height: 20px; font-size: 12px; font-weight: bold; color: #11111b; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin: 10px 0; }
+        .metric { background: var(--bg); padding: 10px; border-radius: 4px; text-align: center; }
+        .metric .value { font-size: 1.5em; font-weight: bold; }
+        .metric .label { font-size: 0.8em; opacity: 0.7; }
+        .timeline { max-height: 200px; overflow-y: auto; }
+        .timeline-item { padding: 8px; border-left: 2px solid var(--accent); margin: 5px 0; font-size: 13px; }
+        .timeline-item .time { opacity: 0.6; }
+        .actions { display: flex; gap: 10px; margin-top: 20px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .btn-approve { background: var(--green); color: #11111b; }
+        .btn-reject { background: var(--red); color: #11111b; }
+        .pass { color: var(--green); }
+        .fail { color: var(--red); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 patch-ts Dashboard</h1>
+        <div id="content">Loading...</div>
+        <div class="actions">
+            <button class="btn btn-approve" onclick="sendAction('approve')">✅ Approve & Apply</button>
+            <button class="btn btn-reject" onclick="sendAction('reject')">❌ Reject</button>
+        </div>
+    </div>
+
+    <script>
+        // Parse embedded JSON data from a script tag with id="patch-data"
+        const dataEl = document.getElementById('patch-data');
+        let patchData = null;
+        if (dataEl) {
+            try { patchData = JSON.parse(dataEl.textContent); } catch(e) { console.error(e); }
+        }
+
+        function render() {
+            if (!patchData) { document.getElementById('content').innerHTML = '<p>No patch data available.</p>'; return; }
+
+            const d = patchData;
+            let html = '';
+
+            // Diff card
+            if (d.diff) {
+                html += '<div class="card">';
+                html += '<h2>📄 Diff</h2>';
+                html += '<div class="diff">' + d.diff.split('\n').map(line => {
+                    if (line.startsWith('+')) return '<span class="add">' + escapeHtml(line) + '</span>';
+                    if (line.startsWith('-')) return '<span class="del">' + escapeHtml(line) + '</span>';
+                    return escapeHtml(line);
+                }).join('\n') + '</div></div>';
+            }
+
+            // Score card
+            if (d.score) {
+                html += '<div class="card">';
+                html += '<h2>📊 Reliability Score: ' + d.score.overall + '/100</h2>';
+                html += '<div class="score-bar"><div class="score-fill" style="width:' + d.score.overall + '%"></div>';
+                html += '<div class="score-label">' + d.score.overall + '/100</div></div>';
+                html += '<div class="grid">';
+                for (const [dim, val] of Object.entries(d.score.dimensions || {})) {
+                    html += '<div class="metric"><div class="value">' + val + '</div><div class="label">' + dim.replace(/_/g, ' ') + '</div></div>';
+                }
+                html += '</div></div>';
+            }
+
+            // Provenance card
+            if (d.provenance && d.provenance.length > 0) {
+                html += '<div class="card">';
+                html += '<h2>📜 Provenance Timeline</h2>';
+                html += '<div class="timeline">';
+                for (const rec of d.provenance) {
+                    html += '<div class="timeline-item"><span class="time">' + rec.timestamp + '</span><br>';
+                    html += '<strong>' + (rec.agent || 'unknown') + '</strong> (' + (rec.model || 'unknown') + ')';
+                    html += ' — ' + rec.operation + '</div>';
+                }
+                html += '</div></div>';
+            }
+
+            // Gate results card
+            if (d.gate_result && d.gate_result.stages) {
+                html += '<div class="card">';
+                html += '<h2>🚦 Gate Results: <span class="' + (d.gate_result.passed ? 'pass' : 'fail') + '">' + (d.gate_result.passed ? 'PASSED' : 'FAILED') + '</span></h2>';
+                for (const stage of d.gate_result.stages) {
+                    html += '<div class="metric" style="text-align:left;margin:5px 0;padding:8px;">';
+                    html += '<span class="' + (stage.passed ? 'pass' : 'fail') + '">' + (stage.passed ? '✅' : '❌') + '</span> ';
+                    html += '<strong>' + stage.name + '</strong>: ' + stage.details + '</div>';
+                }
+                html += '</div>';
+            }
+
+            document.getElementById('content').innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function sendAction(action) {
+            // Post message to the MCP host (if available) or log it
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'patch-ts-action', action: action }, '*');
+            }
+            alert('Action "' + action + '" sent. (MCP integration will handle this.)');
+        }
+
+        render();
+    </script>
+</body>
+</html>

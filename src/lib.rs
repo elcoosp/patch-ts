@@ -35,3 +35,6 @@ pub mod spec_validate;
 pub mod symbols;
 pub mod validate;
 pub mod watch;
+pub mod knowledge;
+pub mod scitt;
+pub mod dashboard;

@@ -6,9 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
-
 // ---------- Tool parameter types with JSON Schema ----------
-
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct PatchParams {
     pub file: String,
