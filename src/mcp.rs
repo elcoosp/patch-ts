@@ -38,6 +38,19 @@ pub struct ExplainParams {
     pub line: usize,
 }
 
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct ImpactParams {
+    pub symbol: String,
+    pub recursive: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct SemDiffParams {
+    pub old: String,
+    pub new: String,
+    pub lang: String,
+}
+
 fn to_schema<T: schemars::JsonSchema>() -> Value {
     let schema = schemars::schema_for!(T);
     serde_json::to_value(schema).unwrap_or(Value::Null)
@@ -66,6 +79,8 @@ pub fn run_mcp() -> Result<()> {
                     json!({"name":"patch","description":"Apply a patch","inputSchema": to_schema::<PatchParams>()}),
                     json!({"name":"balance","description":"Fix unbalanced delimiters","inputSchema": to_schema::<BalanceParams>()}),
                     json!({"name":"explain","description":"Explain syntax error","inputSchema": to_schema::<ExplainParams>()}),
+                    json!({"name":"impact","description":"Show callers of a symbol","inputSchema": to_schema::<ImpactParams>()}),
+                    json!({"name":"semdiff","description":"Semantic diff between two code strings","inputSchema": to_schema::<SemDiffParams>()}),
                 ];
                 json!({"jsonrpc":"2.0","id":id,"result":{"tools":tools}})
             },
@@ -77,6 +92,8 @@ pub fn run_mcp() -> Result<()> {
                     "patch" => handle_patch_tool(arguments),
                     "balance" => handle_balance_tool(arguments),
                     "explain" => handle_explain_tool(arguments),
+                    "impact" => handle_impact_tool(arguments),
+                    "semdiff" => handle_semdiff_tool(arguments),
                     _ => json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":format!("Unknown tool: {}", tool_name)}}),
                 }
             },
@@ -87,6 +104,9 @@ pub fn run_mcp() -> Result<()> {
                     json!({"uri":"patch-ts://provenance","name":"Provenance records"}),
                     json!({"uri":"patch-ts://dashboard","name":"Dashboard","mimeType":"text/html"}),
                     json!({"uri":"patch-ts://review","name":"Code Review","mimeType":"text/html"}),
+                    json!({"uri":"patch-ts://knowledge/{symbol}","name":"Call graph lookup"}),
+                    json!({"uri":"patch-ts://semdiff/{file}?lang=rs","name":"Semantic diff for a file"}),
+                    json!({"uri":"patch-ts://coverage/{file}","name":"Coverage report"}),
                 ];
                 json!({"jsonrpc":"2.0","id":id,"result":{"resources":resources}})
             },
@@ -113,6 +133,24 @@ pub fn run_mcp() -> Result<()> {
                         };
                         let html = crate::dashboard::render_dashboard(&state);
                         json!({"jsonrpc":"2.0","id":id,"result":{"contents":[{"uri":uri,"text":html,"mimeType":"text/html"}]}})
+                    },
+                    uri if uri.starts_with("patch-ts://knowledge/") => {
+                        let symbol = uri.strip_prefix("patch-ts://knowledge/").unwrap_or("");
+                        let graph = crate::crossfile::build_project_call_graph(std::path::Path::new("."));
+                        let edges = graph.callers_of(symbol);
+                        let result: Vec<_> = edges.iter().map(|e| json!({
+                            "file": e.caller_file,
+                            "line": e.caller_line,
+                            "column": e.caller_column
+                        })).collect();
+                        json!({"jsonrpc":"2.0","id":id,"result":{"contents":[{"uri":uri,"text":serde_json::to_string(&result).unwrap_or_default(),"mimeType":"application/json"}]}})
+                    },
+                    uri if uri.starts_with("patch-ts://semdiff/") => {
+                        // Not easily testable without file context; return stub
+                        json!({"jsonrpc":"2.0","id":id,"result":{"contents":[{"uri":uri,"text":"semantic diff not yet implemented via resource","mimeType":"text/plain"}]}})
+                    },
+                    uri if uri.starts_with("patch-ts://coverage/") => {
+                        json!({"jsonrpc":"2.0","id":id,"result":{"contents":[{"uri":uri,"text":"coverage not yet implemented","mimeType":"text/plain"}]}})
                     },
                     _ => json!({"error":"Unknown resource"}),
                 };
@@ -180,4 +218,30 @@ fn handle_explain_tool(args: Value) -> Value {
         Ok(None) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"No syntax error at this line."}]}}),
         Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}}),
     }
+}
+
+fn handle_impact_tool(args: Value) -> Value {
+    let symbol = args.get("symbol").and_then(|v| v.as_str()).unwrap_or("");
+    let recursive = args.get("recursive").and_then(|v| v.as_bool()).unwrap_or(false);
+    let graph = crate::crossfile::build_project_call_graph(std::path::Path::new("."));
+    let edges = if recursive {
+        graph.all_callers_recursive(symbol)
+    } else {
+        graph.callers_of(symbol)
+    };
+    let result: Vec<_> = edges.iter().map(|e| json!({
+        "file": e.caller_file,
+        "line": e.caller_line,
+        "column": e.caller_column
+    })).collect();
+    json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":serde_json::to_string(&result).unwrap_or_default()}]}})
+}
+
+fn handle_semdiff_tool(args: Value) -> Value {
+    let old = args.get("old").and_then(|v| v.as_str()).unwrap_or("");
+    let new = args.get("new").and_then(|v| v.as_str()).unwrap_or("");
+    let lang = args.get("lang").and_then(|v| v.as_str()).unwrap_or("rs");
+    let changes = crate::semdiff::compute_semantic_diff(old, new, lang);
+    let result = serde_json::to_string(&changes).unwrap_or_default();
+    json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":result}]}})
 }
