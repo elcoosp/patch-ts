@@ -52,6 +52,7 @@ pub enum Command {
     Mcp,
     AdaptThreshold,
     AdaptStrategy,
+    TraceVerify(TraceArgs),
 }
 
 #[derive(Parser, Debug)]
