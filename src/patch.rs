@@ -310,3 +310,16 @@ pub fn apply_symbol_patch(
     }
     Ok(())
 }
+
+/// Replace all occurrences of old_text with new_text in the file.
+/// Used for file types that tree‑sitter cannot parse.
+pub fn full_file_replace(file_path: &Path, old_text: &str, new_text: &str, dry_run: bool) -> Result<()> {
+    let original = std::fs::read_to_string(file_path)?;
+    let patched = original.replace(old_text, new_text);
+    if dry_run {
+        println!("{}", patched);
+    } else {
+        std::fs::write(file_path, patched)?;
+    }
+    Ok(())
+}

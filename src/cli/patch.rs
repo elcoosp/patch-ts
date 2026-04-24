@@ -21,7 +21,18 @@ pub fn expand_files(pattern: &str) -> Result<Vec<PathBuf>> {
 }
 
 pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
-    let mut lang = crate::ast::detect_language(file_path)?;
+    let mut lang = match crate::ast::detect_language(file_path) {
+        Ok(lang) => lang,
+        Err(_) => {
+            let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if ext == "toml" || ext == "json" {
+                let old = args.old.as_deref().ok_or_else(|| anyhow::anyhow!("--old required for .{}", ext))?;
+                let new = args.new.as_deref().ok_or_else(|| anyhow::anyhow!("--new required for .{}", ext))?;
+                return crate::patch::full_file_replace(file_path, old, new, args.dry_run);
+            }
+            anyhow::bail!("Unsupported file extension .{}", ext);
+        }
+    };
     let _manager = FileManager::new(!args.no_backup);
     let mut options = PatchOptions {
         fuzz_radius: args.fuzz,
