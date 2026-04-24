@@ -29,6 +29,7 @@ pub enum Command {
     Verify(VerifyArgs),
     TraceVerify(TraceArgs),
     Watch(WatchArgs),
+    Impact(ImpactArgs),
     Undo,
     Redo,
     History,
@@ -239,6 +240,16 @@ pub struct McpHttpArgs {
     pub bind: String,
     #[arg(long)]
     pub auth_token: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct ImpactArgs {
+    #[arg(long)]
+    pub symbol: String,
+    #[arg(long)]
+    pub recursive: bool,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]

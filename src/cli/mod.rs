@@ -22,6 +22,7 @@ pub mod lsp;
 pub mod adapt;
 pub mod trace_verify;
 pub mod heredoc;
+pub mod impact;
 
 use anyhow::Result;
 use types::*;
@@ -59,6 +60,7 @@ pub fn run() -> Result<()> {
         Command::GenerateTests(args) => generate_tests::handle_generate_tests(args),
         Command::Verify(args) => verify::handle_verify(args),
         Command::TraceVerify(args) => trace_verify::handle_trace_verify(args),
+        Command::Impact(args) => impact::handle_impact(args),
         Command::Watch(args) => watch::handle_watch(args),
         Command::Undo => undo::handle_undo(),
         Command::Redo => undo::handle_redo(),
