@@ -16,14 +16,15 @@
 ### v1.5.0 — LLM‑Input Resilience — ✅
 ### v1.6.0 — Intelligent & Integrated — ✅
 ### v1.7.0 — Trustworthy & Traceable — ✅
-### v1.8.0 — Knowledge‑Graph Platform (Current)
+### v1.8.0 — Knowledge‑Graph Platform — ✅
+### v1.9.0 — Self‑Improving Governance (Current)
 
-- [x] Project Knowledge Graph
-- [x] SCITT‑Compliant Provenance
-- [x] MCP Apps Dashboard
-- [x] Parallel Multi‑Agent Gate
-- [x] Coverage Gate Stage
-- [x] Namespace‑Aware Scoring
-- [x] Adversarial Patch Detection
+- [x] Evolutionary Repair (`patch‑ts evolve`)
+- [x] Streamable HTTP MCP Transport
+- [x] Agentic Code‑Review Dashboard
+- [x] CRA‑Ready Compliance Evidence (`patch‑ts attest`)
+- [x] Curiosity‑Driven Test Generation (`patch‑ts generate‑tests`)
+- [x] Agent‑Facing Security Skill
+- [x] Invariant‑Based Verification (`patch‑ts verify`)
 
 *Last updated: 2026‑04‑24*

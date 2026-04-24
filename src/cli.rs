@@ -44,6 +44,11 @@ pub enum Command {
     Gate(GateArgs),
     Score(ScoreArgs),
     Index(IndexArgs),
+    Evolve(EvolveArgs),
+    Review(ReviewArgs),
+    Attest(AttestArgs),
+    GenerateTests(GenerateTestsArgs),
+    Verify(VerifyArgs),
     TraceVerify(TraceArgs),
     Watch(WatchArgs),
     Undo,
@@ -51,8 +56,77 @@ pub enum Command {
     History,
     Lsp,
     Mcp,
+    McpHttp(McpHttpArgs),
     AdaptThreshold,
     AdaptStrategy,
+}
+
+#[derive(Parser, Debug)]
+
+#[derive(Parser, Debug)]
+
+#[derive(Parser, Debug)]
+pub struct AttestArgs {
+    #[arg(long)]
+    pub since: String,
+    #[arg(long)]
+    pub output: Option<String>,
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct GenerateTestsArgs {
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub old: String,
+    #[arg(long)]
+    pub new: String,
+    #[arg(long)]
+    pub output: Option<String>,
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct VerifyArgs {
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub json: bool,
+}
+
+pub struct ReviewArgs {
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub old: String,
+    #[arg(long)]
+    pub new: String,
+    #[arg(long)]
+    pub tui: bool,
+    #[arg(long)]
+    pub dashboard: bool,
+    #[arg(long)]
+    pub json: bool,
+}
+
+pub struct EvolveArgs {
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub old: String,
+    #[arg(long)]
+    pub new: String,
+    #[arg(long, default_value = "10")]
+    pub population_size: usize,
+    #[arg(long, default_value = "30")]
+    pub evolve_timeout: u64,
+    #[arg(long)]
+    pub apply: bool,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -91,8 +165,6 @@ pub struct GateArgs {
     pub file: String,
     #[arg(long)]
     pub json: bool,
-    #[arg(long, default_value = "true")]
-    pub parallel: bool,
     #[arg(long, default_value = "30")]
     pub compile_timeout: u64,
 }
@@ -182,6 +254,17 @@ pub struct TraceArgs {
 }
 
 #[derive(Parser, Debug)]
+
+#[derive(Parser, Debug)]
+pub struct McpHttpArgs {
+    #[arg(long, default_value = "9090")]
+    pub port: u16,
+    #[arg(long, default_value = "127.0.0.1")]
+    pub bind: String,
+    #[arg(long)]
+    pub auth_token: Option<String>,
+}
+
 pub struct PatchArgs {
     #[arg(short, long, required_unless_present = "files")]
     pub file: Option<String>,
@@ -341,6 +424,11 @@ pub fn run() -> Result<()> {
         Command::Gate(args) => handle_gate(args),
         Command::Score(args) => handle_score(args),
         Command::Index(args) => handle_index(args),
+        Command::Evolve(args) => handle_evolve(args),
+        Command::Review(args) => handle_review(args),
+        Command::Attest(args) => handle_attest(args),
+        Command::GenerateTests(args) => handle_generate_tests(args),
+        Command::Verify(args) => handle_verify(args),
         Command::TraceVerify(args) => handle_trace_verify(args),
         Command::Watch(args) => handle_watch(args),
         Command::Undo => handle_undo(),
@@ -348,6 +436,7 @@ pub fn run() -> Result<()> {
         Command::History => handle_history(),
         Command::Lsp => handle_lsp(),
         Command::Mcp => handle_mcp(),
+        Command::McpHttp(args) => handle_mcp_http(args),
         Command::AdaptThreshold => handle_adapt_threshold(),
         Command::AdaptStrategy => handle_adapt_strategy(),
     };
@@ -368,11 +457,102 @@ fn handle_provenance_query(args: ProvenanceQueryArgs) -> Result<()> { let record
 fn handle_gate(args: GateArgs) -> Result<()> { let file_path = Path::new(&args.file); let content = std::fs::read_to_string(file_path)?; let stages: Vec<String> = args.stages.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect(); let result = if args.parallel { crate::gate::run_gate_parallel(&stages, &file_path, &content, &content, args.compile_timeout)? } else { crate::gate::run_gate(&stages, &file_path, &content, &content, args.compile_timeout)? }; if args.json { println!("{}", serde_json::to_string(&result)?); } else { for stage in &result.stages { let status = if stage.passed { "✅" } else { "❌" }; println!("{} {} – {}", status, stage.name, stage.details); } if !result.passed { std::process::exit(1); } } Ok(()) }
 fn handle_score(args: ScoreArgs) -> Result<()> { let content = std::fs::read_to_string(&args.file)?; let syntax_valid = { let mut lang = detect_language(Path::new(&args.file))?; let parse_result = lang.parse(&content); lang.is_valid(&parse_result) }; let compile_success = { let result = crate::compile::compile_check(Path::new(&args.file), "rs", 30)?; result.success }; let confidence = args.confidence.unwrap_or(0.9); let uniqueness_score = args.uniqueness_score.unwrap_or(0.5); let cross_file_impact = args.cross_file_impact.unwrap_or(0); let historical_success_rate = crate::score::historical_success_rate(); let ctx = crate::score::ScoreContext { syntax_valid, compile_success, confidence, uniqueness_score, cross_file_impact, historical_success_rate }; let score = crate::score::calculate_score(&ctx); if args.json { println!("{}", serde_json::to_string(&score)?); } else { println!("Overall reliability score: {}/100", score.overall); for (dim, val) in &score.dimensions { println!("  {}: {}/100", dim, val); } } Ok(()) }
 fn handle_index(args: IndexArgs) -> Result<()> { let kg = crate::knowledge::build_project_index(Path::new(".")); if let Some(ref symbol) = args.callers { let callers = kg.callers_of(symbol); if args.json { println!("{}", serde_json::to_string(&callers)?); } else { if callers.is_empty() { println!("No callers found for '{}'", symbol); } else { for caller in &callers { println!("{}:{}", caller.caller_file, caller.caller_line); } } } } else { println!("Knowledge graph built with {} symbols and {} call edges.", kg.symbols.len(), kg.call_edges.len()); if args.json { println!("{}", serde_json::to_string(&kg)?); } } Ok(()) }
+fn handle_evolve(args: EvolveArgs) -> Result<()> {
+fn handle_review(args: ReviewArgs) -> Result<()> {
+fn handle_attest(args: AttestArgs) -> Result<()> {
+    let report = crate::attest::generate_attestation(&args.since, args.output.as_deref().map(|s| Path::new(s)))?;
+    if args.json { println!("{}", serde_json::to_string(&report)?); }
+    else { println!("Attestation report generated: {}", report.report_id); }
+    Ok(())
+}
+fn handle_generate_tests(args: GenerateTestsArgs) -> Result<()> {
+    let tests = crate::curiosity::generate_tests(&args.old, &args.new, "function")?;
+    if args.json { println!("{}", serde_json::to_string(&tests)?); }
+    else { for test in &tests.tests { println!("{}", test); } }
+    if let Some(ref out) = args.output { std::fs::write(out, tests.tests.join("\n"))?; }
+    Ok(())
+}
+fn handle_verify(args: VerifyArgs) -> Result<()> {
+    let content = std::fs::read_to_string(&args.file)?;
+    let invariants = crate::invariant::extract_invariants(&content);
+    let violations = crate::invariant::verify_invariants(&content, &content);
+    if args.json {
+        println!("{}", serde_json::to_string(&serde_json::json!({"invariants": invariants, "violations": violations}))?);
+    } else {
+        println!("Invariants: {}", invariants.len());
+        for inv in &invariants { println!("  {}: {} at line {}", inv.kind, inv.expression, inv.line); }
+        if !violations.is_empty() {
+            println!("Violations:");
+            for v in &violations { println!("  {} at line {}", v.invariant.expression, v.line); }
+        }
+    }
+    Ok(())
+}
+
+    let file_path = Path::new(&args.file);
+    let old = std::fs::read_to_string(file_path)?;
+    let new = if args.new == "-" { old.clone() } else { args.new.clone() };
+    let report = crate::review::run_review(file_path, &old, &new);
+    if args.json {
+        println!("{}", serde_json::to_string(&report)?);
+    } else {
+        println!("Code Review Report:");
+        for finding in &report.findings {
+            let icon = if finding.severity == "pass" { "✅" } else { "❌" };
+            println!("  {} {} – {}", icon, finding.agent, finding.details);
+        }
+        println!("Action: {}", report.action);
+    }
+    Ok(())
+}
+
+    let file_path = Path::new(&args.file);
+    let original = std::fs::read_to_string(file_path)?;
+    let config = crate::evolve::EvolutionConfig {
+        population_size: args.population_size,
+        max_generations: 3,
+        timeout_secs: args.evolve_timeout,
+    };
+    let best = crate::evolve::run_evolution(file_path, &original, &args.old, &args.new, &config);
+    if args.json {
+        println!("{}", serde_json::to_string(&best)?);
+    } else {
+        println!("Best candidate (fitness: {:.2}):", best.fitness);
+        println!("  Replace: `{}`", best.old);
+        println!("  With:    `{}`", best.new);
+        println!("  Fuzz: {}, Confidence: {:.2}, Uniqueness: {:.2}", best.fuzz, best.confidence, best.uniqueness_weight);
+    }
+    if args.apply {
+        let patch_args = PatchArgs {
+            file: Some(args.file.clone()), files: None, line: Some(1),
+            fuzz: best.fuzz, old: Some(best.old), new: Some(best.new),
+            confidence: best.confidence, fix_indent: false, diff: false,
+            delete: None, expect: None, after: None, content: None,
+            dry_run: false, force: false, no_backup: false, json: false,
+            no_auto_repair: false, marker: None, serial: false, plugin: None,
+            allow_all_paths: false, url: None, git_commit: None,
+            no_strip_fence: false, no_compile_check: false, compile_timeout: 30,
+            no_sanitize: false, no_ellipsis: false, uniqueness_weight: best.uniqueness_weight,
+            strict_whitespace: false, cross_file: false, agent: None, model: None,
+            no_provenance: true,
+        };
+        apply_patch_to_file(file_path, &patch_args)?;
+        println!("Evolutionary patch applied to {}", args.file);
+    }
+    Ok(())
+}
 fn handle_fix(args: FixArgs) -> Result<()> { use std::fs; let error_text = if let Some(ref path) = args.error_file { fs::read_to_string(path)? } else { let mut buf = String::new(); std::io::stdin().read_to_string(&mut buf)?; buf }; let error = crate::fix::parse_compiler_error(&error_text).ok_or_else(|| anyhow::anyhow!("No fix pattern recognized"))?; let target_file = args.file.as_deref().unwrap_or(&error.file); let content = if Path::new(target_file).exists() { fs::read_to_string(target_file)? } else { anyhow::bail!("File '{}' not found", target_file) }; let mut lang = detect_language(Path::new(target_file))?; let suggestion = crate::fix::suggest_fix(&error, &content, &mut *lang).ok_or_else(|| anyhow::anyhow!("Could not auto‑suggest fix"))?; if args.json { println!("{}", serde_json::to_string(&suggestion)?); } else { println!("Suggested fix for {}:{}:{}", suggestion.file, suggestion.line, error.error_code); println!("  Replace: `{}`", suggestion.old); println!("  With:    `{}`", suggestion.new); } if args.apply { let patch_args = PatchArgs { file: Some(target_file.to_string()), files: None, line: Some(suggestion.line), fuzz: 5, old: Some(suggestion.old), new: Some(suggestion.new), confidence: 0.9, fix_indent: false, diff: false, delete: None, expect: None, after: None, content: None, dry_run: false, force: args.force, no_backup: false, json: false, no_auto_repair: false, marker: None, serial: false, plugin: None, allow_all_paths: false, url: None, git_commit: None, no_strip_fence: false, no_compile_check: false, compile_timeout: 30, no_sanitize: false, no_ellipsis: false, uniqueness_weight: 0.2, strict_whitespace: false, cross_file: false, agent: None, model: None, no_provenance: true }; apply_patch_to_file(Path::new(target_file), &patch_args)?; println!("Fix applied to {}", target_file); } Ok(()) }
 fn handle_balance(args: BalanceArgs) -> Result<()> { if let Some(pattern) = &args.files { let paths = expand_files(pattern)?; if args.serial { for path in paths { apply_balance_to_file(&path, &args)?; } } else { paths.par_iter().try_for_each(|path| apply_balance_to_file(path, &args))?; } } else { let file_path = Path::new(args.file.as_deref().unwrap()); apply_balance_to_file(file_path, &args)?; } Ok(()) }
 fn handle_explain(args: ExplainArgs) -> Result<()> { let file_path = Path::new(&args.file); let mut lang = detect_language(file_path)?; let diag = explain_error(file_path, args.line, args.json, &mut *lang)?; if let Some(diag) = diag { if args.json { let json_err = JsonError { code: "patch_ts::syntax_error".to_string(), message: diag.details.clone(), span: crate::diagnostics::JsonSpan { file: args.file.clone(), line: args.line, column: 1 }, context: String::new(), suggestion: Some("Run `patch-ts balance` to attempt automatic fix".to_string()), best_score: None, best_match_line: None, candidates: None, error_code: Some("E005".to_string()), retry_prompt: Some(diag.details.clone()) }; println!("{}", serde_json::to_string(&JsonDiagnostic::error(json_err))?); } else { eprintln!("{:?}", miette::Report::new(diag)); } } else if args.json { println!("{}", serde_json::to_string(&JsonDiagnostic::success())?); } Ok(()) }
 fn handle_watch(args: WatchArgs) -> Result<()> { use crate::watch::FileWatcher; use std::time::Duration; let ignore_patterns = args.ignore.unwrap_or_default(); let delay = Duration::from_millis(args.delay); let hooks = args.hooks.as_deref(); let mut watcher = FileWatcher::new(delay, ignore_patterns, hooks)?; watcher.watch(&args.path)?; let event = watcher.wait_for_change()?; println!("Change detected: {:?}", event.paths); Ok(()) }
 fn handle_mcp() -> Result<()> { crate::mcp::run_mcp()?; Ok(()) }
+fn handle_mcp_http(args: McpHttpArgs) -> Result<()> {
+    let addr: std::net::SocketAddr = format!("{}:{}", args.bind, args.port).parse()?;
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    rt.block_on(crate::mcp_http::run_http_mcp(addr, args.auth_token))?;
+    Ok(())
+}
+
 fn handle_undo() -> Result<()> { let manager = HistoryManager::new(); match manager.undo_last()? { Some(record) => { std::fs::write(&record.file, &record.original_content)?; println!("Undo applied: file {} restored.", record.file); } None => { eprintln!("No history to undo."); } } Ok(()) }
 fn handle_redo() -> Result<()> { eprintln!("Redo not yet implemented."); Ok(()) }
 fn handle_history() -> Result<()> { let manager = HistoryManager::new(); let records = manager.list()?; if records.is_empty() { println!("No history found."); } else { for record in &records { println!("{} - {}", record.timestamp, record.file); } } Ok(()) }

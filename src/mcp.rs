@@ -7,8 +7,6 @@ use serde_json::{json, Value};
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
-// ---------- Tool parameter types with JSON Schema ----------
-
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct PatchParams {
     pub file: String,
@@ -38,7 +36,6 @@ pub struct ExplainParams {
     pub line: usize,
 }
 
-/// Generate a JSON Schema object from a type that implements JsonSchema.
 fn to_schema<T: schemars::JsonSchema>() -> Value {
     let schema = schemars::schema_for!(T);
     serde_json::to_value(schema).unwrap_or(Value::Null)
@@ -47,7 +44,6 @@ fn to_schema<T: schemars::JsonSchema>() -> Value {
 pub fn run_mcp() -> Result<()> {
     let stdin = std::io::stdin().lock();
     let mut stdout = std::io::stdout().lock();
-
     for line in stdin.lines() {
         let line = line?;
         if line.trim().is_empty() { continue; }
@@ -65,9 +61,9 @@ pub fn run_mcp() -> Result<()> {
         let response = match method {
             "tools/list" => {
                 let tools = vec![
-                    json!({"name":"patch","description":"Apply a patch to a file with tree‑sitter validation and fuzzy matching","inputSchema": to_schema::<PatchParams>()}),
-                    json!({"name":"balance","description":"Detect and fix unbalanced delimiters","inputSchema": to_schema::<BalanceParams>()}),
-                    json!({"name":"explain","description":"Explain syntax error at a given line","inputSchema": to_schema::<ExplainParams>()}),
+                    json!({"name":"patch","description":"Apply a patch","inputSchema": to_schema::<PatchParams>()}),
+                    json!({"name":"balance","description":"Fix unbalanced delimiters","inputSchema": to_schema::<BalanceParams>()}),
+                    json!({"name":"explain","description":"Explain syntax error","inputSchema": to_schema::<ExplainParams>()}),
                 ];
                 json!({"jsonrpc":"2.0","id":id,"result":{"tools":tools}})
             },
@@ -84,10 +80,11 @@ pub fn run_mcp() -> Result<()> {
             },
             "resources/list" => {
                 let resources = vec![
-                    json!({"uri":"patch-ts://symbols/main.rs","name":"Symbols for main.rs","description":"Function and type symbols extracted by tree‑sitter"}),
-                    json!({"uri":"patch-ts://history","name":"Patch history","description":"List of all applied patches"}),
-                    json!({"uri":"patch-ts://provenance","name":"Provenance records","description":"AI agent provenance audit trail"}),
-                    json!({"uri":"patch-ts://dashboard","name":"Patch Dashboard","description":"Interactive dashboard for reviewing patches","mimeType":"text/html"}),
+                    json!({"uri":"patch-ts://symbols/main.rs","name":"Symbols"}),
+                    json!({"uri":"patch-ts://history","name":"Patch history"}),
+                    json!({"uri":"patch-ts://provenance","name":"Provenance records"}),
+                    json!({"uri":"patch-ts://dashboard","name":"Dashboard","mimeType":"text/html"}),
+                    json!({"uri":"patch-ts://review","name":"Code Review","mimeType":"text/html"}),
                 ];
                 json!({"jsonrpc":"2.0","id":id,"result":{"resources":resources}})
             },
@@ -98,42 +95,29 @@ pub fn run_mcp() -> Result<()> {
                     "patch-ts://symbols/main.rs" => {
                         if let Ok(source) = std::fs::read_to_string("main.rs") {
                             crate::symbols::build_index(&source, "rs").map(|idx| json!(idx)).unwrap_or(json!({}))
-                        } else { json!({"error": "File not found"}) }
+                        } else { json!({"error":"File not found"}) }
                     },
                     "patch-ts://history" => {
                         let mgr = crate::history::HistoryManager::new();
-                        let records = mgr.list().unwrap_or_default();
-                        json!(records)
+                        json!(mgr.list().unwrap_or_default())
                     },
                     "patch-ts://provenance" => {
-                        let records = crate::provenance::query_provenance(None, None).unwrap_or_default();
-                        json!(records)
+                        json!(crate::provenance::query_provenance(None,None).unwrap_or_default())
                     },
-                    "patch-ts://dashboard" => {
+                    "patch-ts://dashboard" | "patch-ts://review" => {
                         let state = crate::dashboard::DashboardState {
                             patch_id: "latest".to_string(),
-                            diff: None,
-                            score: None,
-                            provenance: None,
-                            gate_result: None,
-                            suggestions: None,
+                            diff: None, score: None, provenance: None, gate_result: None, suggestions: None,
                         };
                         let html = crate::dashboard::render_dashboard(&state);
-                        json!({"jsonrpc":"2.0","id":id,"result":{"contents":[{"uri":"patch-ts://dashboard","text":html,"mimeType":"text/html"}]}})
+                        json!({"jsonrpc":"2.0","id":id,"result":{"contents":[{"uri":uri,"text":html,"mimeType":"text/html"}]}})
                     },
-                    _ => json!({"error": "Unknown resource"}),
+                    _ => json!({"error":"Unknown resource"}),
                 };
                 json!({"jsonrpc":"2.0","id":id,"result":{"contents":[{"uri":uri,"text":content.to_string()}]}})
             },
-            "sampling/createMessage" => {
-                let params = request.get("params").cloned().unwrap_or(Value::Null);
-                let prompt = params.get("messages").and_then(|m| m.as_array()).and_then(|arr| arr.first()).and_then(|m| m.get("content").and_then(|c| c.as_str())).unwrap_or("");
-                let mut lang = RustLanguage::new();
-                let suggestion = quick_balance(prompt, &mut lang).unwrap_or_else(|| prompt.to_string());
-                json!({"jsonrpc":"2.0","id":id,"result":{"role":"assistant","content":{"type":"text","text":suggestion}}})
-            },
             "initialize" => json!({"jsonrpc":"2.0","id":id,"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{},"resources":{},"sampling":{}},"serverInfo":{"name":"patch-ts","version":env!("CARGO_PKG_VERSION")}}}),
-            _ => json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":format!("Unknown method: {}", method)}}),
+            _ => json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":format!("Unknown method: {}",method)}}),
         };
         writeln!(stdout, "{}", serde_json::to_string(&response)?)?;
         stdout.flush()?;
@@ -150,7 +134,6 @@ fn handle_patch_tool(args: Value) -> Value {
     let confidence = args.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.9);
     let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
     let force = args.get("force").and_then(|v| v.as_bool()).unwrap_or(false);
-
     let cli_args = crate::cli::PatchArgs {
         file: Some(file.to_string()), files: None, line: Some(line), fuzz,
         old: Some(old.to_string()), new: Some(new.to_string()), confidence,
@@ -165,7 +148,7 @@ fn handle_patch_tool(args: Value) -> Value {
     let path = PathBuf::from(file);
     match crate::cli::apply_patch_to_file(&path, &cli_args) {
         Ok(()) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Patch applied successfully."}]}}),
-        Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}", e)}],"isError":true}}),
+        Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}}),
     }
 }
 
@@ -181,7 +164,7 @@ fn handle_balance_tool(args: Value) -> Value {
     let path = PathBuf::from(file);
     match crate::cli::apply_balance_to_file(&path, &cli_args) {
         Ok(()) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Balance completed."}]}}),
-        Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}", e)}],"isError":true}}),
+        Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}}),
     }
 }
 
@@ -192,6 +175,6 @@ fn handle_explain_tool(args: Value) -> Value {
     match crate::repair::explain_error(&PathBuf::from(file), line, false, &mut lang) {
         Ok(Some(diag)) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":diag.details}]}}),
         Ok(None) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"No syntax error at this line."}]}}),
-        Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}", e)}],"isError":true}}),
+        Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}}),
     }
 }
