@@ -4,7 +4,7 @@ use std::collections::{HashSet, VecDeque};
 use std::hash::{Hash, Hasher};
 
 /// An atomic edit action: insert a delimiter at a byte position, or delete a span.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize)]
 pub enum RepairAction {
     Insert { ch: char, pos: usize },
     Delete { start: usize, end: usize },
