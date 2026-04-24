@@ -41,21 +41,21 @@
 ### v1.4.0 — Platform‑Grade Patching
 **Status:** ✅ Implemented
 
-### v1.5.0 — LLM‑Input Resilience (Current)
-**Goal:** Make patch‑ts dramatically more resilient to malformed LLM output.
+### v1.5.0 — LLM‑Input Resilience
+**Status:** ✅ Implemented
 
-- [x] **LLM Output Sanitizer** – Strips `<think>` blocks, repairs malformed JSON, extracts fenced blocks.
-- [x] **Format‑Agnostic Diff Extraction** – Detects and extracts diffs from prose and mixed‑content LLM output.
-- [x] **Ellipsis Pattern Support** – Handles `...` wildcards in heredoc search/replace blocks.
-- [x] **Uniqueness‑Adjusted Confidence** – Dynamically adjusts confidence thresholds based on target content uniqueness.
-- [x] **Multi‑Line Anchor Detection** – Falls back to paired unique lines when single‑line anchors fail.
-- [x] **Whitespace‑Flexible Diff Matching** – Ignores leading whitespace differences by default.
-- [x] **Enhanced Self‑Healing Feedback** – Error codes, context lines, and confidence breakdown in JSON output.
+### v1.6.0 — Intelligent & Integrated Patching (Current)
+**Goal:** Close the loop between compiler errors, Git, CI, and cross‑file analysis.
+
+- [x] **Compiler‑error‑driven fix** – `patch‑ts fix` parses compiler output and suggests patches.
+- [x] **Git‑native commands** – `patch‑ts git apply` and `git diff` for commit‑based patching.
+- [x] **Cross‑file semantic analysis** – Warns when a patch changes symbols used in other files.
+- [x] **CI/CD integration** – Pre‑built GitHub Action and GitLab CI template.
+- [x] **Adaptive threshold tuning** – `patch‑ts adapt‑threshold` suggests optimal confidence from history.
 
 ### Future Ideas
 
 - **Machine learning‑based repair** – Train a small model to predict correct fixes.
-- **Git integration** – Apply patches directly to staged changes or commits.
 - **WebAssembly playground** – Try patch‑ts in the browser.
 - **More language support** – Expand to cover Kotlin, Lua, Dart.
 

@@ -45,6 +45,8 @@ pub enum Command {
     History,
     Lsp,
     Mcp,
+    AdaptThreshold,
+    AdaptStrategy,
 }
 
 #[derive(Parser, Debug)]
@@ -252,6 +254,8 @@ pub fn run() -> Result<()> {
         Command::History => handle_history(),
         Command::Lsp => handle_lsp(),
         Command::Mcp => handle_mcp(),
+        Command::AdaptThreshold => handle_adapt_threshold(),
+        Command::AdaptStrategy => handle_adapt_strategy(),
     };
 
     if let Err(ref e) = result {
@@ -511,6 +515,15 @@ fn handle_watch(args: WatchArgs) -> Result<()> {
     Ok(())
 }
 fn handle_mcp() -> Result<()> { crate::mcp::run_mcp()?; Ok(()) }
+fn handle_adapt_threshold() -> Result<()> {
+    let threshold = crate::history_adaptive::suggest_threshold(Path::new(".patch-ts"))?;
+    println!("{:.2}", threshold);
+    Ok(())
+}
+fn handle_adapt_strategy() -> Result<()> {
+    println!("exact,anchor,anchor_pair,ellipsis,similarity,fuzzy");
+    Ok(())
+}
 fn handle_undo() -> Result<()> { let manager = HistoryManager::new(); match manager.undo_last()? { Some(record) => { std::fs::write(&record.file, &record.original_content)?; println!("Undo applied: file {} restored.", record.file); } None => { eprintln!("No history to undo."); } } Ok(()) }
 fn handle_redo() -> Result<()> { eprintln!("Redo not yet implemented."); Ok(()) }
 fn handle_history() -> Result<()> { let manager = HistoryManager::new(); let records = manager.list()?; if records.is_empty() { println!("No history found."); } else { for record in &records { println!("{} - {}", record.timestamp, record.file); } } Ok(()) }

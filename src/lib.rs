@@ -30,3 +30,4 @@ pub mod sanitize;
 pub mod extract;
 pub mod fix;
 pub mod crossfile;
+pub mod history_adaptive;

@@ -1,0 +1,42 @@
+name: 'patch-ts validation'
+description: 'Run patch-ts balance on changed files and post PR comments'
+inputs:
+  files:
+    description: 'Glob pattern for files to check'
+    required: false
+    default: '**/*.rs'
+  working-directory:
+    description: 'Working directory'
+    required: false
+    default: '.'
+  github-token:
+    description: 'GitHub token for posting comments'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Install patch-ts
+      shell: bash
+      run: cargo install patch-ts
+    - name: Run patch-ts balance
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      continue-on-error: true
+      id: balance
+      run: |
+        echo 'BALANCE_RESULT<<EOF' >> $GITHUB_OUTPUT
+        patch-ts balance --files "${{ inputs.files }}" --json 2>&1 | tee /tmp/patch-ts-result.json >> $GITHUB_OUTPUT
+        echo 'EOF' >> $GITHUB_OUTPUT
+    - name: Post PR comment
+      if: steps.balance.outcome == 'failure'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('/tmp/patch-ts-result.json', 'utf8'));
+          const issue_number = context.issue.number;
+          if (!result.success) {
+            const body = `## 🔧 patch-ts found delimiter issues\n\n\`\`\`\n${JSON.stringify(result, null, 2)}\n\`\`\`\n\nRun \`patch-ts balance --apply\` to fix.`;
+            github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number, body });
+          }

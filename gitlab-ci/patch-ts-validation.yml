@@ -1,0 +1,9 @@
+patch-ts-validation:
+  image: rust:latest
+  script:
+    - cargo install patch-ts
+    - patch-ts balance --files "**/*.rs" --json
+  allow_failure: true
+  artifacts:
+    paths:
+      - patch-ts-result.json
