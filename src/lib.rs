@@ -48,3 +48,4 @@ pub mod curiosity;
 pub mod invariant;
 pub mod highlight;
 pub mod word_diff;
+pub mod scorecard;

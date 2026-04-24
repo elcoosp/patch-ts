@@ -13,7 +13,6 @@ pub struct WordChange {
     pub change_type: ChangeType,
 }
 
-/// Compute word‑level diff between two strings.
 pub fn word_diff(old_line: &str, new_line: &str) -> (Vec<WordChange>, Vec<WordChange>) {
     let old_words: Vec<&str> = old_line.split_word_bounds().collect();
     let new_words: Vec<&str> = new_line.split_word_bounds().collect();
@@ -29,20 +28,20 @@ pub fn word_diff(old_line: &str, new_line: &str) -> (Vec<WordChange>, Vec<WordCh
 
     for change in diff {
         match change {
-            similar::DiffOp::Equal { old_index, new_index, len } => {
+            similar::DiffOp::Equal { old_index, new_index: _, len } => {
                 for i in 0..len {
                     let word = old_words[old_index + i].to_string();
                     old_changes.push(WordChange { text: word.clone(), change_type: ChangeType::Unchanged });
                     new_changes.push(WordChange { text: word, change_type: ChangeType::Unchanged });
                 }
             }
-            similar::DiffOp::Delete { old_index, old_len, new_index } => {
+            similar::DiffOp::Delete { old_index, old_len, new_index: _ } => {
                 for i in 0..old_len {
                     let word = old_words[old_index + i].to_string();
                     old_changes.push(WordChange { text: word, change_type: ChangeType::Removed });
                 }
             }
-            similar::DiffOp::Insert { old_index, new_index, new_len } => {
+            similar::DiffOp::Insert { old_index: _, new_index, new_len } => {
                 for i in 0..new_len {
                     let word = new_words[new_index + i].to_string();
                     new_changes.push(WordChange { text: word, change_type: ChangeType::Added });
@@ -63,7 +62,6 @@ pub fn word_diff(old_line: &str, new_line: &str) -> (Vec<WordChange>, Vec<WordCh
     (old_changes, new_changes)
 }
 
-/// Apply ANSI styling to word changes: green for Added, red for Removed.
 pub fn colorize_word_changes(changes: &[WordChange]) -> String {
     let mut output = String::new();
     for wc in changes {

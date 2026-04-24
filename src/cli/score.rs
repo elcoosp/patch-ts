@@ -1,5 +1,6 @@
 use anyhow::Result;
 use super::types::*;
+use crate::scorecard::render_scorecard;
 pub fn handle_score(args: ScoreArgs) -> Result<()> {
     let content = std::fs::read_to_string(&args.file)?;
     let syntax_valid = { let mut lang = crate::ast::detect_language(std::path::Path::new(&args.file))?; let parse_result = lang.parse(&content); lang.is_valid(&parse_result) };
@@ -11,6 +12,6 @@ pub fn handle_score(args: ScoreArgs) -> Result<()> {
     let ctx = crate::score::ScoreContext { syntax_valid, compile_success, confidence, uniqueness_score, cross_file_impact, historical_success_rate };
     let score = crate::score::calculate_score(&ctx);
     if args.json { println!("{}", serde_json::to_string(&score)?); }
-    else { println!("Overall reliability score: {}/100", score.overall); for (dim, val) in &score.dimensions { println!("  {}: {}/100", dim, val); } }
+    else { println!("{}", render_scorecard(&score)); }
     Ok(())
 }

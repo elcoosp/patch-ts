@@ -16,7 +16,7 @@ use std::io;
 use std::panic;
 use tree_sitter::{Node, Parser};
 
-/// Walk the entire AST, collecting highlighted spans for leaf tokens.
+// Walk the entire AST, collecting highlighted spans for leaf tokens.
 pub fn highlight(code: &str, lang: &str) -> Result<Vec<(String, Style)>> {
     let mut parser = Parser::new();
     let (language, _is_tsx) = match lang {
@@ -125,9 +125,16 @@ fn collect_styled_spans(node: &Node, source: &str, spans: &mut Vec<(String, Styl
     }
 }
 
+#[derive(PartialEq)]
+enum ViewMode {
+    Stacked,
+    SideBySide,
+}
+
 pub struct TuiApp {
     pub original_content: String,
     pub new_content: String,
+    pub view_mode: ViewMode,
     pub editing: bool,
     pub accepted: bool,
     pub entities: Vec<String>,
@@ -142,6 +149,7 @@ impl TuiApp {
         Self {
             original_content: original,
             new_content: patched,
+            view_mode: ViewMode::Stacked,
             editing: false,
             accepted: false,
             entities: vec!["(no entities)".to_string()],
@@ -152,6 +160,53 @@ impl TuiApp {
         }
     }
 
+    fn draw_side_by_side(&self, f: &mut Frame) {
+        let area = f.area();
+        let vert = Layout::default()
+            .direction(Direction::Vertical)
+            .margin(0)
+            .constraints([Constraint::Min(3), Constraint::Length(4)])
+            .split(area);
+        let top = vert[0];
+        let bottom = vert[1];
+
+        let horiz = Layout::default()
+            .direction(Direction::Horizontal)
+            .margin(0)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(top);
+
+        let left_block = Block::default()
+            .borders(Borders::ALL)
+            .title(" Original ")
+            .title_alignment(Alignment::Center);
+        let left = Paragraph::new(self.original_content.as_str())
+            .block(left_block)
+            .wrap(Wrap { trim: true });
+        f.render_widget(left, horiz[0]);
+
+        let right_block = Block::default()
+            .borders(Borders::ALL)
+            .title(" Patched ")
+            .title_alignment(Alignment::Center);
+        let right = Paragraph::new(self.new_content.as_str())
+            .block(right_block)
+            .wrap(Wrap { trim: true });
+        f.render_widget(right, horiz[1]);
+
+        let help = Paragraph::new("Press 's' to toggle stacked view.")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(help, bottom);
+    }
+}
+
+pub fn show_diff(original: &str, patched: &str) -> Result<bool> {
+    let mut app = TuiApp::new(original.to_string(), patched.to_string());
+    app.run()
+}
+
+impl TuiApp {
     pub fn run(&mut self) -> Result<bool> {
         let hook = panic::take_hook();
         panic::set_hook(Box::new(move |info| {
@@ -203,6 +258,13 @@ impl TuiApp {
                         continue;
                     }
                     match key.code {
+                        KeyCode::Char('s') | KeyCode::Char('S') => {
+                            self.view_mode = if self.view_mode == ViewMode::Stacked {
+                                ViewMode::SideBySide
+                            } else {
+                                ViewMode::Stacked
+                            };
+                        }
                         KeyCode::Char('y') | KeyCode::Char('Y') => {
                             if self.editing {
                                 self.editing = false;
@@ -226,18 +288,6 @@ impl TuiApp {
                             self.collecting_comment = true;
                             self.current_comment.clear();
                         }
-                        KeyCode::Char('[') if !self.editing => {
-                            if self.current_entity > 0 {
-                                self.current_entity -= 1;
-                            }
-                        }
-                        KeyCode::Char(']') if !self.editing => {
-                            if self.current_entity + 1 < self.entities.len() {
-                                self.current_entity += 1;
-                            }
-                        }
-                        KeyCode::Tab => {}
-                        KeyCode::Up | KeyCode::Down | KeyCode::PageUp | KeyCode::PageDown => {}
                         _ => {}
                     }
                 }
@@ -246,6 +296,10 @@ impl TuiApp {
     }
 
     fn ui(&self, f: &mut Frame) {
+        if self.view_mode == ViewMode::SideBySide {
+            self.draw_side_by_side(f);
+            return;
+        }
         let area = f.area();
         let vert = Layout::default()
             .direction(Direction::Vertical)
@@ -310,29 +364,15 @@ impl TuiApp {
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                format!(
-                    " [[/]] Entity ({}/{}) ",
-                    self.current_entity + 1,
-                    self.entities.len()
-                ),
-                Style::default().fg(Color::White),
+                " [S] Side‑by‑side ",
+                Style::default()
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]);
-        let mut help_lines = vec![help_first];
-        if !self.comments.is_empty() {
-            help_lines.push(Line::from(vec![Span::styled(
-                format!(" Comments: {}", self.comments.join("; ")),
-                Style::default().fg(Color::Cyan),
-            )]));
-        }
-        let help = Paragraph::new(help_lines)
+        let help = Paragraph::new(help_first)
             .block(Block::default().borders(Borders::ALL))
             .alignment(Alignment::Center);
         f.render_widget(help, bottom);
     }
-}
-
-pub fn show_diff(original: &str, patched: &str) -> Result<bool> {
-    let mut app = TuiApp::new(original.to_string(), patched.to_string());
-    app.run()
 }
