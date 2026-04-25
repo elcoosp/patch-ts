@@ -99,6 +99,53 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
         }
     }
     if patched != original {
+        // Run post‑patch verification if --verify is set
+        if args.verify {
+            let lang_str = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            let verification = crate::verify::verify_patch(
+                file_path,
+                &patched,
+                &original,
+                lang_str,
+                args.compile_timeout,
+                args.verify_test.as_deref(),
+            ).unwrap_or_else(|_| crate::verify::VerificationResult {
+                syntax: None,
+                lsp: None,
+                compile: None,
+                tests: None,
+                all_passed: false,
+            });
+
+            if !verification.all_passed {
+                // Rollback
+                std::fs::write(file_path, &original)?;
+                let recall_ctx = crate::recall::generate_recall_context(
+                    file_path,
+                    args.line.unwrap_or(1),
+                    args.old.as_deref().unwrap_or(""),
+                    args.new.as_deref().unwrap_or(""),
+                    "E006",
+                    Some("Verification failed"),
+                    5,
+                    &mut *lang,
+                    false, 2.5, false,
+                ).unwrap_or_else(|_| panic!("Failed to generate recall"));
+
+                if args.json {
+                    let output = serde_json::json!({
+                        "patch_applied": false,
+                        "verification": verification,
+                        "recall_id": recall_ctx.recall_id
+                    });
+                    println!("{}", serde_json::to_string_pretty(&output)?);
+                } else {
+                    eprintln!("Patch verification failed. Rollback applied.");
+                    eprintln!("Recall ID: {}", recall_ctx.recall_id);
+                }
+                anyhow::bail!("Post‑patch verification failed");
+            }
+        }
         let manager = HistoryManager::new();
         manager.save(&file_path.to_string_lossy(), &original, &patched)?;
     }

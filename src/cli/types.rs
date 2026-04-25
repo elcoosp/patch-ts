@@ -280,6 +280,10 @@ pub struct PatchArgs {
     #[arg(long)] pub model: Option<String>,
     #[arg(long)] pub no_provenance: bool,
     #[arg(long)] pub validate_first: bool,
+    #[arg(long)]
+    pub verify: bool,
+    #[arg(long)]
+    pub verify_test: Option<String>,
 }
 
 #[derive(Parser, Debug)]

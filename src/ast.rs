@@ -131,6 +131,29 @@ pub trait Language {
     fn diagnostic_message(&self, error: &DelimiterError) -> String;
     fn find_symbol_node(&self, result: &ParseResult, name: &str) -> Option<(usize, usize)>;
     fn find_all_entities(&self, _result: &ParseResult) -> Vec<Entity> { vec![] }
+    /// Return byte range of the body (between { }) of a named entity.
+    fn entity_body_range(&self, result: &ParseResult, name: &str) -> Option<(usize, usize)> {
+        let (start, end) = self.find_symbol_node(result, name)?;
+        // Default: return body between first '{' and matching '}'
+        let source = &result.text()[start..end];
+        let open = source.find('{')?;
+        let mut stack = 1;
+        let mut close = open + 1;
+        while close < source.len() && stack > 0 {
+            match source.as_bytes()[close] {
+                b'{' => stack += 1,
+                b'}' => stack -= 1,
+                _ => {}
+            }
+            close += 1;
+        }
+        if stack == 0 {
+            Some((start + open + 1, start + close))
+        } else {
+            None
+        }
+    }
+
 }
 
 pub(crate) fn find_delimiter_errors_via_ast(root: Node, index: &LineIndex) -> Vec<DelimiterError> {

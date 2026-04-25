@@ -56,3 +56,4 @@ pub mod watch;
 pub mod word_diff;
 
 pub use cli::run;
+pub mod verify;
