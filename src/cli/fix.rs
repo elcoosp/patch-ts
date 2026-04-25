@@ -28,7 +28,8 @@ pub fn handle_fix(args: FixArgs) -> anyhow::Result<()> {
             symbol: None, url: None, git_commit: None, no_strip_fence: false,
             no_compile_check: false, compile_timeout: 30, no_sanitize: false, no_ellipsis: false,
             uniqueness_weight: 0.2, strict_whitespace: false, cross_file: false, agent: None, model: None,
-            no_provenance: true
+            no_provenance: true,
+            validate_first: false,
         };
         super::patch::apply_patch_to_file(Path::new(target_file), &patch_args)?;
         println!("Fix applied to {}", target_file);

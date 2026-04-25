@@ -27,6 +27,7 @@ pub fn handle_evolve(args: EvolveArgs) -> Result<()> {
             no_sanitize: false, no_ellipsis: false, uniqueness_weight: best.uniqueness_weight,
             strict_whitespace: false, cross_file: false, agent: None, model: None,
             no_provenance: true,
+        validate_first: false,
         };
         super::patch::apply_patch_to_file(file_path, &patch_args)?;
         println!("Evolutionary patch applied to {}", args.file);

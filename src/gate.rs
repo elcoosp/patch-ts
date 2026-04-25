@@ -196,3 +196,88 @@ fn gate_regression(_file_path: &Path, _old_content: &str, _new_content: &str) ->
 fn gate_style(_file_path: &Path, _old_content: &str, _new_content: &str) -> Result<StageResult> {
     Ok(StageResult { name: "style".to_string(), passed: true, details: "Style checks skipped (stub)".to_string() })
 }
+
+fn gate_owasp_tool_poisoning(_file_path: &Path, _old_content: &str, new_content: &str) -> Result<StageResult> {
+    let threats = crate::security::scan_for_threats(
+        new_content,
+        &[crate::security::OwaspThreat::ToolPoisoning],
+    );
+    let passed = threats.is_empty();
+    Ok(StageResult {
+        name: "owasp-tool-poisoning".to_string(),
+        passed,
+        details: if passed {
+            "No tool poisoning patterns detected".to_string()
+        } else {
+            format!("{} pattern(s) detected: {}",
+                threats.len(),
+                threats.iter().map(|t| t.description).collect::<Vec<_>>().join(", "))
+        },
+    })
+}
+
+fn gate_owasp_prompt_injection(file_path: &Path, _old_content: &str, new_content: &str) -> Result<StageResult> {
+    let content = std::fs::read_to_string(file_path).unwrap_or_default();
+    let combined = format!("{}\n{}", content, new_content);
+    let threats = crate::security::scan_for_threats(
+        &combined,
+        &[crate::security::OwaspThreat::PromptInjection],
+    );
+    let passed = threats.is_empty();
+    Ok(StageResult {
+        name: "owasp-prompt-injection".to_string(),
+        passed,
+        details: if passed {
+            "No prompt injection patterns detected".to_string()
+        } else {
+            format!("{} pattern(s) detected: {}",
+                threats.len(),
+                threats.iter().map(|t| t.description).collect::<Vec<_>>().join(", "))
+        },
+    })
+}
+
+fn gate_owasp_supply_chain(file_path: &Path, old_content: &str, new_content: &str) -> Result<StageResult> {
+    let imports_before: Vec<&str> = old_content.lines()
+        .filter(|l| crate::security::scan_for_threats(l, &[crate::security::OwaspThreat::SupplyChain]).len() > 0)
+        .collect();
+    let imports_after: Vec<&str> = new_content.lines()
+        .filter(|l| crate::security::scan_for_threats(l, &[crate::security::OwaspThreat::SupplyChain]).len() > 0)
+        .collect();
+
+    let new_imports: Vec<&&str> = imports_after.iter().filter(|l| !imports_before.contains(l)).collect();
+    let passed = new_imports.is_empty() || imports_after.len() <= imports_before.len();
+
+    // If new imports were added, try to run a dependency audit
+    let mut audit_details = String::new();
+    if !new_imports.is_empty() {
+        let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let (audit_cmd, audit_args) = match ext {
+            "rs" => ("cargo", vec!["audit"]),
+            _ => return Ok(StageResult {
+                name: "owasp-supply-chain".to_string(),
+                passed: false,
+                details: format!("{} new import(s) detected. Run dependency audit manually.", new_imports.len()),
+            }),
+        };
+        if let Ok(output) = std::process::Command::new(audit_cmd).args(&audit_args).output() {
+            if output.status.success() {
+                audit_details = "dependency audit passed".to_string();
+            } else {
+                audit_details = "dependency audit found vulnerabilities".to_string();
+            }
+        } else {
+            audit_details = "dependency audit tool not found".to_string();
+        }
+    }
+
+    Ok(StageResult {
+        name: "owasp-supply-chain".to_string(),
+        passed,
+        details: if passed {
+            "No new imports detected or audit passed".to_string()
+        } else {
+            format!("{} new import(s) detected. {}", new_imports.len(), audit_details)
+        },
+    })
+}

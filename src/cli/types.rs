@@ -31,12 +31,13 @@ pub enum Command {
     Key(KeyArgs),
     Heal(HealArgs),
     Recall(RecallArgs),
+    Mcp,
+    McpHttp(McpHttpArgs),
+    McpGateway(McpGatewayArgs),
     Undo,
     Redo,
     History,
     Lsp,
-    Mcp,
-    McpHttp(McpHttpArgs),
     AdaptThreshold,
     AdaptStrategy,
 }
@@ -47,6 +48,16 @@ pub struct AttestArgs {
     #[arg(long)] pub output: Option<String>,
     #[arg(long)] pub json: bool,
     #[arg(long)] pub cra_report: bool,
+}
+
+#[derive(Parser, Debug)]
+pub struct McpGatewayArgs {
+    #[arg(long, default_value = "9090")]
+    pub port: u16,
+    #[arg(long, default_value = "policy.toml")]
+    pub policy: String,
+    #[arg(long)]
+    pub auth_token: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -111,6 +122,8 @@ pub struct GateArgs {
     #[arg(long, default_value = "30")] pub compile_timeout: u64,
     #[arg(long)] pub parallel: bool,
     #[arg(long)] pub markdown: bool,
+    #[arg(long)] pub lsp_command: Option<String>,
+    #[arg(long)] pub lsp_args: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -266,6 +279,7 @@ pub struct PatchArgs {
     #[arg(long)] pub agent: Option<String>,
     #[arg(long)] pub model: Option<String>,
     #[arg(long)] pub no_provenance: bool,
+    #[arg(long)] pub validate_first: bool,
 }
 
 #[derive(Parser, Debug)]

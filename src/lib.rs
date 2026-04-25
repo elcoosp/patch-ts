@@ -57,3 +57,5 @@ pub mod session;
 // PATCH-ME: heal module
 // PATCH-ME: lsp_client module
 pub mod lsp_client;
+pub mod security;
+pub mod mcp_gateway;

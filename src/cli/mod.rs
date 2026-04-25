@@ -53,6 +53,7 @@ pub fn run() -> Result<()> {
         Command::Lsp => lsp::handle_lsp(),
         Command::Mcp => mcp::handle_mcp(),
         Command::McpHttp(args) => mcp::handle_mcp_http(args),
+        Command::McpGateway(args) => mcp::handle_mcp_gateway(args),
         Command::AdaptThreshold => adapt::handle_adapt_threshold(),
         Command::AdaptStrategy => adapt::handle_adapt_strategy(),
     };
