@@ -3,7 +3,7 @@
 
 **Tree‑sitter‑backed universal patching CLI for AI agents**
 
-![Version](https://img.shields.io/badge/version-1.12.0-blue) ![Rust](https://img.shields.io/badge/rust-2021%20edition-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-1.16.0-blue) ![Rust](https://img.shields.io/badge/rust-2021%20edition-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 **patch‑ts** is a blazing‑fast, multi‑language code patching tool powered by [tree‑sitter](https://tree-sitter.github.io/tree-sitter/).  
 It applies AI‑generated changes to 16+ programming languages, validates syntax, runs security audits, and tracks every operation cryptographically – all from a single binary.  
@@ -13,22 +13,24 @@ Whether you’re an AI agent (MCP, LSP) or a human developer, patch‑ts gives y
 
 ## ✨ Features
 
-- 🧠 **AI‑first design** – Built for LLM agents: fuzzy matching, heuristics, structured action spaces, MCP integration.
+- 🧠 **AI‑first design** – Built for LLM agents: smart matching, structured action spaces, token‑efficient recall, MCP integration.
 - 🌳 **Tree‑sitter powered** – AST‑aware patching ensures syntax correctness for Rust, TypeScript, Python, Go, Java, and more.
 - 🔍 **Smart matching** – Cascade of exact, anchor, anchor‑pair, ellipsis, Jaccard similarity, and normalized Levenshtein strategies.
-- 🧩 **Balance & repair** – Detect and fix unbalanced delimiters via minimum‑cost search.
-- 🛡️ **Validation gate** – Multi‑stage pipeline: syntax → compile → cross‑file → semantic diff → security audit → benchmark gates.
+- 🛠️ **Balance & heal** – Fix unbalanced delimiters; intelligent heuristic repair with history‑guided strategies.
+- 🛡️ **Validation gate** – Multi‑stage pipeline: syntax → compile → cross‑file → semdiff → security audit → OWASP → adversarial → LSP.
 - 📜 **SCITT provenance** – Ed25519‑signed, hash‑chained audit trail; EU Cyber Resilience Act (CRA) attestations.
 - 🎨 **Syntax highlighting** – Colour‑coded output with selectable themes (dark, light, deuteranopia, highcontrast).
 - 📝 **Word‑level diff** – See exactly which tokens changed; gutter indicators ( `+` / `-` / `~` ) in CLI and TUI.
 - 🖥️ **Interactive TUI** – Side‑by‑side original vs patched view, syntax highlighting, comment collection.
 - 📊 **Scorecards** – Multi‑dimensional reliability score with colour‑gradient bars.
 - 📄 **Markdown reports** – Gate and review results as structured Markdown for PR comments.
-- 🔌 **MCP server** – Full Model Context Protocol support (stdio + HTTP) with 8 tools and 12 resources.
+- 🔌 **MCP server** – Full Model Context Protocol support (stdio + HTTP) with 9 tools and 13 resources.
 - 🧬 **Entity patching** – Target functions/classes by name (`--symbol` or `entity replace`).
 - 🔑 **Key management** – Generate and rotate Ed25519 keys for SCITT signing.
 - 🌐 **Cross‑file impact** – Accurate call‑graph analysis via tree‑sitter queries.
-- ⚡ **High performance** – Parallel multi‑file processing with Rayon.
+- 🔁 **Recall mode** – Token‑efficient retry context generation (entropy, minimal, session, token budget).
+- 🛂 **MCP Gateway** – Policy‑based tool allow‑listing for agentic security.
+- ⚡ **High performance** – Parallel multi‑file processing with Rayon; incremental parsing support.
 - 🔄 **Atomic writes** – Patches are applied atomically with optional `.bak` backups.
 
 ---
@@ -62,7 +64,7 @@ Grab the latest from [GitHub Releases](https://github.com/elcoosp/patch-ts/relea
 # Replace a line with fuzzy matching
 patch-ts patch --file src/main.rs --line 10 --old "let port = 3000;" --new "let port = 8080;"
 
-# Apply a full unified diff from stdin
+# Apply a unified diff from stdin
 pbpaste | patch-ts patch --file src/lib.rs --diff
 
 # Balance unbalanced delimiters
@@ -72,7 +74,7 @@ patch-ts balance --file src/broken.rs --apply
 patch-ts explain --file src/main.rs --line 42
 
 # Run a multi‑stage validation gate
-patch-ts gate --file src/main.rs --stages syntax,compile,vuln-check --json
+patch-ts gate --file src/main.rs --stages syntax,compile,lsp --json
 ```
 
 ---
@@ -116,20 +118,19 @@ patch-ts patch --files "src/**/*.rs" --line 10 --old "foo" --new "bar"
 patch-ts patch --file <FILE> --symbol my_function --new "fn my_function() { ... }"
 patch-ts patch --file <FILE> --delete 5 --expect "old line"
 patch-ts patch --file <FILE> --after 5 --content "new line\nnew line 2"
-patch-ts patch --file <FILE> --marker PATCH-ME --new "replaced content"
 ```
 
-**Key options**  
-`--fuzz <N>` (search radius, default 5)  
-`--confidence <0.0‑1.0>` (match confidence threshold, default 0.9)  
-`--fix‑indent` (auto‑apply original indentation style)  
-`--cross‑file` (check for callers after rename)  
-`--dry‑run` (print patched result without writing)  
-`--force` (skip AST validation)  
-`--no‑backup` (skip `.bak` creation)  
-`--json` (machine‑readable output)  
-`--theme <THEME>` (syntax highlighting theme: dark, light, deuteranopia, highcontrast)  
-`--word‑diff` (enable word‑level diff – default on)
+**Key options**
+- `--fuzz <N>` – search radius (default 5)
+- `--confidence <0.0‑1.0>` – match confidence threshold (default 0.9)
+- `--fix‑indent` – auto‑apply original indentation style
+- `--cross‑file` – check for callers after rename
+- `--dry‑run` – print patched result without writing
+- `--force` – skip AST validation
+- `--no‑backup` – skip `.bak` creation
+- `--json` – machine‑readable output
+- `--theme <THEME>` – syntax highlighting theme (dark, light, deuteranopia, highcontrast)
+- `--validate‑first` – reject patch if it would introduce syntax errors
 
 ---
 
@@ -141,12 +142,29 @@ Fix unbalanced delimiters.
 patch-ts balance --file <FILE> --apply
 patch-ts balance --files "*.rs" --apply
 patch-ts balance --file <FILE> --function my_func  # scoped to function (Rust only)
-patch-ts balance --file <FILE> --plugin plugin.wasm  # use a WASM plugin
+patch-ts balance --file <FILE> --plugin plugin.wasm
 ```
 
 **Options**  
-`--max‑cost <N>` (maximum repair cost, default 10)  
-`--json` (output list of insert/delete actions)
+`--max‑cost <N>` – maximum repair cost (default 10)  
+`--json` – output list of insert/delete actions
+
+---
+
+### `heal` (v1.15.0)
+
+Intelligent delimiter repair with heuristic‑guided search.
+
+```bash
+patch-ts heal --file broken.rs --heuristic language-aware --apply
+patch-ts heal --file broken.rs --heuristic history-guided --max-cost 15 --json
+```
+
+**Heuristics:**  
+`language-aware` (default) – tree‑sitter error node analysis  
+`cost-weighted` – penalty‑based cost function  
+`history-guided` – reuse successful past repairs  
+`balanced` – fallback BFS (same as `balance`)
 
 ---
 
@@ -208,11 +226,16 @@ Run a multi‑stage validation gate.
 
 ```bash
 patch-ts gate --file src/main.rs --stages syntax,compile,cross‑file,semdiff,vuln‑check --json
-patch-ts gate --file src/main.rs --markdown  # output a Markdown table
+patch-ts gate --file src/main.rs --markdown
+patch-ts gate --file src/main.rs --stages lsp --lsp-command /usr/local/bin/rust-analyzer
+patch-ts gate --file src/main.rs --stages adversarial,owasp-tool-poisoning,owasp-prompt-injection
 ```
 
 **Available stages**  
-`syntax`, `compile`, `cross‑file`, `semdiff`, `test`, `swe‑bench`, `vuln‑check`, `regression`, `style`
+`syntax`, `compile`, `cross‑file`, `semdiff`, `test`, `swe‑bench`, `vuln‑check`, `regression`, `style`, `lsp`, `adversarial`, `owasp‑tool‑poisoning`, `owasp‑prompt‑injection`, `owasp‑supply‑chain`
+
+**LSP stage** detects type errors and semantic warnings using real language servers.  
+**Shadow Editor** (built into `--validate‑first` and LSP gate) diffs diagnostics before/after patch – if new errors appear, the patch is rejected.
 
 ---
 
@@ -313,97 +336,31 @@ patch-ts key generate --output keypair.json
 
 ---
 
-### `recall`
+### `recall` (v1.13+)
 
 Generate a token‑efficient retry context when a patch fails.
-Instead of re‑reading the entire file, provides the minimal context an AI agent needs to fix the error.
 
 ```bash
 patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --json
 patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --prompt
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --entropy --pre-fetch
+patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --minimal --max-tokens 500
 ```
 
 **Options**
-`--error-message <MSG>` – the full error message from the failed patch
-`--context-lines <N>` – number of surrounding lines to include (default: 5)
-`--json` – output structured JSON for agent consumption
-`--prompt` – output a ready‑to‑use LLM prompt
-`--agent <NAME>`, `--model <NAME>` – record provenance for the recall
-
-The recall output includes:
-- The attempted edit (old → new)
-- The error code and message
-- Surrounding source context with line numbers
-- Suggested retry strategies based on the error type
-- Recall history statistics for similar failures
+- `--error-message <MSG>` – full error message from the failed patch
+- `--context-lines <N>` – number of surrounding lines (default 5)
+- `--json` / `--prompt` – output format
+- `--entropy` – select only high information‑density lines
+- `--entropy-threshold <FLOAT>` – minimum entropy score (default 2.5)
+- `--pre-fetch` – include callers/callees and containing function body
+- `--minimal` – ultra‑compact output (error, line, best strategy)
+- `--session <ID>` – track retries across calls; strategies re‑ranked by past success
+- `--max-tokens <N>` – enforce hard token budget with intelligent truncation
 
 Token savings compared to full file re‑read: **~86–90%** for typical retries.
 
-
-### Enhanced Recall Options (v1.14.0)
-
-The `recall` command now includes smarter context selection and session management:
-
-```bash
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --entropy --pre-fetch
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --minimal
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --session fix-port --max-tokens 500
-```
-
-**New flags**
-- `--entropy` – select only the highest information-density lines for context.
-- `--entropy-threshold <FLOAT>` – minimum entropy score to include a line (default: 2.5).
-- `--pre-fetch` – include callers/callees from the call graph and the containing function body.
-- `--minimal` – output a compact JSON with only error, line, and the single best strategy.
-- `--session <ID>` – track retries across multiple calls; strategies are re‑ranked based on past success.
-- `--max-tokens <N>` – enforce a hard token budget; output is intelligently truncated.
-
-
-### Enhanced Recall Options (v1.14.0)
-
-The `recall` command now includes smarter context selection and session management:
-
-```bash
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --entropy --pre-fetch
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --minimal
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --session fix-port --max-tokens 500
-```
-
-**New flags**
-- `--entropy` – select only the highest information-density lines for context.
-- `--entropy-threshold <FLOAT>` – minimum entropy score to include a line (default: 2.5).
-- `--pre-fetch` – include callers/callees from the call graph and the containing function body.
-- `--minimal` – output a compact JSON with only error, line, and the single best strategy.
-- `--session <ID>` – track retries across multiple calls; strategies are re‑ranked based on past success.
-- `--max-tokens <N>` – enforce a hard token budget; output is intelligently truncated.
-
-
-### `recall`
-
-Generate a token‑efficient retry context when a patch fails.
-Instead of re‑reading the entire file, provides the minimal context an AI agent needs to fix the error.
-
-```bash
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --json
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --prompt
-```
-
-**Options**
-`--error-message <MSG>` – the full error message from the failed patch
-`--context-lines <N>` – number of surrounding lines to include (default: 5)
-`--json` – output structured JSON for agent consumption
-`--prompt` – output a ready‑to‑use LLM prompt
-`--agent <NAME>`, `--model <NAME>` – record provenance for the recall
-
-The recall output includes:
-- The attempted edit (old → new)
-- The error code and message
-- Surrounding source context with line numbers
-- Suggested retry strategies based on the error type
-- Recall history statistics for similar failures
-
-Token savings compared to full file re‑read: **~86–90%** for typical retries.
-
+---
 
 ### `watch`
 
@@ -425,14 +382,17 @@ patch-ts lsp
 
 ---
 
-### `mcp` / `mcp‑http`
+### `mcp` / `mcp‑http` / `mcp‑gateway`
 
-Start the MCP server (stdio or HTTP).
+Start the MCP server.
 
 ```bash
 patch-ts mcp                          # stdio
 patch-ts mcp-http --port 9090        # HTTP
+patch-ts mcp-gateway --port 9090 --policy policy.toml  # policy‑enforced
 ```
+
+**MCP Gateway** (v1.16.0) enforces a policy file that can limit allowed tools, file paths, patch sizes, and run OWASP security checks.
 
 ---
 
@@ -440,11 +400,11 @@ patch-ts mcp-http --port 9090        # HTTP
 
 patch‑ts exposes a comprehensive [Model Context Protocol](https://modelcontextprotocol.io/) server.
 
-**Tools (8):**  
-`patch`, `balance`, `explain`, `impact`, `semdiff`, `entity_list`, `entity_replace`, `gate`
+**Tools (9):**  
+`patch`, `balance`, `explain`, `impact`, `semdiff`, `entity_list`, `entity_replace`, `gate`, `recall`
 
-**Resources (12):**  
-`patch-ts://symbols/main.rs`, `history`, `provenance`, `dashboard`, `review`,  
+**Resources (13):**  
+`symbols/main.rs`, `history`, `provenance`, `dashboard`, `review`,  
 `entities/{file}`, `entity/{file}/{symbol}`, `impact/{symbol}`, `semdiff/{file}`,  
 `coverage/{file}`, `gate/{file}`, `score/{file}`, `provenance/{file}`
 
@@ -465,7 +425,7 @@ patch‑ts exposes a comprehensive [Model Context Protocol](https://modelcontext
 - Ed25519 key generation and rotation.
 - Hash‑chained provenance log (`.patch‑ts/provenance.jsonl`).
 - CRA‑ready attestation with SBOM.
-- Optional transparency service submission.
+- OWASP security gates: tool poisoning, prompt injection, supply chain.
 
 ---
 
@@ -478,12 +438,12 @@ patch‑ts exposes a comprehensive [Model Context Protocol](https://modelcontext
 
 ---
 
-## 🚧 Upcoming (v1.13)
+## 🚧 Upcoming (v1.17+)
 
-- **WASM build target** for browser‑based agents.
-- **Workspace architecture** (split into multiple crates for faster compiles).
-- **Enterprise SCITT** (key rotation, Sigstore integration, transparency service).
-- **LSP integration** as a gate stage.
+- **Persistent project index** for instant symbol queries (beyond current `index`).
+- **Predictive context engine** – `patch‑ts context` for minimal, high‑value agent context.
+- **WASM productionisation** – npm package for browser‑based usage.
+- **LSP client improvements** – support for more language servers, Shadow Editor in MCP tools.
 
 ---
 
