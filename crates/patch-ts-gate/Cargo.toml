@@ -1,0 +1,8 @@
+[package]
+name = "patch-ts-gate"
+version = "1.17.0"
+edition = "2021"
+description = "gate re‑export crate"
+
+[dependencies]
+patch-ts = { path = "../.." }

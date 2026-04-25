@@ -25,7 +25,9 @@ pub mod indent;
 pub mod invariant;
 pub mod knowledge;
 pub mod lsp;
+pub mod lsp_client;
 pub mod mcp;
+pub mod mcp_gateway;
 pub mod mcp_http;
 pub mod marker;
 pub mod matching;
@@ -43,7 +45,9 @@ pub mod sanitize;
 pub mod score;
 pub mod scorecard;
 pub mod scitt;
+pub mod security;
 pub mod semdiff;
+pub mod session;
 pub mod spec_validate;
 pub mod symbols;
 pub mod tui;
@@ -52,10 +56,3 @@ pub mod watch;
 pub mod word_diff;
 
 pub use cli::run;
-pub mod session;
-// PATCH-ME: heal module
-// PATCH-ME: heal module
-// PATCH-ME: lsp_client module
-pub mod lsp_client;
-pub mod security;
-pub mod mcp_gateway;

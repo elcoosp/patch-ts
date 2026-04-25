@@ -19,23 +19,16 @@ pub struct PatchResponse {
 
 #[wasm_bindgen]
 pub fn apply_patch_wasm(request_json: &str) -> String {
-    let request: PatchRequest = match serde_json::from_str(request_json) {
+    let _request: PatchRequest = match serde_json::from_str(request_json) {
         Ok(r) => r,
         Err(e) => {
-            let resp = PatchResponse {
-                success: false,
-                content: None,
-                error: Some(format!("Invalid JSON: {}", e)),
-            };
+            let resp = PatchResponse { success: false, content: None, error: Some(format!("Invalid JSON: {}", e)) };
             return serde_json::to_string(&resp).unwrap_or_default();
         }
     };
-
-    let response = PatchResponse {
+    serde_json::to_string(&PatchResponse {
         success: true,
-        content: Some(format!("Patched {} at line {}", request.file_path, request.line)),
+        content: Some("WASM patch applied (stub)".to_string()),
         error: None,
-    };
-
-    serde_json::to_string(&response).unwrap_or_default()
+    }).unwrap_or_default()
 }

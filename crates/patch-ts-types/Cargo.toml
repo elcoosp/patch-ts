@@ -1,0 +1,8 @@
+[package]
+name = "patch-ts-types"
+version = "1.17.0"
+edition = "2021"
+description = "types re‑export crate"
+
+[dependencies]
+patch-ts = { path = "../.." }

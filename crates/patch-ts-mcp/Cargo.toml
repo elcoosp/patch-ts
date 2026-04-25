@@ -1,0 +1,8 @@
+[package]
+name = "patch-ts-mcp"
+version = "1.17.0"
+edition = "2021"
+description = "mcp re‑export crate"
+
+[dependencies]
+patch-ts = { path = "../.." }
