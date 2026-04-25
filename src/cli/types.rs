@@ -252,6 +252,8 @@ pub struct PatchArgs {
     #[arg(long, default_value = "0.9")] pub confidence: f64,
     #[arg(long)] pub fix_indent: bool,
     #[arg(long, conflicts_with = "line")] pub diff: bool,
+    #[arg(long)]
+    pub fix_headers: bool,
     #[arg(long, conflicts_with_all = ["line","diff"])] pub delete: Option<usize>,
     #[arg(long, requires = "delete")] pub expect: Option<String>,
     #[arg(long, conflicts_with_all = ["line","diff","delete"])] pub after: Option<usize>,

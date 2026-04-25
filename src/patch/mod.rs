@@ -323,3 +323,4 @@ pub fn full_file_replace(file_path: &Path, old_text: &str, new_text: &str, dry_r
     }
     Ok(())
 }
+pub mod hunk_fix;

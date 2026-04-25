@@ -52,10 +52,22 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     let original = std::fs::read_to_string(file_path)?;
     if let Some(url) = &args.url {
         let diff_text = crate::remote::fetch_http(url)?;
-        apply_unified_diff(file_path, &diff_text, options.clone())?;
+                    let diff_text = if args.fix_headers {
+                let original = std::fs::read_to_string(file_path).unwrap_or_default();
+                crate::patch::hunk_fix::fix_hunk_headers(&diff_text, &original, args.fuzz).unwrap_or(diff_text)
+            } else {
+                diff_text
+            };
+            apply_unified_diff(file_path, &diff_text, options.clone())?;
     } else if let Some(commit) = &args.git_commit {
         let diff_text = crate::remote::fetch_git_commit(".", commit)?;
-        apply_unified_diff(file_path, &diff_text, options.clone())?;
+                    let diff_text = if args.fix_headers {
+                let original = std::fs::read_to_string(file_path).unwrap_or_default();
+                crate::patch::hunk_fix::fix_hunk_headers(&diff_text, &original, args.fuzz).unwrap_or(diff_text)
+            } else {
+                diff_text
+            };
+            apply_unified_diff(file_path, &diff_text, options.clone())?;
     } else if args.diff {
         let mut buffer = String::new();
         std::io::stdin().read_to_string(&mut buffer)?;
@@ -64,7 +76,13 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
                 content.to_string()
             } else { buffer }
         } else { buffer };
-        apply_unified_diff(file_path, &diff_text, options.clone())?;
+                    let diff_text = if args.fix_headers {
+                let original = std::fs::read_to_string(file_path).unwrap_or_default();
+                crate::patch::hunk_fix::fix_hunk_headers(&diff_text, &original, args.fuzz).unwrap_or(diff_text)
+            } else {
+                diff_text
+            };
+            apply_unified_diff(file_path, &diff_text, options.clone())?;
     } else if let Some(line) = args.delete {
         let expected = args.expect.as_deref().ok_or_else(|| anyhow::anyhow!("--expect required"))?;
         delete_line(file_path, line, expected, options.clone())?;

@@ -27,6 +27,7 @@ pub fn handle_evolve(args: EvolveArgs) -> Result<()> {
             no_sanitize: false, no_ellipsis: false, uniqueness_weight: best.uniqueness_weight,
             strict_whitespace: false, cross_file: false, agent: None, model: None,
             no_provenance: true,
+            fix_headers: false,
             verify: false,
             verify_test: None,
         validate_first: false,
