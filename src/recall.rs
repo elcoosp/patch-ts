@@ -258,7 +258,7 @@ pub fn generate_recall_context_with_session(
     Ok(ctx)
 }
 
-pub fn build_minimal_context(file_path: &Path, line: usize, error_code: &str, error_message: Option<&str>, file_content: &str) -> MinimalRecallContext {
+pub fn build_minimal_context(_file_path: &Path, line: usize, error_code: &str, error_message: Option<&str>, file_content: &str) -> MinimalRecallContext {
     let target_line = file_content.lines().nth(line.saturating_sub(1)).unwrap_or("").to_string();
     let strategies = get_strategies(error_code, error_message.unwrap_or(""));
     let best_strategy = strategies.first().map(|s| s.description.clone()).unwrap_or_else(|| "Manual inspection".to_string());

@@ -55,3 +55,5 @@ pub use cli::run;
 pub mod session;
 // PATCH-ME: heal module
 // PATCH-ME: heal module
+// PATCH-ME: lsp_client module
+pub mod lsp_client;
