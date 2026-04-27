@@ -325,6 +325,12 @@ pub struct PatchArgs {
     pub verify_test: Option<String>,
     #[arg(long, requires = "symbol")]
     pub entity_body: bool,
+
+    #[arg(long)]
+    pub preserve_comments: bool,
+
+    #[arg(long, requires = "preserve_comments")]
+    pub preserve_orphan_comments: bool,
 }
 
 #[derive(Parser, Debug)]

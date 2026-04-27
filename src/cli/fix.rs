@@ -34,6 +34,8 @@ pub fn handle_fix(args: FixArgs) -> anyhow::Result<()> {
             verify_test: None,
             validate_first: false,
             entity_body: false,
+            preserve_comments: false,
+            preserve_orphan_comments: false,
         };
         super::patch::apply_patch_to_file(Path::new(target_file), &patch_args)?;
         println!("Fix applied to {}", target_file);

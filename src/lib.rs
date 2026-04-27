@@ -3,6 +3,7 @@ pub mod ast;
 pub mod attest;
 pub mod audit;
 pub mod cli;
+pub mod comment_preserve;
 pub mod compile;
 pub mod config;
 pub mod coverage;

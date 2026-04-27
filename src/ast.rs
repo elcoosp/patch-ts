@@ -121,6 +121,25 @@ pub struct Entity {
     pub signature: String,
 }
 
+/// Anchor describing which entity a comment belongs to
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CommentAnchor {
+    pub entity_kind: String,
+    pub entity_name: Option<String>,
+    pub relative_offset: isize,
+}
+
+/// A comment extracted from source code, with its anchor
+#[derive(Debug, Clone)]
+pub struct ExtractedComment {
+    pub text: String,
+    pub start_byte: usize,
+    pub end_byte: usize,
+    pub is_doc: bool,
+    pub is_inline: bool,
+    pub anchor: Option<CommentAnchor>,
+}
+
 pub trait Language {
     fn parse(&mut self, source: &str) -> ParseResult;
     fn is_valid(&self, result: &ParseResult) -> bool;
@@ -154,6 +173,111 @@ pub trait Language {
         }
     }
 
+    /// Extract all comment nodes with their anchor entities.
+    fn extract_comments(&self, result: &ParseResult) -> Vec<ExtractedComment> {
+        let root = result.tree.root_node();
+        let mut raw = Vec::new();
+        collect_comments(root, &result.source, &mut raw);
+        raw.into_iter().filter_map(|c| {
+            let node = find_node_at_byte_range(root, c.start_byte, c.end_byte);
+            let anchor = node
+                .and_then(|n| self.find_enclosing_entity(n, result))
+                .map(|(entity_start, _, kind, name)| CommentAnchor {
+                    entity_kind: kind,
+                    entity_name: name,
+                    relative_offset: c.start_byte as isize - entity_start as isize,
+                });
+            Some(ExtractedComment { anchor, ..c })
+        }).collect()
+    }
+
+    /// Resolve comment anchors after extraction (default: already done above).
+    fn resolve_comment_anchors(&self, _result: &ParseResult, _comments: &mut [ExtractedComment]) {}
+
+    /// Walk up to find the nearest named entity node.
+    fn find_enclosing_entity(&self, node: Node<'_>, result: &ParseResult) -> Option<(usize, usize, String, Option<String>)> {
+        let kinds = [
+            "function_item", "function_declaration", "function_definition",
+            "method_definition", "method_declaration",
+            "struct_item", "enum_item", "trait_item", "impl_item",
+            "class_declaration", "class_definition",
+            "interface_declaration", "module", "namespace_declaration",
+        ];
+        let mut cur = node;
+        loop {
+            let k = cur.kind();
+            if kinds.contains(&k) {
+                let name = cur.child_by_field_name("name")
+                    .and_then(|n| n.utf8_text(result.text().as_bytes()).ok())
+                    .map(|s| s.to_string());
+                return Some((cur.start_byte(), cur.end_byte(), k.to_string(), name));
+            }
+            match cur.parent() {
+                Some(p) => cur = p,
+                None => return None,
+            }
+        }
+    }
+}
+
+fn find_node_at_byte_range<'a>(node: Node<'a>, start: usize, end: usize) -> Option<Node<'a>> {
+    if node.start_byte() <= start && node.end_byte() >= end {
+        let mut cursor = node.walk();
+        for i in 0..node.child_count() {
+            if let Some(child) = node.child(i as u32) {
+                if let Some(f) = find_node_at_byte_range(child, start, end) { return Some(f); }
+            }
+        }
+        Some(node)
+    } else { None }
+}
+
+fn collect_comments(node: tree_sitter::Node, source: &str, out: &mut Vec<ExtractedComment>) {
+    let k = node.kind();
+    if k.contains("comment") && !k.contains("string") {
+        if let Ok(t) = node.utf8_text(source.as_bytes()) {
+            let is_doc = t.trim_start().starts_with("///") || t.trim_start().starts_with("//!") || t.trim_start().starts_with("/**");
+            let row = node.start_position().row;
+            let is_inline = source.lines().nth(row).map(|l| {
+                l[..node.start_position().column].chars().any(|c| !c.is_whitespace())
+            }).unwrap_or(false);
+            out.push(ExtractedComment {
+                text: t.to_string(),
+                start_byte: node.start_byte(),
+                end_byte: node.end_byte(),
+                is_doc,
+                is_inline,
+                anchor: None,
+            });
+        }
+    }
+    for i in 0..node.child_count() {
+        if let Some(c) = node.child(i as u32) { collect_comments(c, source, out); }
+    }
+}
+
+fn collect_comments_filtered(node: tree_sitter::Node, result: &ParseResult, out: &mut Vec<ExtractedComment>) {
+    let k = node.kind();
+    let is_comment = k == "line_comment" || k == "block_comment";
+    let is_inline = is_comment && result.text().lines().nth(node.start_position().row).map(|l| {
+        l[..node.start_position().column].chars().any(|c| !c.is_whitespace())
+    }).unwrap_or(false);
+    if is_comment {
+        if let Ok(t) = node.utf8_text(result.text().as_bytes()) {
+            let is_doc = t.trim_start().starts_with("///") || t.trim_start().starts_with("//!") || t.trim_start().starts_with("/**");
+            out.push(ExtractedComment {
+                text: t.to_string(),
+                start_byte: node.start_byte(),
+                end_byte: node.end_byte(),
+                is_doc,
+                is_inline,
+                anchor: None,
+            });
+        }
+    }
+    for i in 0..node.child_count() {
+        if let Some(c) = node.child(i as u32) { collect_comments_filtered(c, result, out); }
+    }
 }
 
 pub(crate) fn find_delimiter_errors_via_ast(root: Node, index: &LineIndex) -> Vec<DelimiterError> {
@@ -161,7 +285,11 @@ pub(crate) fn find_delimiter_errors_via_ast(root: Node, index: &LineIndex) -> Ve
     let mut stack: Vec<(char, usize, Option<String>)> = Vec::new();
     traverse_for_delimiters(root, &mut stack, &mut errors, index);
     for (expected, open_byte, parent_kind) in stack {
-        errors.push(DelimiterError::Missing { expected, insert_at: Span::from_byte_range(open_byte, open_byte + 1, index), parent_kind });
+        errors.push(DelimiterError::Missing {
+            expected,
+            insert_at: Span::from_byte_range(open_byte, open_byte + 1, index),
+            parent_kind,
+        });
     }
     errors
 }
@@ -194,7 +322,6 @@ fn has_error_node(node: Node) -> bool {
     for child in node.children(&mut node.walk()) { if has_error_node(child) { return true; } }
     false
 }
-
 
 macro_rules! impl_language {
     ($name:ident, $lang:expr) => {
@@ -251,9 +378,7 @@ impl Language for RustLanguage {
         let index = LineIndex::new(source);
         ParseResult { tree, source: source.to_string(), index }
     }
-    fn is_valid(&self, result: &ParseResult) -> bool {
-        !has_error_node(result.tree.root_node())
-    }
+    fn is_valid(&self, result: &ParseResult) -> bool { !has_error_node(result.tree.root_node()) }
     fn find_extra_delimiter(&self, _: &ParseResult) -> Option<Span> { None }
     fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> {
         let node = result.node_at_line(line)?;
@@ -330,6 +455,41 @@ impl Language for RustLanguage {
             }
         }
         entities
+    }
+
+    fn extract_comments(&self, result: &ParseResult) -> Vec<ExtractedComment> {
+        let root = result.tree.root_node();
+        let mut raw = Vec::new();
+        collect_comments_filtered(root, result, &mut raw);
+        raw.into_iter().filter_map(|c| {
+            let node = find_node_at_byte_range(root, c.start_byte, c.end_byte);
+            let (es, _, k, n) = self.find_enclosing_entity(node?, result)?;
+            Some(ExtractedComment {
+                anchor: Some(CommentAnchor {
+                    entity_kind: k,
+                    entity_name: n,
+                    relative_offset: c.start_byte as isize - es as isize,
+                }),
+                ..c
+            })
+        }).collect()
+    }
+
+    fn resolve_comment_anchors(&self, _result: &ParseResult, _comments: &mut [ExtractedComment]) {}
+
+    fn find_enclosing_entity(&self, node: Node<'_>, result: &ParseResult) -> Option<(usize, usize, String, Option<String>)> {
+        let kinds = ["function_item","struct_item","enum_item","trait_item","impl_item","static_item","const_item","type_item"];
+        let mut cur = node;
+        loop {
+            let k = cur.kind();
+            if kinds.contains(&k) {
+                let name = cur.child_by_field_name("name")
+                    .and_then(|n| n.utf8_text(result.text().as_bytes()).ok())
+                    .map(|s| s.to_string());
+                return Some((cur.start_byte(), cur.end_byte(), k.to_string(), name));
+            }
+            match cur.parent() { Some(p) => cur = p, None => return None }
+        }
     }
 }
 impl_language!(PythonLanguage, tree_sitter_python::LANGUAGE);

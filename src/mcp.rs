@@ -209,6 +209,8 @@ fn handle_patch_tool(args: Value) -> Value {
         fix_indent: false, validate_first: false, verify: false,
         verify_test: None, fix_headers: false,
         entity_body: false,
+        preserve_comments: false,
+        preserve_orphan_comments: false,
     };
     let path = PathBuf::from(file);
     match apply_patch_to_file(&path, &cli_args) {

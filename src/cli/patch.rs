@@ -89,7 +89,41 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     } else if let Some(after) = args.after {
         let content = args.content.as_deref().ok_or_else(|| anyhow::anyhow!("--content required"))?;
         insert_lines(file_path, after, content, options.clone())?;
-    } else if let (Some(old), Some(new)) = (args.old.as_deref(), args.new.as_deref()) {
+    } else if let (None, Some(old), Some(new)) = (args.line, args.old.as_deref(), args.new.as_deref()) {
+        let file_content = std::fs::read_to_string(file_path)?;
+        let (byte_range, relaxed) = match crate::matching_flex::find_content_block(&file_content, old) {
+            Some(r) => (r, false),
+            None => {
+                match crate::matching_flex::find_content_block_relaxed(&file_content, old) {
+                    Some(r) => (r, true),
+                    None => anyhow::bail!(
+                        "Could not find a match for the provided old content. Use a more unique search block or try --symbol."
+                    ),
+                }
+            }
+        };
+        if relaxed {
+            eprintln!("Warning: exact match not found; used relaxed matching.");
+        }
+        let mut patched = file_content.clone();
+        crate::patch::replace_byte_range(&mut patched, byte_range, new);
+        if !args.dry_run {
+            std::fs::write(file_path, &patched)?;
+        }
+        if !args.force {
+            let mut lang = crate::ast::detect_language(file_path)?;
+            let parse_result = lang.parse(&patched);
+            if !lang.is_valid(&parse_result) {
+                std::fs::write(file_path, &file_content)?;
+                anyhow::bail!(
+                    "Content‑based patch introduced syntax error. 
+                     Use --force to bypass or correct the replacement content."
+                );
+            }
+        }
+        return Ok(());
+    } else if let (Some(line), Some(old), Some(new)) = (args.line, args.old.as_deref(), args.new.as_deref()) {
+        apply_literal_patch(file_path, line, old, new, &mut options, &mut *lang)?;
         let line = args.line.ok_or_else(|| anyhow::anyhow!("--line required"))?;
         apply_literal_patch(file_path, line, old, new, &mut options, &mut *lang)?;
     } else if let (None, Some(old), Some(new)) = (args.line, args.old.as_deref(), args.new.as_deref()) {
