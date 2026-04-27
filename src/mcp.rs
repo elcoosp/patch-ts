@@ -59,6 +59,26 @@ fn default_entropy_threshold() -> f64 { 2.5 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct GateParams { pub file: String, pub stages: Option<String> }
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct NodeReplaceParams {
+    pub file: String,
+    pub query: String,
+    pub new: String,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct NodeActionParams {
+    pub file: String,
+    pub query: String,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct NodeInsertParams {
+    pub file: String,
+    pub query: String,
+    pub text: String,
+}
+
 
 fn to_schema<T: schemars::JsonSchema>() -> Value { let schema = schemars::schema_for!(T); serde_json::to_value(schema).unwrap_or(Value::Null) }
 
@@ -85,6 +105,9 @@ pub fn run_mcp() -> Result<()> {
                     json!({"name":"entity_list","description":"List named entities in a file","inputSchema": to_schema::<EntityListParams>()}),
                     json!({"name":"entity_replace","description":"Replace entity by name","inputSchema": to_schema::<EntityReplaceParams>()}),
                     json!({"name":"gate","description":"Run validation gate","inputSchema": to_schema::<GateParams>()}),
+                    json!({"name":"replace_node","description":"Replace an AST node using a tree‑sitter query","inputSchema": to_schema::<NodeReplaceParams>()}),
+                    json!({"name":"delete_node","description":"Delete an AST node using a tree‑sitter query","inputSchema": to_schema::<NodeActionParams>()}),
+                    json!({"name":"insert_before_node","description":"Insert text before an AST node","inputSchema": to_schema::<NodeInsertParams>()}),
                     json!({"name":"recall","description":"Generate retry context when a patch fails","inputSchema": to_schema::<RecallParams>()}),
                 ];
                 json!({"jsonrpc":"2.0","id":id,"result":{"tools":tools}})
@@ -103,6 +126,9 @@ pub fn run_mcp() -> Result<()> {
                     "entity_replace" => handle_entity_replace_tool(arguments),
                     "gate" => handle_gate_tool(arguments),
                     "recall" => handle_recall_tool(arguments),
+                    "replace_node" => handle_replace_node_tool(arguments),
+                    "delete_node" => handle_delete_node_tool(arguments),
+                    "insert_before_node" => handle_insert_before_node_tool(arguments),
                     _ => json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":format!("Unknown tool: {}", tool_name)}}),
                 }
             },
@@ -161,8 +187,36 @@ pub fn run_mcp() -> Result<()> {
     Ok(())
 }
 
-fn handle_patch_tool(args: Value) -> Value { let file = args.get("file").and_then(|v| v.as_str()).unwrap_or(""); let line = args.get("line").and_then(|v| v.as_u64()).unwrap_or(1) as usize; let old = args.get("old").and_then(|v| v.as_str()).unwrap_or(""); let new = args.get("new").and_then(|v| v.as_str()).unwrap_or(""); let fuzz = args.get("fuzz").and_then(|v| v.as_u64()).unwrap_or(5) as usize; let confidence = args.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.9); let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false); let force = args.get("force").and_then(|v| v.as_bool()).unwrap_or(false); let cli_args = PatchArgs { file: Some(file.to_string()), files: None, line: Some(line), fuzz, old: Some(old.to_string()), new: Some(new.to_string()), confidence, diff: false, delete: None, expect: None, after: None, content: None, dry_run, force, no_backup: false, json: false, no_auto_repair: false, marker: None, serial: false, plugin: None, allow_all_paths: false, symbol: None, url: None, git_commit: None, no_strip_fence: false, no_compile_check: true, compile_timeout: 30, no_sanitize: false, no_ellipsis: false, uniqueness_weight: 0.2, strict_whitespace: false, cross_file: false, agent: None, model: None, no_provenance: true, fix_indent: false, validate_first: false, verify: false, verify_test: None, fix_headers: false,
-    }; let path = PathBuf::from(file); match apply_patch_to_file(&path, &cli_args) { Ok(()) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Patch applied successfully."}]}}), Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}}) } }
+fn handle_patch_tool(args: Value) -> Value {
+    let file = args.get("file").and_then(|v| v.as_str()).unwrap_or("");
+    let line = args.get("line").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
+    let old = args.get("old").and_then(|v| v.as_str()).unwrap_or("");
+    let new = args.get("new").and_then(|v| v.as_str()).unwrap_or("");
+    let fuzz = args.get("fuzz").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
+    let confidence = args.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.9);
+    let dry_run = args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
+    let force = args.get("force").and_then(|v| v.as_bool()).unwrap_or(false);
+    let cli_args = PatchArgs {
+        file: Some(file.to_string()), files: None, line: Some(line), fuzz,
+        old: Some(old.to_string()), new: Some(new.to_string()), confidence,
+        diff: false, delete: None, expect: None, after: None, content: None,
+        dry_run, force, no_backup: false, json: false, no_auto_repair: false,
+        marker: None, serial: false, plugin: None, allow_all_paths: false,
+        symbol: None, url: None, git_commit: None, no_strip_fence: false,
+        no_compile_check: true, compile_timeout: 30, no_sanitize: false,
+        no_ellipsis: false, uniqueness_weight: 0.2, strict_whitespace: false,
+        cross_file: false, agent: None, model: None, no_provenance: true,
+        fix_indent: false, validate_first: false, verify: false,
+        verify_test: None, fix_headers: false,
+        entity_body: false,
+    };
+    let path = PathBuf::from(file);
+    match apply_patch_to_file(&path, &cli_args) {
+        Ok(()) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Patch applied successfully."}]}}),
+        Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}})
+    }
+}
+
 fn handle_balance_tool(args: Value) -> Value { let file = args.get("file").and_then(|v| v.as_str()).unwrap_or(""); let apply = args.get("apply").and_then(|v| v.as_bool()).unwrap_or(false); let max_cost = args.get("max_cost").and_then(|v| v.as_u64()).unwrap_or(10) as usize; let cli_args = BalanceArgs { file: Some(file.to_string()), files: None, function: None, apply, no_backup: false, max_cost, json: false, serial: false, plugin: None, allow_all_paths: false }; let path = PathBuf::from(file); match apply_balance_to_file(&path, &cli_args) { Ok(()) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Balance completed."}]}}), Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}}) } }
 fn handle_explain_tool(args: Value) -> Value { let file = args.get("file").and_then(|v| v.as_str()).unwrap_or(""); let line = args.get("line").and_then(|v| v.as_u64()).unwrap_or(1) as usize; let mut lang = RustLanguage::new(); match crate::repair::explain_error(&PathBuf::from(file), line, false, &mut lang) { Ok(Some(diag)) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":diag.details}]}}), Ok(None) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"No syntax error at this line."}]}}), Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}}) } }
 fn handle_impact_tool(args: Value) -> Value { let symbol = args.get("symbol").and_then(|v| v.as_str()).unwrap_or(""); let recursive = args.get("recursive").and_then(|v| v.as_bool()).unwrap_or(false); let graph = crate::crossfile::build_project_call_graph(std::path::Path::new(".")); let edges = if recursive { graph.all_callers_recursive(symbol) } else { graph.callers_of(symbol) }; let result: Vec<_> = edges.iter().map(|e| json!({"file": e.caller_file, "line": e.caller_line, "column": e.caller_column})).collect(); json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":serde_json::to_string(&result).unwrap_or_default()}]}}) }
@@ -182,9 +236,6 @@ fn handle_recall_tool(args: Value) -> Value {
     let entropy = args.get("entropy").and_then(|v| v.as_bool()).unwrap_or(false);
     let entropy_threshold = args.get("entropy_threshold").and_then(|v| v.as_f64()).unwrap_or(2.5);
     let pre_fetch = args.get("pre_fetch").and_then(|v| v.as_bool()).unwrap_or(false);
-    let entropy = args.get("entropy").and_then(|v| v.as_bool()).unwrap_or(false);
-    let entropy_threshold = args.get("entropy_threshold").and_then(|v| v.as_f64()).unwrap_or(2.5);
-    let pre_fetch = args.get("pre_fetch").and_then(|v| v.as_bool()).unwrap_or(false);
 
     let file_path = std::path::PathBuf::from(file);
     if let Ok(mut lang) = crate::ast::detect_language(&file_path) {
@@ -197,6 +248,47 @@ fn handle_recall_tool(args: Value) -> Value {
                 let result = serde_json::to_string(&ctx).unwrap_or_default();
                 json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":result}]}})
             }
+            Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}})
+        }
+    } else {
+        json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Unsupported file"}],"isError":true}})
+    }
+}
+
+fn handle_replace_node_tool(args: Value) -> Value {
+    let file = args.get("file").and_then(|v| v.as_str()).unwrap_or("main.rs");
+    let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
+    let new = args.get("new").and_then(|v| v.as_str()).unwrap_or("");
+    if let Ok(mut lang) = crate::ast::detect_language(std::path::Path::new(file)) {
+        match crate::patch::node_patch::apply_node_replace(std::path::Path::new(file), query, new, &mut *lang) {
+            Ok(()) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Node replaced."}]}}),
+            Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}})
+        }
+    } else {
+        json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Unsupported file"}],"isError":true}})
+    }
+}
+
+fn handle_delete_node_tool(args: Value) -> Value {
+    let file = args.get("file").and_then(|v| v.as_str()).unwrap_or("main.rs");
+    let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
+    if let Ok(mut lang) = crate::ast::detect_language(std::path::Path::new(file)) {
+        match crate::patch::node_patch::apply_node_delete(std::path::Path::new(file), query, &mut *lang) {
+            Ok(()) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Node deleted."}]}}),
+            Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}})
+        }
+    } else {
+        json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Unsupported file"}],"isError":true}})
+    }
+}
+
+fn handle_insert_before_node_tool(args: Value) -> Value {
+    let file = args.get("file").and_then(|v| v.as_str()).unwrap_or("main.rs");
+    let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
+    let text = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
+    if let Ok(mut lang) = crate::ast::detect_language(std::path::Path::new(file)) {
+        match crate::patch::node_patch::apply_node_insert_before(std::path::Path::new(file), query, text, &mut *lang) {
+            Ok(()) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":"Text inserted before node."}]}}),
             Err(e) => json!({"jsonrpc":"2.0","id":null,"result":{"content":[{"type":"text","text":format!("Error: {}",e)}],"isError":true}})
         }
     } else {

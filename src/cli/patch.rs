@@ -52,22 +52,22 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     let original = std::fs::read_to_string(file_path)?;
     if let Some(url) = &args.url {
         let diff_text = crate::remote::fetch_http(url)?;
-                    let diff_text = if args.fix_headers {
-                let original = std::fs::read_to_string(file_path).unwrap_or_default();
-                crate::patch::hunk_fix::fix_hunk_headers(&diff_text, &original, args.fuzz).unwrap_or(diff_text)
-            } else {
-                diff_text
-            };
-            apply_unified_diff(file_path, &diff_text, options.clone())?;
+        let diff_text = if args.fix_headers {
+            let original = std::fs::read_to_string(file_path).unwrap_or_default();
+            crate::patch::hunk_fix::fix_hunk_headers(&diff_text, &original, args.fuzz).unwrap_or(diff_text)
+        } else {
+            diff_text
+        };
+        apply_unified_diff(file_path, &diff_text, options.clone())?;
     } else if let Some(commit) = &args.git_commit {
         let diff_text = crate::remote::fetch_git_commit(".", commit)?;
-                    let diff_text = if args.fix_headers {
-                let original = std::fs::read_to_string(file_path).unwrap_or_default();
-                crate::patch::hunk_fix::fix_hunk_headers(&diff_text, &original, args.fuzz).unwrap_or(diff_text)
-            } else {
-                diff_text
-            };
-            apply_unified_diff(file_path, &diff_text, options.clone())?;
+        let diff_text = if args.fix_headers {
+            let original = std::fs::read_to_string(file_path).unwrap_or_default();
+            crate::patch::hunk_fix::fix_hunk_headers(&diff_text, &original, args.fuzz).unwrap_or(diff_text)
+        } else {
+            diff_text
+        };
+        apply_unified_diff(file_path, &diff_text, options.clone())?;
     } else if args.diff {
         let mut buffer = String::new();
         std::io::stdin().read_to_string(&mut buffer)?;
@@ -76,13 +76,13 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
                 content.to_string()
             } else { buffer }
         } else { buffer };
-                    let diff_text = if args.fix_headers {
-                let original = std::fs::read_to_string(file_path).unwrap_or_default();
-                crate::patch::hunk_fix::fix_hunk_headers(&diff_text, &original, args.fuzz).unwrap_or(diff_text)
-            } else {
-                diff_text
-            };
-            apply_unified_diff(file_path, &diff_text, options.clone())?;
+        let diff_text = if args.fix_headers {
+            let original = std::fs::read_to_string(file_path).unwrap_or_default();
+            crate::patch::hunk_fix::fix_hunk_headers(&diff_text, &original, args.fuzz).unwrap_or(diff_text)
+        } else {
+            diff_text
+        };
+        apply_unified_diff(file_path, &diff_text, options.clone())?;
     } else if let Some(line) = args.delete {
         let expected = args.expect.as_deref().ok_or_else(|| anyhow::anyhow!("--expect required"))?;
         delete_line(file_path, line, expected, options.clone())?;
@@ -92,14 +92,57 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
     } else if let (Some(old), Some(new)) = (args.old.as_deref(), args.new.as_deref()) {
         let line = args.line.ok_or_else(|| anyhow::anyhow!("--line required"))?;
         apply_literal_patch(file_path, line, old, new, &mut options, &mut *lang)?;
+    } else if let (None, Some(old), Some(new)) = (args.line, args.old.as_deref(), args.new.as_deref()) {
+        // Content‑based replacement (no line number required)
+        let file_content = std::fs::read_to_string(file_path)?;
+        let (byte_range, relaxed) = match crate::matching_flex::find_content_block(&file_content, old) {
+            Some(r) => (r, false),
+            None => {
+                match crate::matching_flex::find_content_block_relaxed(&file_content, old) {
+                    Some(r) => (r, true),
+                    None => anyhow::bail!(
+                        "Could not find a match for the provided old content. Use a more unique search block or try --symbol."
+                    ),
+                }
+            }
+        };
+        if relaxed {
+            eprintln!("Warning: exact match not found; used relaxed matching.");
+        }
+        let mut patched = file_content.clone();
+        crate::patch::replace_byte_range(&mut patched, byte_range, new);
+        if !args.dry_run {
+            std::fs::write(file_path, &patched)?;
+        }
+        if !args.force {
+            let mut lang = crate::ast::detect_language(file_path)?;
+            let parse_result = lang.parse(&patched);
+            if !lang.is_valid(&parse_result) {
+                std::fs::write(file_path, &file_content)?;
+                anyhow::bail!(
+                    "Content‑based patch introduced syntax error. \
+                     Use --force to bypass or correct the replacement content."
+                );
+            }
+        }
+        return Ok(());
     } else if let Some(line) = args.line {
         let mut buffer = String::new();
         std::io::stdin().read_to_string(&mut buffer)?;
-        let (expected, new) = super::heredoc::parse_heredoc(&buffer, args.no_strip_fence, args.no_sanitize)?;
+        // Detect SEARCH/REPLACE block input vs standard heredoc
+        let (expected, new) = if buffer.trim().starts_with("<<< SEARCH") {
+            super::heritage::parse_search_replace_block(&buffer)?
+        } else {
+            super::heredoc::parse_heredoc(&buffer, args.no_strip_fence, args.no_sanitize)?
+        };
         apply_literal_patch(file_path, line, &expected, &new, &mut options, &mut *lang)?;
     } else if let Some(symbol) = args.symbol.as_deref() {
         let new = args.new.as_deref().ok_or_else(|| anyhow::anyhow!("--new required"))?;
-        apply_symbol_patch(file_path, symbol, new, &options, &mut *lang)?;
+        if args.entity_body {
+            crate::patch::apply_symbol_body_patch(file_path, symbol, new, &options, &mut *lang)?;
+        } else {
+            apply_symbol_patch(file_path, symbol, new, &options, &mut *lang)?;
+        }
     } else if let Some(marker) = args.marker.as_deref() {
         let new = args.new.as_deref().or(args.content.as_deref()).ok_or_else(|| anyhow::anyhow!("--new or --content required"))?;
         apply_marker_patch(file_path, marker, new, options.clone())?;
@@ -117,7 +160,6 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
         }
     }
     if patched != original {
-        // Run post‑patch verification if --verify is set
         if args.verify {
             let lang_str = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
             let verification = crate::verify::verify_patch(
@@ -136,7 +178,6 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
             });
 
             if !verification.all_passed {
-                // Rollback
                 std::fs::write(file_path, &original)?;
                 let recall_ctx = crate::recall::generate_recall_context(
                     file_path,
@@ -262,13 +303,10 @@ fn print_colored_diff(original: &str, patched: &str) {
         if old == new {
             println!("  {}", old);
         } else if old.is_empty() {
-            // Inserted line
             println!("+ {}", colorize_word_changes(&word_diff("", new).1));
         } else if new.is_empty() {
-            // Deleted line
             println!("- {}", colorize_word_changes(&word_diff(old, "").0));
         } else {
-            // Modified line: show old removed words and new added words
             let (old_changes, new_changes) = word_diff(old, new);
             print!("~ ");
             for w in &old_changes {

@@ -9,6 +9,8 @@ pub struct MatchResult {
     pub confidence: f64,
     pub strategy: String,
     pub uniqueness_score: f64,
+    /// Byte range (start, end) of the matched text within the original content.
+    pub match_byte_range: (usize, usize),
 }
 
 fn normalize_line(s: &str) -> String {
@@ -82,7 +84,22 @@ fn try_anchor_pair(
     None
 }
 
-fn try_ellipsis_match(lines: &[&str], expected: &str, fuzz_radius: usize) -> Option<MatchResult> {
+/// Compute the byte range of a matched line within the original content.
+///
+/// `lines` contains `&str` slices that point directly into `content`.
+/// The byte offset is computed via pointer arithmetic.
+fn line_byte_range(lines: &[&str], idx: usize, content: &str) -> (usize, usize) {
+    let line = lines[idx];
+    let start = line.as_ptr() as usize - content.as_ptr() as usize;
+    (start, start + line.len())
+}
+
+fn try_ellipsis_match(
+    lines: &[&str],
+    expected: &str,
+    fuzz_radius: usize,
+    content: &str,
+) -> Option<MatchResult> {
     let expected_lines: Vec<&str> = expected.lines().collect();
     let ellipsis_pos = expected_lines.iter().position(|l| l.trim() == "...")?;
     let before: Vec<&str> = expected_lines[..ellipsis_pos].to_vec();
@@ -120,12 +137,14 @@ fn try_ellipsis_match(lines: &[&str], expected: &str, fuzz_radius: usize) -> Opt
                 }
             }
             if after_matches {
+                let byte_range = line_byte_range(lines, i, content);
                 return Some(MatchResult {
                     index: i,
                     score: 1.0,
                     confidence: 0.95,
                     strategy: "ellipsis".to_string(),
                     uniqueness_score: 1.0,
+                    match_byte_range: byte_range,
                 });
             }
         }
@@ -140,6 +159,7 @@ pub fn cascade_match(
     fuzz_radius: usize,
     similarity_threshold: f64,
     uniqueness_weight: f64,
+    content: &str,
 ) -> Result<MatchResult> {
     let target_idx = target_line.saturating_sub(1);
     let start = target_idx.saturating_sub(fuzz_radius);
@@ -161,6 +181,7 @@ pub fn cascade_match(
             confidence: 1.0,
             strategy: "exact".to_string(),
             uniqueness_score: uniqueness,
+            match_byte_range: line_byte_range(lines, target_idx, content),
         });
     }
 
@@ -173,6 +194,7 @@ pub fn cascade_match(
                 confidence: 1.0,
                 strategy: "anchor".to_string(),
                 uniqueness_score: uniqueness,
+                match_byte_range: line_byte_range(lines, i, content),
             });
         }
     }
@@ -191,13 +213,14 @@ pub fn cascade_match(
                 confidence: 0.98,
                 strategy: "anchor_pair".to_string(),
                 uniqueness_score: uniqueness,
+                match_byte_range: line_byte_range(lines, idx, content),
             });
         }
     }
 
     // 3. Ellipsis pattern (if applicable)
     if expected.contains("\n...\n") || expected.lines().any(|l| l.trim() == "...") {
-        if let Some(m) = try_ellipsis_match(lines, expected, fuzz_radius) {
+        if let Some(m) = try_ellipsis_match(lines, expected, fuzz_radius, content) {
             return Ok(m);
         }
     }
@@ -227,6 +250,7 @@ pub fn cascade_match(
             confidence: best_conf,
             strategy: "similarity".to_string(),
             uniqueness_score: uniqueness,
+            match_byte_range: line_byte_range(lines, best_idx, content),
         });
     }
 
@@ -242,6 +266,7 @@ pub fn cascade_match(
                 confidence: score,
                 strategy: "fuzzy".to_string(),
                 uniqueness_score: uniqueness,
+                match_byte_range: line_byte_range(lines, i, content),
             });
         }
     }
@@ -260,6 +285,7 @@ pub fn fuzzy_match_line(
     fuzz_radius: usize,
     similarity_threshold: f64,
     uniqueness_weight: f64,
+    content: &str,
 ) -> Result<MatchResult> {
     cascade_match(
         lines,
@@ -268,6 +294,7 @@ pub fn fuzzy_match_line(
         fuzz_radius,
         similarity_threshold,
         uniqueness_weight,
+        content,
     )
 }
 
@@ -398,44 +425,45 @@ mod tests {
 
     #[test]
     fn test_ellipsis_match_simple() {
-        let lines = vec![
-            "fn main() {",
-            "    let x = 1;",
-            "    println!(\"{}\", x);",
-            "}",
-        ];
+        let content = "fn main() {\n    let x = 1;\n    println!(\"{}\", x);\n}\n";
+        let lines: Vec<&str> = content.lines().collect();
         let expected = "fn main() {\n...\n}";
-        let result = cascade_match(&lines, 0, expected, 2, 0.9, 0.2).unwrap();
+        let result = cascade_match(&lines, 0, expected, 2, 0.9, 0.2, content).unwrap();
         assert_eq!(result.strategy, "ellipsis");
     }
 
     #[test]
     fn test_anchor_pair_finds_match() {
-        let lines = vec![
-            "// comment",
-            "fn foo() {",
-            "    let x = 1;",
-            "}",
-            "fn bar() {",
-            "    let y = 2;",
-            "}",
-        ];
+        let content = "// comment\nfn foo() {\n    let x = 1;\n}\nfn bar() {\n    let y = 2;\n}\n";
+        let lines: Vec<&str> = content.lines().collect();
         let expected = "fn foo() {\n    let x = 1;\n}";
-        let result = cascade_match(&lines, 0, expected, 3, 0.9, 0.2).unwrap();
+        let result = cascade_match(&lines, 0, expected, 3, 0.9, 0.2, content).unwrap();
         assert!(["anchor", "anchor_pair"].contains(&result.strategy.as_str()));
     }
 
     #[test]
     fn test_exact_match() {
-        let lines = vec!["a", "b", "c"];
-        let result = cascade_match(&lines, 2, "b", 0, 0.9, 0.2).unwrap();
+        let content = "a\nb\nc\n";
+        let lines: Vec<&str> = content.lines().collect();
+        let result = cascade_match(&lines, 2, "b", 0, 0.9, 0.2, content).unwrap();
         assert_eq!(result.strategy, "exact");
     }
 
     #[test]
     fn test_no_match() {
-        let lines = vec!["apple", "banana"];
-        let result = cascade_match(&lines, 0, "orange", 2, 0.9, 0.2);
+        let content = "apple\nbanana\n";
+        let lines: Vec<&str> = content.lines().collect();
+        let result = cascade_match(&lines, 0, "orange", 2, 0.9, 0.2, content);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_byte_range_is_correct() {
+        let content = "line zero\nmatch me\nline two\n";
+        let lines: Vec<&str> = content.lines().collect();
+        let result = cascade_match(&lines, 2, "match me", 0, 0.9, 0.2, content).unwrap();
+        // "match me" starts at byte 10 (after "line zero\n")
+        assert_eq!(result.match_byte_range.0, 10);
+        assert_eq!(result.match_byte_range.1, 18); // 10 + 8 characters
     }
 }

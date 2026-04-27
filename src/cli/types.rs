@@ -245,7 +245,7 @@ pub struct RecallArgs {
 pub struct PatchArgs {
     #[arg(short, long, required_unless_present = "files")] pub file: Option<String>,
     #[arg(long, conflicts_with = "file")] pub files: Option<String>,
-    #[arg(short, long, required_unless_present_any = ["diff","delete","after","marker","url","git_commit"])] pub line: Option<usize>,
+    #[arg(short, long, required_unless_present_any = ["diff","delete","after","marker","url","git_commit", "symbol"])] pub line: Option<usize>,
     #[arg(short = 'z', long, default_value = "5")] pub fuzz: usize,
     #[arg(long)] pub old: Option<String>,
     #[arg(long)] pub new: Option<String>,
@@ -268,6 +268,7 @@ pub struct PatchArgs {
     #[arg(long)] pub plugin: Option<String>,
     #[arg(long)] pub allow_all_paths: bool,
     #[arg(long, conflicts_with_all = ["line","diff","delete","after","marker"])] pub symbol: Option<String>,
+    #[arg(long, requires = "symbol")] pub entity_body: bool,
     #[arg(long, conflicts_with_all = ["line","diff","delete","after","marker"])] pub url: Option<String>,
     #[arg(long, conflicts_with_all = ["line","diff","delete","after","marker"])] pub git_commit: Option<String>,
     #[arg(long)] pub no_strip_fence: bool,

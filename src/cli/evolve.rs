@@ -31,6 +31,7 @@ pub fn handle_evolve(args: EvolveArgs) -> Result<()> {
             verify: false,
             verify_test: None,
         validate_first: false,
+            entity_body: false,
         };
         super::patch::apply_patch_to_file(file_path, &patch_args)?;
         println!("Evolutionary patch applied to {}", args.file);

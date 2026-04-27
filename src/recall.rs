@@ -17,6 +17,7 @@ pub struct RecallContext {
     pub context: ContextInfo,
     pub strategies: Vec<StrategyInfo>,
     pub history: HistoryInfo,
+    pub strategy_used: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -233,6 +234,7 @@ pub fn generate_recall_context(
         context: ContextInfo { surrounding_lines, symbol, language: file_path.extension().and_then(|e| e.to_str()).unwrap_or("").to_string(), containing_body },
         strategies,
         history: HistoryInfo { similar_failures, suggested_approach },
+        strategy_used: None,
     })
 }
 
@@ -281,7 +283,6 @@ fn find_containing_symbol(_source: &str, _line: usize, _language: &mut dyn Langu
 
 fn find_containing_symbol_rich(source: &str, line: usize, language: &mut dyn Language) -> Option<(String, String)> {
     let (name, _) = find_containing_symbol(source, line, language)?;
-    // Parse first, then downcast
     let _parse_result = language.parse(source);
     if let Some(rust_lang) = language.as_any_mut().downcast_ref::<crate::ast::RustLanguage>() {
         let (start, end) = rust_lang.find_function_body_range(source, &name)?;
@@ -303,6 +304,36 @@ fn count_similar_failures(file_path: &Path, error_code: &str) -> usize {
             rec.get("file").and_then(|f| f.as_str()).map(|f| f.contains(file_name)).unwrap_or(false)
         } else { false }
     }).count()
+}
+
+/// Return the strategy with best historical success rate for an error code.
+pub fn get_best_strategy(error_code: &str) -> Option<String> {
+    let recall_file = std::path::PathBuf::from(".patch-ts/recall.jsonl");
+    if !recall_file.exists() {
+        return None;
+    }
+    let content = std::fs::read_to_string(&recall_file).unwrap_or_default();
+    let mut strategy_stats: std::collections::HashMap<String, (usize, usize)> = std::collections::HashMap::new();
+    for line in content.lines() {
+        if let Ok(rec) = serde_json::from_str::<serde_json::Value>(line) {
+            if rec.get("error_code").and_then(|e| e.as_str()) == Some(error_code) {
+                if let Some(strat) = rec.get("strategy_used").and_then(|s| s.as_str()) {
+                    let entry = strategy_stats.entry(strat.to_string()).or_insert((0, 0));
+                    entry.1 += 1;
+                    if rec.get("success").and_then(|v| v.as_bool()) == Some(true) {
+                        entry.0 += 1;
+                    }
+                }
+            }
+        }
+    }
+    strategy_stats.into_iter()
+        .max_by(|(_, (s1, t1)), (_, (s2, t2))| {
+            let r1 = if *t1 > 0 { *s1 as f64 / *t1 as f64 } else { 0.0 };
+            let r2 = if *t2 > 0 { *s2 as f64 / *t2 as f64 } else { 0.0 };
+            r1.partial_cmp(&r2).unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|(name, _)| name)
 }
 
 pub fn record_recall(recall_id: &str, file: &str, error_code: &str, success: bool, strategy_used: Option<&str>, agent: Option<&str>, model: Option<&str>) {

@@ -55,6 +55,9 @@ pub fn handle_recall(args: RecallArgs) -> Result<()> {
         println!("Recall id: {}", context.recall_id);
         println!("File: {}", args.file);
         println!("Error: {} - {}", context.error.code, context.error.message);
+        if let Some(best) = crate::recall::get_best_strategy(&args.error_code) {
+            println!("Best historical strategy for {}: {}", args.error_code, best);
+        }
         println!("Suggested strategies:");
         for s in &context.strategies { println!("  - {}: {}", s.name, s.description); }
     }

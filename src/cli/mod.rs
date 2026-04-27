@@ -5,6 +5,7 @@ pub mod provenance; pub mod gate; pub mod score; pub mod index; pub mod evolve; 
 pub mod attest; pub mod generate_tests; pub mod verify; pub mod watch; pub mod mcp; pub mod undo;
 pub mod lsp; pub mod adapt; pub mod trace_verify; pub mod heredoc; pub mod impact; pub mod entity;
 pub mod key; pub mod heal; pub mod recall;
+pub mod heritage;
 
 use anyhow::Result;
 use types::*;

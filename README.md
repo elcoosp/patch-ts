@@ -1,21 +1,25 @@
-```markdown
 # 🔧 patch‑ts
 
 **Tree‑sitter‑backed universal patching CLI for AI agents**
 
-![Version](https://img.shields.io/badge/version-1.17.0-blue) ![Rust](https://img.shields.io/badge/rust-2021%20edition-orange) ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-1.18.0-blue) ![Rust](https://img.shields.io/badge/rust-2021%20edition-orange) ![License](https://img.shields.io/badge/license-MIT-green)
 
 **patch‑ts** is a blazing‑fast, multi‑language code patching tool powered by [tree‑sitter](https://tree-sitter.github.io/tree-sitter/).  
 It applies AI‑generated changes to 16+ programming languages, validates syntax, runs security audits, and tracks every operation cryptographically – all from a single binary.  
-Whether you’re an AI agent (MCP, LSP) or a human developer, patch‑ts gives you safe, explainable, and visually rich code transformations.
+Designed for LLM agents, **patch‑ts** now supports **content‑based replacement** (no line number required), **SEARCH/REPLACE blocks**, **entity body patching**, **hunk‑fuzzy diff application**, **automatic search relaxation**, **AST‑node‑targeted MCP tools**, and **enhanced recall with strategy history**.
 
 ---
 
 ## ✨ Features
 
-- 🧠 **AI‑first design** – Built for LLM agents: smart matching, structured action spaces, token‑efficient recall, MCP integration.
+- 🧠 **AI‑first design** – Built for LLM agents: smart matching, content‑based patches, structured entity actions, token‑efficient recall, MCP integration.
 - 🌳 **Tree‑sitter powered** – AST‑aware patching ensures syntax correctness for Rust, TypeScript, Python, Go, Java, and more.
 - 🔍 **Smart matching** – Cascade of exact, anchor, anchor‑pair, ellipsis, Jaccard similarity, and normalized Levenshtein strategies.
+- 📄 **Content‑based replacement** – Patch without line numbers: provide the old block, and patch‑ts locates and replaces it.
+- 🔍 **SEARCH/REPLACE blocks** – Use the `<<< SEARCH … --- …` heredoc format for multi‑line replacements (no line numbers).
+- 🧬 **Entity patching** – Target functions/classes by name (`--symbol`); new `--entity-body` replaces only the body of an entity.
+- 🔄 **Hunk‑fuzzy diff** – Apply unified diffs even when line numbers are wrong; matches context lines against the file content.
+- ♻️ **Auto‑relaxation** – When an exact search fails, cascading fallbacks (whitespace normalization, comment stripping, Jaccard similarity) automatically retry.
 - 🛠️ **Balance & heal** – Fix unbalanced delimiters; intelligent heuristic repair with history‑guided strategies.
 - 🛡️ **Validation gate** – Multi‑stage pipeline: syntax → compile → cross‑file → semdiff → security audit → OWASP → adversarial → LSP.
 - 📜 **SCITT provenance** – Ed25519‑signed, hash‑chained audit trail; EU Cyber Resilience Act (CRA) attestations.
@@ -24,11 +28,10 @@ Whether you’re an AI agent (MCP, LSP) or a human developer, patch‑ts gives y
 - 🖥️ **Interactive TUI** – Side‑by‑side original vs patched view, syntax highlighting, comment collection.
 - 📊 **Scorecards** – Multi‑dimensional reliability score with colour‑gradient bars.
 - 📄 **Markdown reports** – Gate and review results as structured Markdown for PR comments.
-- 🔌 **MCP server** – Full Model Context Protocol support (stdio + HTTP) with 9 tools and 13 resources.
-- 🧬 **Entity patching** – Target functions/classes by name (`--symbol` or `entity replace`).
+- 🔌 **MCP server** – Full Model Context Protocol support (stdio + HTTP) with 12 tools and 13 resources.
 - 🔑 **Key management** – Generate and rotate Ed25519 keys for SCITT signing.
 - 🌐 **Cross‑file impact** – Accurate call‑graph analysis via tree‑sitter queries.
-- 🔁 **Recall mode** – Token‑efficient retry context generation (entropy, minimal, session, token budget).
+- 🔁 **Recall mode** – Token‑efficient retry context generation (entropy, minimal, session, token budget, strategy history).
 - 🛂 **MCP Gateway** – Policy‑based tool allow‑listing for agentic security.
 - ⚡ **High performance** – Parallel multi‑file processing with Rayon; incremental parsing support.
 - 🔄 **Atomic writes** – Patches are applied atomically with optional `.bak` backups.
@@ -64,7 +67,25 @@ Grab the latest from [GitHub Releases](https://github.com/elcoosp/patch-ts/relea
 # Replace a line with fuzzy matching
 patch-ts patch --file src/main.rs --line 10 --old "let port = 3000;" --new "let port = 8080;"
 
-# Apply a unified diff from stdin
+# Content‑based replacement (no line number required)
+patch-ts patch --file src/main.rs --old "fn old() { do_thing(); }" --new "fn old() { do_other(); }"
+
+# SEARCH/REPLACE block via heredoc
+patch-ts patch --file src/main.rs --line 1 << 'EOF'
+<<< SEARCH
+fn old() {
+    do_thing();
+}
+---
+fn old() {
+    do_other();
+}
+EOF
+
+# Replace only the body of a function (entity)
+patch-ts patch --file src/main.rs --symbol main --new "    let x = 42;\n    println!(\"{}\", x);\n" --entity-body
+
+# Apply a unified diff (hunk‑fuzzy – line numbers are ignored)
 pbpaste | patch-ts patch --file src/lib.rs --diff
 
 # Balance unbalanced delimiters
@@ -109,341 +130,153 @@ Unsupported files (`.toml`, `.json`, etc.) fall back to full‑file string repla
 
 ### `patch`
 
-Apply a source change using various strategies.
+Apply a source change using various strategies.  
+**New in v1.18:** Content‑based replacement, SEARCH/REPLACE blocks, entity body replacement, hunk‑fuzzy diff, auto‑relaxation.
 
+#### Traditional line‑based patch
 ```bash
 patch-ts patch --file <FILE> --line <N> --old "<EXPECTED>" --new "<REPLACEMENT>"
+```
+
+#### Content‑based replacement (no `--line` required)
+```bash
+patch-ts patch --file <FILE> --old "<SEARCH_BLOCK>" --new "<REPLACEMENT>"
+# The tool searches for SEARCH_BLOCK as a substring anywhere in the file.
+# If not found, it automatically tries relaxed matching (whitespace, comments, Jaccard).
+```
+
+#### SEARCH/REPLACE block (via stdin or heredoc)
+```bash
+patch-ts patch --file <FILE> --line <N> << 'EOF'
+<<< SEARCH
+<original code block>
+---
+<replacement code block>
+EOF
+# Note: --line is still required for the heredoc path (for compatibility);
+# the actual line number is ignored when using SEARCH/REPLACE format.
+```
+
+#### Entity (symbol) patching
+```bash
+patch-ts patch --file <FILE> --symbol <NAME> --new "<ENTITY_BODY>"
+# Replaces the entire entity (function, class, etc.) with the new text.
+```
+
+#### Entity body‑only replacement (new in v1.18)
+```bash
+patch-ts patch --file <FILE> --symbol <NAME> --new "<BODY>" --entity-body
+# Replaces only the body of the entity, keeping its signature and outer braces intact.
+```
+
+#### Unified diff with hunk‑fuzzy matching
+```bash
 patch-ts patch --file <FILE> --diff < diff.patch
-patch-ts patch --files "src/**/*.rs" --line 10 --old "foo" --new "bar"
-patch-ts patch --file <FILE> --symbol my_function --new "fn my_function() { ... }"
-patch-ts patch --file <FILE> --delete 5 --expect "old line"
-patch-ts patch --file <FILE> --after 5 --content "new line\nnew line 2"
+# Line numbers in the diff are ignored; context lines are used to locate the change.
 ```
 
-**Key options**
-- `--fuzz <N>` – search radius (default 5)
-- `--confidence <0.0‑1.0>` – match confidence threshold (default 0.9)
-- `--fix‑indent` – auto‑apply original indentation style
-- `--cross‑file` – check for callers after rename
-- `--dry‑run` – print patched result without writing
-- `--force` – skip AST validation
-- `--no‑backup` – skip `.bak` creation
-- `--json` – machine‑readable output
-- `--theme <THEME>` – syntax highlighting theme (dark, light, deuteranopia, highcontrast)
-- `--validate‑first` – reject patch if it would introduce syntax errors
-
----
-
-### `balance`
-
-Fix unbalanced delimiters.
-
+#### Other patch actions
 ```bash
-patch-ts balance --file <FILE> --apply
-patch-ts balance --files "*.rs" --apply
-patch-ts balance --file <FILE> --function my_func  # scoped to function (Rust only)
-patch-ts balance --file <FILE> --plugin plugin.wasm
+patch-ts patch --file <FILE> --delete <LINE> --expect "<EXACT_LINE>"
+patch-ts patch --file <FILE> --after <LINE> --content "<MULTI_LINE_STRING>"
+patch-ts patch --files "src/**/*.rs" --marker "PATCH‑ME" --new "<NEW_LINE>"
 ```
 
-**Options**  
-`--max‑cost <N>` – maximum repair cost (default 10)  
-`--json` – output list of insert/delete actions
+#### Key patch options
+| Flag | Description |
+|------|-------------|
+| `--file <FILE>` | File to patch |
+| `--files <GLOB>` | Multi‑file patching |
+| `--line <N>` | Line number (optional; not needed for content‑based patches) |
+| `--old <TEXT>` | Expected old content |
+| `--new <TEXT>` | Replacement content |
+| `--symbol <NAME>` | Replace entity by name |
+| `--entity-body` | Replace only the body of an entity (requires `--symbol`) |
+| `--marker <TEXT>` | Replace line containing a unique comment marker |
+| `--diff` | Apply unified diff from stdin |
+| `--fuzz <N>` | Search radius (default 5) |
+| `--confidence <F>` | Match confidence threshold (default 0.9) |
+| `--fix-indent` | Auto‑apply original indentation style |
+| `--cross-file` | Check for callers after rename |
+| `--dry-run` | Print patched result without writing |
+| `--force` | Skip AST validation |
+| `--no-backup` | Skip `.bak` creation |
+| `--json` | Machine‑readable output |
+| `--validate-first` | Reject patch if it introduces syntax errors |
+| `--fix-headers` | Automatically correct hunk headers in unified diffs |
+| `--no-compile-check` | Skip compilation check after patching |
+| `--compile-timeout <SECS>` | Timeout for compilation check (default 30) |
+| `--agent <NAME>`, `--model <NAME>` | Record provenance |
+| `--no-provenance` | Skip provenance recording |
+| `--no-sanitize` | Skip sanitization of input (e.g., LLM fences) |
+| `--no-ellipsis` | Disable ellipsis pattern matching |
+| `--uniqueness-weight <F>` | Uniqueness weight for matching (default 0.2) |
+| `--strict-whitespace` | Do not normalize whitespace in diffs |
+| `--serial` | Process multi‑file patches sequentially |
 
 ---
 
-### `heal` (v1.15.0)
+### Other commands
 
-Intelligent delimiter repair with heuristic‑guided search.
+(`balance`, `heal`, `explain`, `fix`, `git`, `semdiff`, `provenance`, `gate`, `score`, `index`, `evolve`, `review`, `attest`, `verify`, `impact`, `entity`, `key`, `recall`, `watch`, `mcp`, `mcp‑http`, `mcp‑gateway`) – updated with new flags and capabilities as described in the original README, plus:
 
-```bash
-patch-ts heal --file broken.rs --heuristic language-aware --apply
-patch-ts heal --file broken.rs --heuristic history-guided --max-cost 15 --json
-```
+#### `recall` (v1.18 enhancements)
+- **Strategy history**: `patch‑ts recall` now suggests the strategy (e.g., "increase_fuzz", "use_symbol") with the highest historical success rate for the given error code.
+- Additional options: `--error-message`, `--entropy`, `--entropy-threshold`, `--pre-fetch`, `--minimal`, `--session`, `--max-tokens`.
 
-**Heuristics:**  
-`language-aware` (default) – tree‑sitter error node analysis  
-`cost-weighted` – penalty‑based cost function  
-`history-guided` – reuse successful past repairs  
-`balanced` – fallback BFS (same as `balance`)
+#### MCP tools (new in v1.18)
+Three new tools for AST‑node‑targeted edits:
+- **`replace_node`** – replace an AST node matching a tree‑sitter query
+- **`delete_node`** – delete an AST node matching a tree‑sitter query
+- **`insert_before_node`** – insert text before an AST node matching a query
 
----
-
-### `explain`
-
-Diagnose a syntax error at a given line.
-
-```bash
-patch-ts explain --file <FILE> --line <N> [--json] [--theme dark]
-```
-
----
-
-### `fix`
-
-Auto‑suggest a fix from compiler error output.
-
-```bash
-cargo check 2>&1 | patch-ts fix --apply
-patch-ts fix --error-file errors.txt --file src/main.rs --apply
-```
-
----
-
-### `git`
-
-Apply a git commit’s diff or diff against a target.
-
-```bash
-patch-ts git apply abc123 --file src/main.rs
-patch-ts git diff HEAD~1 --apply
-```
-
----
-
-### `semdiff`
-
-Semantic (AST‑level) diff between two files.
-
-```bash
-patch-ts semdiff --old old.rs --new new.rs --json
-```
-
----
-
-### `provenance`
-
-Query SCITT provenance records.
-
-```bash
-patch-ts provenance --since 2025-01-01 --file src/main.rs --json
+Example usage via MCP:
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "replace_node",
+    "arguments": {
+      "file": "src/main.rs",
+      "query": "(function_item name: (identifier) @name (#eq? @name \"old\"))",
+      "new": "fn new() { /* ... */ }"
+    }
+  }
+}
 ```
 
 ---
 
-### `gate`
+## 🔌 MCP Integration (updated)
 
-Run a multi‑stage validation gate.
+**Tools (12):**  
+`patch`, `balance`, `explain`, `impact`, `semdiff`, `entity_list`, `entity_replace`, `gate`, `recall`,  
+**`replace_node`**, **`delete_node`**, **`insert_before_node`**
 
-```bash
-patch-ts gate --file src/main.rs --stages syntax,compile,cross‑file,semdiff,vuln‑check --json
-patch-ts gate --file src/main.rs --markdown
-patch-ts gate --file src/main.rs --stages lsp --lsp-command /usr/local/bin/rust-analyzer
-patch-ts gate --file src/main.rs --stages adversarial,owasp-tool-poisoning,owasp-prompt-injection
-```
-
-**Available stages**  
-`syntax`, `compile`, `cross‑file`, `semdiff`, `test`, `swe‑bench`, `vuln‑check`, `regression`, `style`, `lsp`, `adversarial`, `owasp‑tool‑poisoning`, `owasp‑prompt‑injection`, `owasp‑supply‑chain`
-
-**LSP stage** detects type errors and semantic warnings using real language servers.  
-**Shadow Editor** (built into `--validate‑first` and LSP gate) diffs diagnostics before/after patch – if new errors appear, the patch is rejected.
+**Resources (13):** unchanged.
 
 ---
 
-### `score`
-
-Compute a reliability score for a patch.
-
-```bash
-patch-ts score --file src/main.rs --old "fn old()" --new "fn new()" --confidence 0.95
-```
-
-Displays a colour‑gradient scorecard unless `--json` is given.
+## 🎨 Visual Features (unchanged)
 
 ---
 
-### `index`
-
-Build and query a project symbol index.
-
-```bash
-patch-ts index --rebuild
-patch-ts index --callers my_function --json
-```
+## 🔐 SCITT & Supply Chain (unchanged)
 
 ---
 
-### `evolve`
-
-Run evolutionary search for optimal patch parameters.
-
-```bash
-patch-ts evolve --file src/main.rs --old "old" --new "new" --population-size 20 --apply
-```
+## 🧪 Testing & CI (unchanged)
 
 ---
 
-### `review`
+## 🚧 Upcoming (post‑v1.18)
 
-Run a multi‑agent review across syntax, compile, coverage, security, and semantic diff.
-
-```bash
-patch-ts review --file src/main.rs --old "old content" --new "new content" --json
-```
-
----
-
-### `attest`
-
-Generate a CRA‑ready attestation report.
-
-```bash
-patch-ts attest --since 2025-01-01 --json
-patch-ts attest --since 2025-01-01 --cra‑report --output cra.json
-```
-
----
-
-### `verify`
-
-Check invariants expressed in comments (`//@ invariant`) between original and patched code.
-
-```bash
-patch-ts verify --file src/main.rs --json
-```
-
----
-
-### `impact`
-
-Show callers of a symbol using the accurate tree‑sitter call graph.
-
-```bash
-patch-ts impact --symbol main --recursive
-```
-
----
-
-### `entity`
-
-Structured action space: operate on named code entities.
-
-```bash
-patch-ts entity list --file src/main.rs
-patch-ts entity show --symbol foo --file src/main.rs
-patch-ts entity replace --symbol foo --file src/main.rs --new "fn foo() { ... }"
-patch-ts entity body --symbol foo --file src/main.rs --new "{ /* new body */ }"
-```
-
----
-
-### `key`
-
-SCITT key management.
-
-```bash
-patch-ts key generate --output keypair.json
-```
-
----
-
-### `recall` (v1.13+)
-
-Generate a token‑efficient retry context when a patch fails.
-
-```bash
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --json
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --prompt
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --entropy --pre-fetch
-patch-ts recall --file src/main.rs --line 42 --old "let port = 3000;" --new "let port = 8080;" --error-code E002 --minimal --max-tokens 500
-```
-
-**Options**
-- `--error-message <MSG>` – full error message from the failed patch
-- `--context-lines <N>` – number of surrounding lines (default 5)
-- `--json` / `--prompt` – output format
-- `--entropy` – select only high information‑density lines
-- `--entropy-threshold <FLOAT>` – minimum entropy score (default 2.5)
-- `--pre-fetch` – include callers/callees and containing function body
-- `--minimal` – ultra‑compact output (error, line, best strategy)
-- `--session <ID>` – track retries across calls; strategies re‑ranked by past success
-- `--max-tokens <N>` – enforce hard token budget with intelligent truncation
-
-Token savings compared to full file re‑read: **~86–90%** for typical retries.
-
----
-
-### `watch`
-
-Watch a file and apply hooks on modification.
-
-```bash
-patch-ts watch --path src/ --hooks "echo %file% changed"
-```
-
----
-
-### `lsp`
-
-Start a Language Server for editor integration.
-
-```bash
-patch-ts lsp
-```
-
----
-
-### `mcp` / `mcp‑http` / `mcp‑gateway`
-
-Start the MCP server.
-
-```bash
-patch-ts mcp                          # stdio
-patch-ts mcp-http --port 9090        # HTTP
-patch-ts mcp-gateway --port 9090 --policy policy.toml  # policy‑enforced
-```
-
-**MCP Gateway** (v1.16.0) enforces a policy file that can limit allowed tools, file paths, patch sizes, and run OWASP security checks.
-
----
-
-## 🔌 MCP Integration
-
-patch‑ts exposes a comprehensive [Model Context Protocol](https://modelcontextprotocol.io/) server.
-
-**Tools (9):**  
-`patch`, `balance`, `explain`, `impact`, `semdiff`, `entity_list`, `entity_replace`, `gate`, `recall`
-
-**Resources (13):**  
-`symbols/main.rs`, `history`, `provenance`, `dashboard`, `review`,  
-`entities/{file}`, `entity/{file}/{symbol}`, `impact/{symbol}`, `semdiff/{file}`,  
-`coverage/{file}`, `gate/{file}`, `score/{file}`, `provenance/{file}`
-
----
-
-## 🎨 Visual Features
-
-- **Syntax highlighting** – via `syntect`, 4 themes, honouring `NO_COLOR`.
-- **Word‑level diff** – only changed tokens are highlighted; gutter column shown.
-- **TUI side‑by‑side** – press `s` in the TUI to toggle stacked/side‑by‑side view.
-- **Scorecard** – `patch-ts score` renders colour‑coded bars.
-- **Markdown gate reports** – `patch-ts gate --markdown` produces a table suitable for GitHub PRs.
-
----
-
-## 🔐 SCITT & Supply Chain
-
-- Ed25519 key generation and rotation.
-- Hash‑chained provenance log (`.patch‑ts/provenance.jsonl`).
-- CRA‑ready attestation with SBOM.
-- OWASP security gates: tool poisoning, prompt injection, supply chain.
-
----
-
-## 🧪 Testing & CI
-
-- Full test suite covering all commands, languages, and edge cases.
-- Property‑based testing (`proptest`) for repair and validation.
-- Fuzz testing of the CLI.
-- CI via GitHub Actions (macOS, Linux, Windows).
-
----
-
-## 🚧 Upcoming (v1.17+)
-
-- **Persistent project index** for instant symbol queries (beyond current `index`).
+- **Persistent project index** for instant symbol queries.
 - **Predictive context engine** – `patch‑ts context` for minimal, high‑value agent context.
 - **WASM productionisation** – npm package for browser‑based usage.
-- **LSP client improvements** – support for more language servers, Shadow Editor in MCP tools.
+- **LSP client improvements** – support for more language servers.
+- **More language‑specific entity body ranges** (currently Rust‑focused).
+- **Query‑based entity patching in CLI** (currently MCP‑only).
 
 ---
 

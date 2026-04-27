@@ -1,6 +1,7 @@
 use crate::ast::Language;
 use crate::diagnostics::SyntaxErrorDiagnostic;
 use crate::matching::{cascade_match, find_best_block_match, MatchResult};
+use crate::marker::replace_marker_node;
 use anyhow::{Context, Result};
 use miette::NamedSource;
 use std::fs;
@@ -85,6 +86,7 @@ pub fn apply_literal_patch(
                 options.fuzz_radius,
                 options.confidence_threshold,
                 options.uniqueness_weight,
+                &original_content,
             )?;
             let matched = lines[line_match.index].to_string();
             let info = Some(line_match.clone());
@@ -120,11 +122,7 @@ pub fn apply_literal_patch(
     let mut new_lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
     new_lines[match_idx] = new_to_use;
     let mut new_content = new_lines.join("\n")
-        + if original_content.ends_with('\n') {
-            "\n"
-        } else {
-            ""
-        };
+        + if original_content.ends_with('\n') { "\n" } else { "" };
 
     if !options.force {
         let original_parse = language.parse(&original_content);
@@ -251,7 +249,14 @@ pub fn apply_unified_diff(file_path: &Path, diff_text: &str, options: PatchOptio
     } else {
         normalize_diff_whitespace(diff_text)
     };
-    let diffs = flickzeug::patch_from_str(&text)
+
+    // Before applying, correct any hallucinated line numbers by matching hunk context.
+    let corrected_text = crate::matching_flex::fix_all_hunk_headers(&text, &original, options.fuzz_radius);
+    if corrected_text != text {
+        eprintln!("Note: Adjusted diff line numbers based on file context.");
+    }
+
+    let diffs = flickzeug::patch_from_str(&corrected_text)
         .map_err(|e| anyhow::anyhow!("Failed to parse diff: {}", e))?;
     let mut current_content = original;
     for diff in diffs {
@@ -271,8 +276,6 @@ pub fn apply_unified_diff(file_path: &Path, diff_text: &str, options: PatchOptio
     }
     Ok(())
 }
-
-use crate::marker::replace_marker_node;
 
 pub fn apply_marker_patch(
     file_path: &Path,
@@ -311,6 +314,27 @@ pub fn apply_symbol_patch(
     Ok(())
 }
 
+pub fn apply_symbol_body_patch(
+    file_path: &Path,
+    symbol: &str,
+    new_body: &str,
+    options: &PatchOptions,
+    language: &mut dyn Language,
+) -> Result<()> {
+    let original = std::fs::read_to_string(file_path)?;
+    let parse_result = language.parse(&original);
+    let body_range = language.entity_body_range(&parse_result, symbol)
+        .ok_or_else(|| anyhow::anyhow!("Could not find body of symbol '{}'", symbol))?;
+    let mut patched = original.clone();
+    patched.replace_range(body_range.0..body_range.1, new_body);
+    if !options.dry_run {
+        std::fs::write(file_path, &patched)?;
+    } else {
+        println!("{}", patched);
+    }
+    Ok(())
+}
+
 /// Replace all occurrences of old_text with new_text in the file.
 /// Used for file types that tree‑sitter cannot parse.
 pub fn full_file_replace(file_path: &Path, old_text: &str, new_text: &str, dry_run: bool) -> Result<()> {
@@ -324,3 +348,7 @@ pub fn full_file_replace(file_path: &Path, old_text: &str, new_text: &str, dry_r
     Ok(())
 }
 pub mod hunk_fix;
+pub mod node_patch;
+
+// Re-export the byte-span replacement primitive from patchex.
+pub use crate::patchex::replace_byte_range;
