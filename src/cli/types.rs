@@ -243,50 +243,88 @@ pub struct RecallArgs {
 
 #[derive(Parser, Debug)]
 pub struct PatchArgs {
-    #[arg(short, long, required_unless_present = "files")] pub file: Option<String>,
-    #[arg(long, conflicts_with = "file")] pub files: Option<String>,
-    #[arg(short, long, required_unless_present_any = ["diff","delete","after","marker","url","git_commit", "symbol"])] pub line: Option<usize>,
-    #[arg(short = 'z', long, default_value = "5")] pub fuzz: usize,
-    #[arg(long)] pub old: Option<String>,
-    #[arg(long)] pub new: Option<String>,
-    #[arg(long, default_value = "0.9")] pub confidence: f64,
-    #[arg(long)] pub fix_indent: bool,
-    #[arg(long, conflicts_with = "line")] pub diff: bool,
+    #[arg(short, long, required_unless_present = "files")]
+    pub file: Option<String>,
+    #[arg(long, conflicts_with = "file")]
+    pub files: Option<String>,
+    #[arg(short, long)]
+    pub line: Option<usize>,
+    #[arg(short = 'z', long, default_value = "5")]
+    pub fuzz: usize,
+    #[arg(long)]
+    pub old: Option<String>,
+    #[arg(long)]
+    pub new: Option<String>,
+    #[arg(long, default_value = "0.9")]
+    pub confidence: f64,
+    #[arg(long)]
+    pub fix_indent: bool,
+    #[arg(long, conflicts_with = "line")]
+    pub diff: bool,
     #[arg(long)]
     pub fix_headers: bool,
-    #[arg(long, conflicts_with_all = ["line","diff"])] pub delete: Option<usize>,
-    #[arg(long, requires = "delete")] pub expect: Option<String>,
-    #[arg(long, conflicts_with_all = ["line","diff","delete"])] pub after: Option<usize>,
-    #[arg(long, requires = "after")] pub content: Option<String>,
-    #[arg(long)] pub dry_run: bool,
-    #[arg(long)] pub force: bool,
-    #[arg(long)] pub no_backup: bool,
-    #[arg(long)] pub json: bool,
-    #[arg(long)] pub no_auto_repair: bool,
-    #[arg(long, conflicts_with = "line")] pub marker: Option<String>,
-    #[arg(long)] pub serial: bool,
-    #[arg(long)] pub plugin: Option<String>,
-    #[arg(long)] pub allow_all_paths: bool,
-    #[arg(long, conflicts_with_all = ["line","diff","delete","after","marker"])] pub symbol: Option<String>,
-    #[arg(long, requires = "symbol")] pub entity_body: bool,
-    #[arg(long, conflicts_with_all = ["line","diff","delete","after","marker"])] pub url: Option<String>,
-    #[arg(long, conflicts_with_all = ["line","diff","delete","after","marker"])] pub git_commit: Option<String>,
-    #[arg(long)] pub no_strip_fence: bool,
-    #[arg(long)] pub no_compile_check: bool,
-    #[arg(long, default_value = "30")] pub compile_timeout: u64,
-    #[arg(long)] pub no_sanitize: bool,
-    #[arg(long)] pub no_ellipsis: bool,
-    #[arg(long, default_value = "0.2")] pub uniqueness_weight: f64,
-    #[arg(long)] pub strict_whitespace: bool,
-    #[arg(long)] pub cross_file: bool,
-    #[arg(long)] pub agent: Option<String>,
-    #[arg(long)] pub model: Option<String>,
-    #[arg(long)] pub no_provenance: bool,
-    #[arg(long)] pub validate_first: bool,
+    #[arg(long, conflicts_with_all = ["line","diff"])]
+    pub delete: Option<usize>,
+    #[arg(long, requires = "delete")]
+    pub expect: Option<String>,
+    #[arg(long, conflicts_with_all = ["line","diff","delete"])]
+    pub after: Option<usize>,
+    #[arg(long, requires = "after")]
+    pub content: Option<String>,
+    #[arg(long)]
+    pub dry_run: bool,
+    #[arg(long)]
+    pub force: bool,
+    #[arg(long)]
+    pub no_backup: bool,
+    #[arg(long)]
+    pub json: bool,
+    #[arg(long)]
+    pub no_auto_repair: bool,
+    #[arg(long, conflicts_with = "line")]
+    pub marker: Option<String>,
+    #[arg(long)]
+    pub serial: bool,
+    #[arg(long)]
+    pub plugin: Option<String>,
+    #[arg(long)]
+    pub allow_all_paths: bool,
+    #[arg(long, conflicts_with_all = ["line","diff","delete","after","marker"])]
+    pub symbol: Option<String>,
+    #[arg(long, conflicts_with_all = ["line","diff","delete","after","marker"])]
+    pub url: Option<String>,
+    #[arg(long, conflicts_with_all = ["line","diff","delete","after","marker"])]
+    pub git_commit: Option<String>,
+    #[arg(long)]
+    pub no_strip_fence: bool,
+    #[arg(long)]
+    pub no_compile_check: bool,
+    #[arg(long, default_value = "30")]
+    pub compile_timeout: u64,
+    #[arg(long)]
+    pub no_sanitize: bool,
+    #[arg(long)]
+    pub no_ellipsis: bool,
+    #[arg(long, default_value = "0.2")]
+    pub uniqueness_weight: f64,
+    #[arg(long)]
+    pub strict_whitespace: bool,
+    #[arg(long)]
+    pub cross_file: bool,
+    #[arg(long)]
+    pub agent: Option<String>,
+    #[arg(long)]
+    pub model: Option<String>,
+    #[arg(long)]
+    pub no_provenance: bool,
+    #[arg(long)]
+    pub validate_first: bool,
     #[arg(long)]
     pub verify: bool,
     #[arg(long)]
     pub verify_test: Option<String>,
+    #[arg(long, requires = "symbol")]
+    pub entity_body: bool,
 }
 
 #[derive(Parser, Debug)]

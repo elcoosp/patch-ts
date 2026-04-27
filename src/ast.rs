@@ -195,6 +195,7 @@ fn has_error_node(node: Node) -> bool {
     false
 }
 
+
 macro_rules! impl_language {
     ($name:ident, $lang:expr) => {
         pub struct $name { parser: Parser }
@@ -215,43 +216,75 @@ macro_rules! impl_language {
     };
 }
 
-impl_language!(RustLanguage, tree_sitter_rust::LANGUAGE);
 impl_language!(TypeScriptLanguage, tree_sitter_typescript::LANGUAGE_TYPESCRIPT);
 impl_language!(JavaScriptLanguage, tree_sitter_javascript::LANGUAGE);
-impl_language!(PythonLanguage, tree_sitter_python::LANGUAGE);
-impl_language!(GoLanguage, tree_sitter_go::LANGUAGE);
-impl_language!(RubyLanguage, tree_sitter_ruby::LANGUAGE);
-impl_language!(PHPLanguage, tree_sitter_php::LANGUAGE_PHP);
-impl_language!(HtmlLanguage, tree_sitter_html::LANGUAGE);
-impl_language!(XmlLanguage, tree_sitter_xml::LANGUAGE_XML);
-impl_language!(CLanguage, tree_sitter_c::LANGUAGE);
-impl_language!(CppLanguage, tree_sitter_cpp::LANGUAGE);
-impl_language!(JavaLanguage, tree_sitter_java::LANGUAGE);
-impl_language!(CSharpLanguage, tree_sitter_c_sharp::LANGUAGE);
-impl_language!(SwiftLanguage, tree_sitter_swift::LANGUAGE);
-impl_language!(ScalaLanguage, tree_sitter_scala::LANGUAGE);
-impl_language!(ZigLanguage, tree_sitter_zig::LANGUAGE);
 
+pub struct RustLanguage { parser: Parser }
 impl RustLanguage {
+    pub fn new() -> Self { let mut parser = Parser::new(); parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap(); Self { parser } }
+    pub fn parser_mut(&mut self) -> &mut Parser { &mut self.parser }
+
     pub fn find_function_body_range(&self, source: &str, function_name: &str) -> Option<(usize, usize)> {
         let pattern = format!("fn {}(", function_name);
-        let mut start = 0; let mut found_range = None;
+        let mut start = 0;
         while let Some(pos) = source[start..].find(&pattern) {
-            let abs_pos = start + pos; let after_sig = &source[abs_pos..];
-            let open_brace_offset = after_sig.find('{')?; let open_byte = abs_pos + open_brace_offset;
-            let mut stack = 1; let mut close_byte = open_byte + 1;
+            let abs_pos = start + pos;
+            let after_sig = &source[abs_pos..];
+            let open_brace_offset = after_sig.find('{')?;
+            let open_byte = abs_pos + open_brace_offset;
+            let mut stack = 1;
+            let mut close_byte = open_byte + 1;
             for c in after_sig[open_brace_offset + 1..].chars() {
-                if c == '{' { stack += 1; } else if c == '}' { stack -= 1; if stack == 0 { break; } }
+                if c == '{' { stack += 1; }
+                else if c == '}' { stack -= 1; if stack == 0 { break; } }
                 close_byte += c.len_utf8();
             }
-            if found_range.is_some() { return None; }
-            found_range = Some((open_byte, close_byte)); start = abs_pos + 1;
+            if stack == 0 { return Some((open_byte, close_byte)); }
+            start = abs_pos + 1;
         }
-        found_range
+        None
+    }
+}
+impl Language for RustLanguage {
+    fn parse(&mut self, source: &str) -> ParseResult {
+        let tree = self.parser.parse(source, None).unwrap();
+        let index = LineIndex::new(source);
+        ParseResult { tree, source: source.to_string(), index }
+    }
+    fn is_valid(&self, result: &ParseResult) -> bool {
+        !has_error_node(result.tree.root_node())
+    }
+    fn find_extra_delimiter(&self, _: &ParseResult) -> Option<Span> { None }
+    fn explain_error(&self, result: &ParseResult, line: usize) -> Option<SyntaxErrorDiagnostic> {
+        let node = result.node_at_line(line)?;
+        if node.is_error() || node.has_error() {
+            let text = node.utf8_text(result.text().as_bytes()).unwrap_or("");
+            let details = format!("Syntax error near '{}'", text);
+            let span = Span::from_node(node, &result.index);
+            return Some(SyntaxErrorDiagnostic {
+                src: NamedSource::new("input", result.text().to_string()),
+                error_span: (span.start_byte, span.end_byte - span.start_byte).into(),
+                details
+            });
+        }
+        None
+    }
+    fn find_delimiter_errors(&self, result: &ParseResult) -> Vec<DelimiterError> {
+        find_delimiter_errors_via_ast(result.tree.root_node(), &result.index)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any { self }
+    fn diagnostic_message(&self, error: &DelimiterError) -> String {
+        match error {
+            DelimiterError::Extra { delimiter, .. } => format!("Extra '{}'", delimiter),
+            DelimiterError::Missing { expected, .. } => format!("Missing '{}'", expected),
+        }
     }
 
     fn find_symbol_node(&self, result: &ParseResult, name: &str) -> Option<(usize, usize)> {
-        let query = tree_sitter::Query::new(&tree_sitter_rust::LANGUAGE.into(), "(function_item name: (identifier) @name) @item").unwrap();
+        let query = tree_sitter::Query::new(
+            &tree_sitter_rust::LANGUAGE.into(),
+            "(function_item name: (identifier) @name) @item"
+        ).unwrap();
         let mut cursor = tree_sitter::QueryCursor::new();
         let root = result.tree.root_node();
         let mut matches = cursor.matches(&query, root, result.text().as_bytes());
@@ -260,7 +293,9 @@ impl RustLanguage {
                 if capture.node.kind() == "identifier" {
                     if let Ok(text) = capture.node.utf8_text(result.text().as_bytes()) {
                         if text == name {
-                            let item = match_.captures.iter().find(|c| c.node.kind() == "function_item").unwrap().node;
+                            let item = match_.captures.iter()
+                                .find(|c| c.node.kind() == "function_item")
+                                .unwrap().node;
                             return Some((item.start_byte(), item.end_byte()));
                         }
                     }
@@ -271,8 +306,10 @@ impl RustLanguage {
     }
 
     fn find_all_entities(&self, result: &ParseResult) -> Vec<Entity> {
-        let query_str = "(function_item name: (identifier) @name) @item";
-        let query = tree_sitter::Query::new(&tree_sitter_rust::LANGUAGE.into(), query_str).unwrap();
+        let query = tree_sitter::Query::new(
+            &tree_sitter_rust::LANGUAGE.into(),
+            "(function_item name: (identifier) @name) @item"
+        ).unwrap();
         let mut cursor = tree_sitter::QueryCursor::new();
         let root = result.tree.root_node();
         let mut matches = cursor.matches(&query, root, result.text().as_bytes());
@@ -295,6 +332,19 @@ impl RustLanguage {
         entities
     }
 }
+impl_language!(PythonLanguage, tree_sitter_python::LANGUAGE);
+impl_language!(GoLanguage, tree_sitter_go::LANGUAGE);
+impl_language!(RubyLanguage, tree_sitter_ruby::LANGUAGE);
+impl_language!(PHPLanguage, tree_sitter_php::LANGUAGE_PHP);
+impl_language!(HtmlLanguage, tree_sitter_html::LANGUAGE);
+impl_language!(XmlLanguage, tree_sitter_xml::LANGUAGE_XML);
+impl_language!(CLanguage, tree_sitter_c::LANGUAGE);
+impl_language!(CppLanguage, tree_sitter_cpp::LANGUAGE);
+impl_language!(JavaLanguage, tree_sitter_java::LANGUAGE);
+impl_language!(CSharpLanguage, tree_sitter_c_sharp::LANGUAGE);
+impl_language!(SwiftLanguage, tree_sitter_swift::LANGUAGE);
+impl_language!(ScalaLanguage, tree_sitter_scala::LANGUAGE);
+impl_language!(ZigLanguage, tree_sitter_zig::LANGUAGE);
 
 pub fn detect_language(file_path: &std::path::Path) -> anyhow::Result<Box<dyn Language>> {
     match file_path.extension().and_then(|e| e.to_str()) {
