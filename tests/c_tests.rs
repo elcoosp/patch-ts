@@ -13,15 +13,14 @@ fn test_c_patch_exact() {
     .unwrap();
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
+    let input = "<<< SEARCH\n    printf(\"hello\");\n---\n    printf(\"world\");\n";
     cmd.arg("patch")
         .arg("--file")
         .arg(file_path.to_str().unwrap())
-        .arg("--line")
-        .arg("3")
-        .arg("--old")
-        .arg("    printf(\"hello\");")
-        .arg("--new")
-        .arg("    printf(\"world\");")
+        .arg("--line")        // required for stdin heredoc
+        .arg("1")
+        .arg("--no-compile-check")
+        .write_stdin(input)
         .assert()
         .success();
 

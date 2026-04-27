@@ -121,7 +121,6 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
                 );
             }
         }
-        return Ok(());
     } else if let (Some(line), Some(old), Some(new)) = (args.line, args.old.as_deref(), args.new.as_deref()) {
         apply_literal_patch(file_path, line, old, new, &mut options, &mut *lang)?;
         let line = args.line.ok_or_else(|| anyhow::anyhow!("--line required"))?;
@@ -159,7 +158,6 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
                 );
             }
         }
-        return Ok(());
     } else if let Some(line) = args.line {
         let mut buffer = String::new();
         std::io::stdin().read_to_string(&mut buffer)?;
