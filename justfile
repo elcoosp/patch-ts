@@ -10,7 +10,7 @@ release:
 
 # run tests
 test:
-    cargo test
+    cargo nextest run
 
 # run tests with output (no capture)
 test-verbose:
