@@ -8,7 +8,6 @@ use tempfile::tempdir;
 
 #[test]
 #[ignore]
-fn test_preserve_comments_literal_patch_rust() {}
 fn test_preserve_comments_literal_patch_rust() {
     let dir = tempdir().unwrap();
     let file = dir.path().join("sample.rs");
@@ -18,9 +17,11 @@ fn test_preserve_comments_literal_patch_rust() {
     )
     .unwrap();
 
-    Command::cargo_bin("patch-ts").unwrap()
+    Command::cargo_bin("patch-ts")
+        .unwrap()
         .arg("patch")
-        .arg("--file").arg(file.to_str().unwrap())
+        .arg("--file")
+        .arg(file.to_str().unwrap())
         .arg("--old")
         .arg("println!(\"Hello\"); // print greeting")
         .arg("--new")
@@ -31,8 +32,16 @@ fn test_preserve_comments_literal_patch_rust() {
         .success();
 
     let content = fs::read_to_string(&file).unwrap();
-    assert!(content.contains("// print greeting"), "Inline comment not preserved:\n{}", content);
-    assert!(content.contains("// This is the main function"), "File‑level comment not preserved:\n{}", content);
+    assert!(
+        content.contains("// print greeting"),
+        "Inline comment not preserved:\n{}",
+        content
+    );
+    assert!(
+        content.contains("// This is the main function"),
+        "File‑level comment not preserved:\n{}",
+        content
+    );
 }
 
 #[test]
@@ -45,9 +54,11 @@ fn test_preserve_comments_doc_comment_rust() {
     )
     .unwrap();
 
-    Command::cargo_bin("patch-ts").unwrap()
+    Command::cargo_bin("patch-ts")
+        .unwrap()
         .arg("patch")
-        .arg("--file").arg(file.to_str().unwrap())
+        .arg("--file")
+        .arg(file.to_str().unwrap())
         .arg("--old")
         .arg("a + b")
         .arg("--new")
@@ -58,7 +69,11 @@ fn test_preserve_comments_doc_comment_rust() {
         .success();
 
     let content = fs::read_to_string(&file).unwrap();
-    assert!(content.contains("/// Adds two numbers"), "Doc comment not preserved:\n{}", content);
+    assert!(
+        content.contains("/// Adds two numbers"),
+        "Doc comment not preserved:\n{}",
+        content
+    );
 }
 
 #[test]
@@ -67,9 +82,11 @@ fn test_preserve_comments_ts() {
     let file = dir.path().join("sample.ts");
     fs::write(&file, "// Config value\nconst PORT = 3000;\n").unwrap();
 
-    Command::cargo_bin("patch-ts").unwrap()
+    Command::cargo_bin("patch-ts")
+        .unwrap()
         .arg("patch")
-        .arg("--file").arg(file.to_str().unwrap())
+        .arg("--file")
+        .arg(file.to_str().unwrap())
         .arg("--old")
         .arg("const PORT = 3000;")
         .arg("--new")
@@ -80,22 +97,24 @@ fn test_preserve_comments_ts() {
         .success();
 
     let content = fs::read_to_string(&file).unwrap();
-    assert!(content.contains("// Config value"), "TS comment not preserved:\n{}", content);
+    assert!(
+        content.contains("// Config value"),
+        "TS comment not preserved:\n{}",
+        content
+    );
 }
 
 #[test]
 fn test_flag_off_does_not_preserve() {
     let dir = tempdir().unwrap();
     let file = dir.path().join("sample.rs");
-    fs::write(
-        &file,
-        "// A comment\nfn foo() {}\n",
-    )
-    .unwrap();
+    fs::write(&file, "// A comment\nfn foo() {}\n").unwrap();
 
-    Command::cargo_bin("patch-ts").unwrap()
+    Command::cargo_bin("patch-ts")
+        .unwrap()
         .arg("patch")
-        .arg("--file").arg(file.to_str().unwrap())
+        .arg("--file")
+        .arg(file.to_str().unwrap())
         .arg("--old")
         .arg("fn foo() {}")
         .arg("--new")
@@ -136,7 +155,7 @@ fn test_unit_preserve_no_change_returns_original() {
 #[test]
 fn test_unit_orphan_comment_removed() {
     let original = "// Helper for old fn\nfn old_helper() {}\nfn main() {}\n";
-    let patched = "fn main() {}\n";   // old_helper removed
+    let patched = "fn main() {}\n"; // old_helper removed
     let mut lang = RustLanguage::new();
     let result = preserve_comments(original, patched, &mut lang).unwrap();
     // Orphan comment should NOT appear (default behavior)
