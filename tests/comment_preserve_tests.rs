@@ -2,10 +2,6 @@ use assert_cmd::Command;
 use std::fs;
 use tempfile::tempdir;
 
-// ---------------------------------------------------------------
-// Integration tests via CLI — all content‑based, no --line
-// ---------------------------------------------------------------
-
 #[test]
 #[ignore]
 fn test_preserve_comments_literal_patch_rust() {
@@ -30,7 +26,6 @@ fn test_preserve_comments_literal_patch_rust() {
         .arg("--force")
         .assert()
         .success();
-
     let content = fs::read_to_string(&file).unwrap();
     assert!(
         content.contains("// print greeting"),
@@ -67,7 +62,6 @@ fn test_preserve_comments_doc_comment_rust() {
         .arg("--force")
         .assert()
         .success();
-
     let content = fs::read_to_string(&file).unwrap();
     assert!(
         content.contains("/// Adds two numbers"),
@@ -95,7 +89,6 @@ fn test_preserve_comments_ts() {
         .arg("--force")
         .assert()
         .success();
-
     let content = fs::read_to_string(&file).unwrap();
     assert!(
         content.contains("// Config value"),
@@ -120,17 +113,12 @@ fn test_flag_off_does_not_preserve() {
         .arg("--new")
         .arg("fn foo() { /* changed */ }")
         .arg("--force")
-        // no --preserve-comments
         .assert()
         .success();
-
     let content = fs::read_to_string(&file).unwrap();
     assert!(content.contains("fn foo()"));
 }
 
-// ---------------------------------------------------------------
-// Unit tests for preserve_comments internals
-// ---------------------------------------------------------------
 use patch_ts::ast::RustLanguage;
 use patch_ts::comment_preserve::preserve_comments;
 
@@ -140,7 +128,6 @@ fn test_unit_preserve_simple_comment() {
     let patched = "fn main() {\n    let x = 2;\n}\n";
     let mut lang = RustLanguage::new();
     let result = preserve_comments(original, patched, &mut lang).unwrap();
-    // File‑level comments without an entity anchor are not preserved by default.
     assert!(result.contains("// inline"));
 }
 
@@ -158,6 +145,5 @@ fn test_unit_orphan_comment_removed() {
     let patched = "fn main() {}\n"; // old_helper removed
     let mut lang = RustLanguage::new();
     let result = preserve_comments(original, patched, &mut lang).unwrap();
-    // Orphan comment should NOT appear (default behavior)
     assert!(!result.contains("Helper for old fn"));
 }

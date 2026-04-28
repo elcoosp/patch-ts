@@ -1,26 +1,12 @@
-use assert_cmd::Command;
-use std::fs;
-use tempfile::tempdir;
-
+use assert_cmd::Command; use std::fs; use tempfile::tempdir;
 #[test]
 fn test_scala_patch_exact() {
     let dir = tempdir().unwrap();
-    let file_path = dir.path().join("Main.scala");
-    fs::write(&file_path, "object Main {\n  def main(args: Array[String]): Unit = {\n    println(\"hello\")\n  }\n}\n").unwrap();
-
-    let mut cmd = Command::cargo_bin("patch-ts").unwrap();
-    cmd.arg("patch")
-        .arg("--file")
-        .arg(file_path.to_str().unwrap())
-        .arg("--line")
-        .arg("3")
-        .arg("--old")
-        .arg("    println(\"hello\")")
-        .arg("--new")
-        .arg("    println(\"world\")")
-        .assert()
-        .success();
-
-    let content = fs::read_to_string(&file_path).unwrap();
-    assert!(content.contains("println(\"world\")"));
+    let fp = dir.path().join("Main.scala");
+    fs::write(&fp, "object Main {\n  def main(args: Array[String]): Unit = {\n    println(\"hello\")\n  }\n}\n").unwrap();
+    Command::cargo_bin("patch-ts").unwrap()
+        .arg("patch").arg("--file").arg(fp.to_str().unwrap()).arg("--line").arg("1").arg("--no-compile-check")
+        .write_stdin("<<< SEARCH\n    println(\"hello\")\n---\n    println(\"world\")\n")
+        .assert().success();
+    assert!(fs::read_to_string(&fp).unwrap().contains("println(\"world\")"));
 }
