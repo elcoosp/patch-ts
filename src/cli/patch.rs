@@ -247,6 +247,15 @@ pub fn apply_patch_to_file(file_path: &Path, args: &PatchArgs) -> Result<()> {
         );
         crate::provenance::emit_record(&record)?;
     }
+
+    if args.preserve_comments {
+        let current = std::fs::read_to_string(file_path)?;
+        match crate::comment_preserve::preserve_comments(&original, &current, &mut *lang) {
+            Ok(preserved) => { if !args.dry_run { std::fs::write(file_path, &preserved)?; } }
+            Err(e) => eprintln!("Warning: failed to preserve comments: {}", e),
+        }
+    }
+
     let mut cross_file_warnings = Vec::new();
     if args.cross_file {
         let project_index = crate::crossfile::build_project_index(Path::new("."));
