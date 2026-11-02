@@ -1,5 +1,5 @@
 use patch_ts::ast::RustLanguage;
-use patch_ts::patch::{apply_literal_patch, PatchOptions};
+use patch_ts::patch::{MatchFlags, PatchOptions, RuntimeFlags, apply_literal_patch};
 use std::fs;
 use tempfile::tempdir;
 
@@ -11,7 +11,10 @@ fn test_patch_rejected_on_syntax_error() {
 
     let mut lang = RustLanguage::new();
     let mut options = PatchOptions {
-        no_auto_repair: true,
+        match_behavior: MatchFlags {
+            no_auto_repair: true,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let result = apply_literal_patch(
@@ -35,7 +38,10 @@ fn test_patch_force_bypasses_validation() {
 
     let mut lang = RustLanguage::new();
     let mut options = PatchOptions {
-        force: true,
+        run: RuntimeFlags {
+            force: true,
+            ..Default::default()
+        },
         ..Default::default()
     };
     let result = apply_literal_patch(
