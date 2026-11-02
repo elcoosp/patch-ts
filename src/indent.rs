@@ -1,5 +1,6 @@
 /// Detect the indentation style of a line.
-/// Returns (uses_tabs, indent_level).
+/// Returns (`uses_tabs`, `indent_level`).
+#[must_use]
 pub fn detect_indent(line: &str) -> (bool, usize) {
     let mut tab_count = 0;
     for ch in line.chars() {
@@ -17,6 +18,7 @@ pub fn detect_indent(line: &str) -> (bool, usize) {
 }
 
 /// Apply the detected indentation style to each line of content.
+#[must_use]
 pub fn apply_indent(content: &str, uses_tabs: bool, count: usize) -> String {
     if count == 0 {
         return content.to_string();
