@@ -21,77 +21,93 @@ repository = "https://github.com/elcoosp/patch-ts"
 readme = "README.md"
 
 [dependencies]
-clap = { version = "4.5", features = ["derive"] }
-tree-sitter = "0.26"
-tree-sitter-rust = "0.23"
+clap = { version = "4.6", features = ["derive"] }
+tree-sitter = "0.27"
+tree-sitter-rust = "0.24"
 tree-sitter-typescript = "0.23"
-tree-sitter-javascript = "0.23"
-tree-sitter-python = "0.23"
-tree-sitter-go = "0.23"
+tree-sitter-javascript = "0.25"
+tree-sitter-python = "0.25"
+tree-sitter-go = "0.25"
 tree-sitter-ruby = "0.23"
-tree-sitter-php = "0.23"
+tree-sitter-php = "0.25"
 tree-sitter-html = "0.23"
 tree-sitter-xml = "0.7"
-tree-sitter-c = "0.23"
+tree-sitter-c = "0.24"
 tree-sitter-cpp = "0.23"
 tree-sitter-java = "0.23"
 tree-sitter-c-sharp = "0.23"
-tree-sitter-swift = "0.6"
-tree-sitter-scala = "0.23"
+tree-sitter-swift = "0.7"
+tree-sitter-scala = "0.26"
 tree-sitter-zig = "1.1"
 glob = "0.3"
-ratatui = "0.29"
-crossterm = "0.28"
-notify = "7.0"
-rayon = "1.10"
+ratatui = "0.30"
+crossterm = "0.29"
+notify = "8.2"
+rayon = "1.12"
 serde = { version = "1.0", features = ["derive"] }
-toml = "0.8"
+toml = "1.1"
 miette = { version = "7.6", features = ["fancy"] }
 thiserror = "2.0"
 line-index = "0.1"
 strsim = "0.11"
-tempfile = "3.24"
+tempfile = "3.27"
 anyhow = "1.0"
 serde_json = "1.0"
-regex = "1.12"
+regex = "1.13"
 log = "0.4"
 env_logger = "0.11"
-flickzeug = "0.5"
-wasmtime = "35.0"
-wit-bindgen = "0.41"
+flickzeug = "0.6"
+wasmtime = "50.0"
+wit-bindgen = "0.63"
 reqwest = { version = "0.13", features = ["blocking", "rustls"] }
-git2 = "0.20"
+git2 = "0.21"
 chrono = "0.4"
 jsonrepair = { version = "0.1", features = ["serde"] }
 tower-lsp = "0.20"
-tokio = { version = "1.51", features = ["rt-multi-thread", "io-std", "macros", "fs"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "io-std", "macros", "fs"] }
 wait-timeout = "0.2"
 schemars = { version = "1.2", features = ["derive"] }
-ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+ed25519-dalek = { version = "3.0", features = ["rand_core"] }
 hex = "0.4"
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
-sha2 = "0.10"
-rand = "0.8"
-termimad = "0.20"
-similar = "2.5"
-unicode-segmentation = "1.11"
-syntect = { version = "5.2", default-features = false, features = ["default-fancy"] }
+sha2 = "0.11"
+rand = "0.10"
+termimad = "0.35"
+similar = "3.2"
+unicode-segmentation = "1.13"
+syntect = { version = "5.3", default-features = false, features = ["default-fancy"] }
 syntect-tui = "3.0"
-once_cell = "1.19"
-dirs = "5.0"
+once_cell = "1.21"
+dirs = "7.0"
 
 [dev-dependencies]
-assert_cmd = "2.1"
-cucumber = "0.22"
-rstest = "0.26"
-proptest = "1.7"
-criterion = "0.7"
+assert_cmd = "2.2"
+cucumber = "0.23"
+rstest = "0.28"
+proptest = "1.12"
+criterion = "0.8"
 predicates = "3.1.4"
-jsonschema = "0.17"
-mockito = "1.4"
+jsonschema = "0.60"
+mockito = "1.7"
 
 [[bench]]
 name = "patch_benchmark"
 harness = false
+
+[profile.dev]
+debug = 0
+strip = "debuginfo"
+
+[profile.test]
+debug = 0
+
+[profile.dev.package."*"]
+opt-level = 1
+
+[workspace.lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+
+[lints]
+workspace = true
