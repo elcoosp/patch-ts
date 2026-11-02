@@ -54,17 +54,23 @@ fn test_balance_max_cost_exceeded() {
     let stdout = String::from_utf8(output).unwrap();
     let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     assert_eq!(json["success"], false);
-    assert!(json["error"]["message"]
-        .as_str()
-        .unwrap()
-        .contains("max cost"));
+    assert!(
+        json["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("max cost")
+    );
 }
 
 #[test]
 fn test_patch_json_confidence_anchor() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("test.rs");
-    fs::write(&file_path, "// comment\nhello world\n").unwrap();
+    fs::write(
+        &file_path,
+        "// comment\nfn main() {\n    let msg = \"hello world\";\n    println!(\"{}\", msg);\n}\n",
+    )
+    .unwrap();
 
     let mut cmd = assert_cmd::Command::cargo_bin("patch-ts").unwrap();
     let output = cmd
@@ -93,14 +99,14 @@ fn test_patch_json_confidence_anchor() {
 fn test_fix_indent_spaces_to_tabs() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("test.rs");
-    fs::write(&file_path, "\t\tlet x = 1;\n").unwrap();
+    fs::write(&file_path, "fn main() {\n\t\tlet x = 1;\n}\n").unwrap();
 
     let mut cmd = assert_cmd::Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
         .arg("--file")
         .arg(file_path.to_str().unwrap())
         .arg("--line")
-        .arg("1")
+        .arg("2")
         .arg("--old")
         .arg("let x = 1;")
         .arg("--new")
