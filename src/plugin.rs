@@ -9,6 +9,10 @@ pub struct PluginHost {
 }
 
 impl PluginHost {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file or record cannot be read.
     pub fn load(path: &Path) -> Result<Self> {
         let mut config = Config::default();
         config.wasm_component_model(true);
@@ -18,6 +22,10 @@ impl PluginHost {
     }
 
     // Stub implementation – actual plugin execution is postponed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the patch cannot be applied to the file.
     pub fn repair(&self, _errors: &[crate::ast::DelimiterError], source: &str) -> Result<String> {
         // TODO: Activate plugin call once wasmtime component API is stable.
         Ok(source.to_string())
