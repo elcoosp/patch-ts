@@ -1,4 +1,4 @@
 pub use patch_ts::{
-    gate, score, review, evolve, heal, adaptive, history_adaptive, pipeline,
-    spec_validate, security,
+    adaptive, evolve, gate, heal, history_adaptive, pipeline, review, score, security,
+    spec_validate,
 };
