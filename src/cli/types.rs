@@ -1,7 +1,10 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "patch-ts", about = "Tree-sitter-aware patching tool for LLM agents")]
+#[command(
+    name = "patch-ts",
+    about = "Tree-sitter-aware patching tool for LLM agents"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -9,7 +12,8 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
-    Patch(PatchArgs),
+    /// Boxed: `PatchArgs` is by far the largest variant.
+    Patch(Box<PatchArgs>),
     Balance(BalanceArgs),
     Explain(ExplainArgs),
     Fix(FixArgs),
@@ -44,10 +48,14 @@ pub enum Command {
 
 #[derive(Parser, Debug)]
 pub struct AttestArgs {
-    #[arg(long)] pub since: String,
-    #[arg(long)] pub output: Option<String>,
-    #[arg(long)] pub json: bool,
-    #[arg(long)] pub cra_report: bool,
+    #[arg(long)]
+    pub since: String,
+    #[arg(long)]
+    pub output: Option<String>,
+    #[arg(long)]
+    pub json: bool,
+    #[arg(long)]
+    pub cra_report: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -62,185 +70,351 @@ pub struct McpGatewayArgs {
 
 #[derive(Parser, Debug)]
 pub struct GenerateTestsArgs {
-    #[arg(short, long)] pub file: String,
-    #[arg(long)] pub old: String,
-    #[arg(long)] pub new: String,
-    #[arg(long)] pub output: Option<String>,
-    #[arg(long)] pub json: bool,
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub old: String,
+    #[arg(long)]
+    pub new: String,
+    #[arg(long)]
+    pub output: Option<String>,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct VerifyArgs {
-    #[arg(short, long)] pub file: String,
-    #[arg(long)] pub json: bool,
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct ReviewArgs {
-    #[arg(short, long)] pub file: String,
-    #[arg(long)] pub old: String,
-    #[arg(long)] pub new: String,
-    #[arg(long)] pub tui: bool,
-    #[arg(long)] pub dashboard: bool,
-    #[arg(long)] pub json: bool,
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub old: String,
+    #[arg(long)]
+    pub new: String,
+    #[arg(long)]
+    pub tui: bool,
+    #[arg(long)]
+    pub dashboard: bool,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct EvolveArgs {
-    #[arg(short, long)] pub file: String,
-    #[arg(long)] pub old: String,
-    #[arg(long)] pub new: String,
-    #[arg(long, default_value = "10")] pub population_size: usize,
-    #[arg(long, default_value = "30")] pub evolve_timeout: u64,
-    #[arg(long)] pub apply: bool,
-    #[arg(long)] pub json: bool,
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub old: String,
+    #[arg(long)]
+    pub new: String,
+    #[arg(long, default_value = "10")]
+    pub population_size: usize,
+    #[arg(long, default_value = "30")]
+    pub evolve_timeout: u64,
+    #[arg(long)]
+    pub apply: bool,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct IndexArgs {
-    #[arg(long)] pub callers: Option<String>,
-    #[arg(long)] pub rebuild: bool,
-    #[arg(long)] pub json: bool,
+    #[arg(long)]
+    pub callers: Option<String>,
+    #[arg(long)]
+    pub rebuild: bool,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct ScoreArgs {
-    #[arg(short, long)] pub file: String,
-    #[arg(long)] pub old: String,
-    #[arg(long)] pub new: String,
-    #[arg(long)] pub confidence: Option<f64>,
-    #[arg(long)] pub uniqueness_score: Option<f64>,
-    #[arg(long)] pub cross_file_impact: Option<usize>,
-    #[arg(long)] pub json: bool,
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub old: String,
+    #[arg(long)]
+    pub new: String,
+    #[arg(long)]
+    pub confidence: Option<f64>,
+    #[arg(long)]
+    pub uniqueness_score: Option<f64>,
+    #[arg(long)]
+    pub cross_file_impact: Option<usize>,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct GateArgs {
-    #[arg(long, default_value = "syntax,compile")] pub stages: String,
-    #[arg(short, long)] pub file: String,
-    #[arg(long)] pub json: bool,
-    #[arg(long, default_value = "30")] pub compile_timeout: u64,
-    #[arg(long)] pub parallel: bool,
-    #[arg(long)] pub markdown: bool,
-    #[arg(long)] pub lsp_command: Option<String>,
-    #[arg(long)] pub lsp_args: Option<String>,
+    #[arg(long, default_value = "syntax,compile")]
+    pub stages: String,
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub json: bool,
+    #[arg(long, default_value = "30")]
+    pub compile_timeout: u64,
+    #[arg(long)]
+    pub parallel: bool,
+    #[arg(long)]
+    pub markdown: bool,
+    #[arg(long)]
+    pub lsp_command: Option<String>,
+    #[arg(long)]
+    pub lsp_args: Option<String>,
 }
 
 #[derive(Parser, Debug)]
-pub struct GitArgs { #[command(subcommand)] pub action: GitAction }
+pub struct GitArgs {
+    #[command(subcommand)]
+    pub action: GitAction,
+}
 
 #[derive(Subcommand, Debug)]
-pub enum GitAction { Apply(GitApplyArgs), Diff(GitDiffArgs) }
+pub enum GitAction {
+    Apply(GitApplyArgs),
+    Diff(GitDiffArgs),
+}
+
+/// Execution toggles shared by patch-flavoured subcommands.
+#[derive(clap::Args, Debug, Default)]
+pub struct RunToggles {
+    #[arg(long)]
+    pub dry_run: bool,
+    #[arg(long)]
+    pub force: bool,
+    #[arg(long)]
+    pub no_backup: bool,
+}
+
+/// Extra git-diff toggles.
+#[derive(clap::Args, Debug, Default)]
+pub struct GitDiffToggles {
+    #[arg(long)]
+    pub dry_run: bool,
+    #[arg(long)]
+    pub force: bool,
+    #[arg(long)]
+    pub no_backup: bool,
+}
+
+/// Recall output toggles.
+#[derive(clap::Args, Debug, Default)]
+pub struct RecallToggles {
+    #[arg(long)]
+    pub prompt: bool,
+    #[arg(long)]
+    pub entropy: bool,
+    #[arg(long)]
+    pub pre_fetch: bool,
+}
+
+/// Balance flow toggles.
+#[derive(clap::Args, Debug, Default)]
+pub struct BalanceToggles {
+    #[arg(long)]
+    pub serial: bool,
+    #[arg(long)]
+    pub allow_all_paths: bool,
+}
 
 #[derive(Parser, Debug)]
 pub struct GitApplyArgs {
     pub commit: String,
-    #[arg(long)] pub file: Option<String>,
-    #[arg(long)] pub dry_run: bool,
-    #[arg(long, default_value = "5")] pub fuzz: usize,
-    #[arg(long)] pub force: bool,
-    #[arg(long)] pub no_backup: bool,
-    #[arg(long)] pub json: bool,
+    #[arg(long)]
+    pub file: Option<String>,
+    #[arg(long, default_value = "5")]
+    pub fuzz: usize,
+    #[arg(long)]
+    pub json: bool,
+    #[command(flatten)]
+    pub toggles: RunToggles,
 }
 
 #[derive(Parser, Debug)]
 pub struct GitDiffArgs {
     pub target: String,
-    #[arg(long)] pub file: Option<String>,
-    #[arg(long)] pub apply: bool,
-    #[arg(long)] pub dry_run: bool,
-    #[arg(long, default_value = "5")] pub fuzz: usize,
-    #[arg(long)] pub force: bool,
-    #[arg(long)] pub no_backup: bool,
-    #[arg(long)] pub json: bool,
+    #[arg(long)]
+    pub file: Option<String>,
+    #[arg(long)]
+    pub apply: bool,
+    #[arg(long, default_value = "5")]
+    pub fuzz: usize,
+    #[arg(long)]
+    pub json: bool,
+    #[command(flatten)]
+    pub toggles: GitDiffToggles,
 }
 
 #[derive(Parser, Debug)]
 pub struct SemDiffArgs {
-    #[arg(long)] pub file: Option<String>,
-    #[arg(long)] pub old: String,
-    #[arg(long)] pub new: String,
-    #[arg(long)] pub json: bool,
-    #[arg(long)] pub tui: bool,
+    #[arg(long)]
+    pub file: Option<String>,
+    #[arg(long)]
+    pub old: String,
+    #[arg(long)]
+    pub new: String,
+    #[arg(long)]
+    pub json: bool,
+    #[arg(long)]
+    pub tui: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct ProvenanceQueryArgs {
-    #[arg(long)] pub since: Option<String>,
-    #[arg(long)] pub file: Option<String>,
-    #[arg(long)] pub output: Option<String>,
-    #[arg(long)] pub json: bool,
+    #[arg(long)]
+    pub since: Option<String>,
+    #[arg(long)]
+    pub file: Option<String>,
+    #[arg(long)]
+    pub output: Option<String>,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct TraceArgs {
-    #[arg(long)] pub since: Option<String>,
-    #[arg(long)] pub key: Option<String>,
-    #[arg(long)] pub json: bool,
+    #[arg(long)]
+    pub since: Option<String>,
+    #[arg(long)]
+    pub key: Option<String>,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct McpHttpArgs {
-    #[arg(long, default_value = "9090")] pub port: u16,
-    #[arg(long, default_value = "127.0.0.1")] pub bind: String,
-    #[arg(long)] pub auth_token: Option<String>,
+    #[arg(long, default_value = "9090")]
+    pub port: u16,
+    #[arg(long, default_value = "127.0.0.1")]
+    pub bind: String,
+    #[arg(long)]
+    pub auth_token: Option<String>,
 }
 
 #[derive(Parser, Debug)]
 pub struct ImpactArgs {
-    #[arg(long)] pub symbol: String,
-    #[arg(long)] pub recursive: bool,
-    #[arg(long)] pub json: bool,
+    #[arg(long)]
+    pub symbol: String,
+    #[arg(long)]
+    pub recursive: bool,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
-pub struct EntityArgs { #[command(subcommand)] pub action: EntityAction }
+pub struct EntityArgs {
+    #[command(subcommand)]
+    pub action: EntityAction,
+}
 
 #[derive(Subcommand, Debug)]
 pub enum EntityAction {
-    List { #[arg(short, long)] file: String, #[arg(long)] json: bool },
-    Show { #[arg(long)] symbol: String, #[arg(short, long)] file: String },
-    Replace { #[arg(long)] symbol: String, #[arg(short, long)] file: String, #[arg(long)] new: String },
-    Body { #[arg(long)] symbol: String, #[arg(short, long)] file: String, #[arg(long)] new: String },
+    List {
+        #[arg(short, long)]
+        file: String,
+        #[arg(long)]
+        json: bool,
+    },
+    Show {
+        #[arg(long)]
+        symbol: String,
+        #[arg(short, long)]
+        file: String,
+    },
+    Replace {
+        #[arg(long)]
+        symbol: String,
+        #[arg(short, long)]
+        file: String,
+        #[arg(long)]
+        new: String,
+    },
+    Body {
+        #[arg(long)]
+        symbol: String,
+        #[arg(short, long)]
+        file: String,
+        #[arg(long)]
+        new: String,
+    },
 }
 
 #[derive(Parser, Debug)]
-pub struct KeyArgs { #[command(subcommand)] pub action: KeyAction }
+pub struct KeyArgs {
+    #[command(subcommand)]
+    pub action: KeyAction,
+}
 
 #[derive(Subcommand, Debug)]
 pub enum KeyAction {
-    Generate { #[arg(long, default_value = "keypair.json")] output: String },
-    Rotate { #[arg(long)] key: Option<String> },
+    Generate {
+        #[arg(long, default_value = "keypair.json")]
+        output: String,
+    },
+    Rotate {
+        #[arg(long)]
+        key: Option<String>,
+    },
 }
 
 #[derive(Parser, Debug)]
 pub struct HealArgs {
-    #[arg(short, long)] pub file: String,
-    #[arg(long)] pub apply: bool,
-    #[arg(long, default_value = "10")] pub max_cost: usize,
-    #[arg(long, default_value = "language-aware")] pub heuristic: String,
-    #[arg(long)] pub json: bool,
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(long)]
+    pub apply: bool,
+    #[arg(long, default_value = "10")]
+    pub max_cost: usize,
+    #[arg(long, default_value = "language-aware")]
+    pub heuristic: String,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct RecallArgs {
-    #[arg(short, long)] pub file: String,
-    #[arg(short, long)] pub line: usize,
-    #[arg(long)] pub old: String,
-    #[arg(long)] pub new: String,
-    #[arg(long)] pub error_code: String,
-    #[arg(long)] pub error_message: Option<String>,
-    #[arg(long, default_value = "5")] pub context_lines: usize,
-    #[arg(long)] pub json: bool,
-    #[arg(long)] pub prompt: bool,
-    #[arg(long)] pub entropy: bool,
-    #[arg(long, default_value = "2.5")] pub entropy_threshold: f64,
-    #[arg(long)] pub pre_fetch: bool,
-    #[arg(long)] pub minimal: bool,
-    #[arg(long)] pub session: Option<String>,
-    #[arg(long)] pub max_tokens: Option<usize>,
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(short, long)]
+    pub line: usize,
+    #[arg(long)]
+    pub old: String,
+    #[arg(long)]
+    pub new: String,
+    #[arg(long)]
+    pub error_code: String,
+    #[arg(long)]
+    pub error_message: Option<String>,
+    #[arg(long, default_value = "5")]
+    pub context_lines: usize,
+    #[arg(long)]
+    pub json: bool,
+    #[arg(long, default_value = "2.5")]
+    pub entropy_threshold: f64,
+    #[arg(long)]
+    pub minimal: bool,
+    #[command(flatten)]
+    pub toggles: RecallToggles,
+    #[arg(long)]
+    pub session: Option<String>,
+    #[arg(long)]
+    pub max_tokens: Option<usize>,
 }
 
+// `PatchArgs` deliberately mirrors the CLI surface of the `patch` subcommand,
+// which exposes ~20 independent boolean flags. Fragmenting them into artificial
+// nested groups would obscure the help output and the 1:1 flag mapping, so the
+// `struct_excessive_bools` lint is consciously exempted for this clap mirror.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug)]
 pub struct PatchArgs {
     #[arg(short, long, required_unless_present = "files")]
@@ -335,39 +509,58 @@ pub struct PatchArgs {
 
 #[derive(Parser, Debug)]
 pub struct BalanceArgs {
-    #[arg(short, long, required_unless_present = "files")] pub file: Option<String>,
-    #[arg(long, conflicts_with = "file")] pub files: Option<String>,
-    #[arg(long)] pub function: Option<String>,
-    #[arg(long)] pub apply: bool,
-    #[arg(long)] pub no_backup: bool,
-    #[arg(long, default_value = "10")] pub max_cost: usize,
-    #[arg(long)] pub json: bool,
-    #[arg(long)] pub serial: bool,
-    #[arg(long)] pub plugin: Option<String>,
-    #[arg(long)] pub allow_all_paths: bool,
+    #[arg(short, long, required_unless_present = "files")]
+    pub file: Option<String>,
+    #[arg(long, conflicts_with = "file")]
+    pub files: Option<String>,
+    #[arg(long)]
+    pub function: Option<String>,
+    #[arg(long)]
+    pub apply: bool,
+    #[arg(long, default_value = "10")]
+    pub max_cost: usize,
+    #[arg(long)]
+    pub json: bool,
+    #[arg(long)]
+    pub plugin: Option<String>,
+    #[command(flatten)]
+    pub toggles: BalanceToggles,
 }
 
 #[derive(Parser, Debug)]
 pub struct FixArgs {
-    #[arg(long)] pub error_file: Option<String>,
-    #[arg(long)] pub apply: bool,
-    #[arg(long)] pub force: bool,
-    #[arg(long)] pub file: Option<String>,
-    #[arg(long)] pub json: bool,
+    #[arg(long)]
+    pub error_file: Option<String>,
+    #[arg(long)]
+    pub apply: bool,
+    #[arg(long)]
+    pub force: bool,
+    #[arg(long)]
+    pub file: Option<String>,
+    #[arg(long)]
+    pub json: bool,
 }
 
 #[derive(Parser, Debug)]
 pub struct WatchArgs {
-    #[arg(short, long)] pub path: String,
-    #[arg(long, default_value = "500")] pub delay: u64,
-    #[arg(long)] pub ignore: Option<Vec<String>>,
-    #[arg(long)] pub hooks: Option<String>,
+    #[arg(short, long)]
+    pub path: String,
+    #[arg(long, default_value = "500")]
+    pub delay: u64,
+    #[arg(long)]
+    pub ignore: Option<Vec<String>>,
+    #[arg(long)]
+    pub hooks: Option<String>,
 }
 
 #[derive(Parser, Debug)]
 pub struct ExplainArgs {
-    #[arg(short, long)] pub file: String,
-    #[arg(short, long)] pub line: usize,
-    #[arg(long)] pub json: bool,
-    #[arg(long, default_value = "dark")] pub theme: Option<String>,
+    #[arg(short, long)]
+    pub file: String,
+    #[arg(short, long)]
+    pub line: usize,
+    #[arg(long)]
+    pub json: bool,
+    #[arg(long, default_value = "dark")]
+    pub theme: Option<String>,
 }
