@@ -16,6 +16,11 @@ pub struct Violation {
 }
 
 /// Extract invariants from source code via specially‑formatted comments.
+#[must_use]
+///
+/// # Panics
+///
+/// Panics if an internal `unwrap` fails (invariant violation).
 pub fn extract_invariants(source: &str) -> Vec<Invariant> {
     let mut invariants = Vec::new();
     let re = Regex::new(r"//@\s*(invariant|requires|ensures)\s+(.+)").unwrap();
@@ -32,6 +37,7 @@ pub fn extract_invariants(source: &str) -> Vec<Invariant> {
 }
 
 /// Verify that invariants still hold in the new code.
+#[must_use]
 pub fn verify_invariants(original: &str, patched: &str) -> Vec<Violation> {
     let invariants = extract_invariants(original);
     let mut violations = Vec::new();
