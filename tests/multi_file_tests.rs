@@ -23,7 +23,6 @@ fn test_multi_file_balance() {
 }
 
 #[test]
-#[ignore = "pre‑existing line‑based fuzzy‑match failure"]
 fn test_multi_file_patch() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("a.rs"), "fn a() {}\n").unwrap();
@@ -42,8 +41,16 @@ fn test_multi_file_patch() {
         .arg("fn a_new() {}")
         .assert()
         .success();
-    assert!(fs::read_to_string(dir.path().join("a.rs")).unwrap().contains("fn a_new()"));
-    assert!(!fs::read_to_string(dir.path().join("b.rs")).unwrap().contains("fn a_new()"));
+    assert!(
+        fs::read_to_string(dir.path().join("a.rs"))
+            .unwrap()
+            .contains("fn a_new()")
+    );
+    assert!(
+        !fs::read_to_string(dir.path().join("b.rs"))
+            .unwrap()
+            .contains("fn a_new()")
+    );
 }
 
 #[test]
