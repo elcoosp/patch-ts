@@ -17,6 +17,10 @@ pub struct FileEntry {
     pub sha256: String,
 }
 
+///
+/// # Errors
+///
+/// Returns an error if the cryptographic operation fails.
 pub fn generate_attestation(since: &str, output_path: Option<&Path>) -> Result<AttestationReport> {
     let records = crate::provenance::query_provenance(Some(since), None)?;
     let mut sbom = Vec::new();
@@ -25,19 +29,37 @@ pub fn generate_attestation(since: &str, output_path: Option<&Path>) -> Result<A
         if seen.insert(&record.file) {
             let content = std::fs::read_to_string(&record.file).unwrap_or_default();
             let hash = crate::scitt::hash_content(&content);
-            sbom.push(FileEntry { path: record.file.clone(), sha256: hash });
+            sbom.push(FileEntry {
+                path: record.file.clone(),
+                sha256: hash,
+            });
         }
     }
-    let provenance_chain: Vec<serde_json::Value> = records.iter().map(|r| serde_json::to_value(r).unwrap_or_default()).collect();
-    let validation_results: Vec<serde_json::Value> = records.iter().map(|r| r.validation_results.clone()).collect();
+    let provenance_chain: Vec<serde_json::Value> = records
+        .iter()
+        .map(|r| serde_json::to_value(r).unwrap_or_default())
+        .collect();
+    let validation_results: Vec<serde_json::Value> = records
+        .iter()
+        .map(|r| r.validation_results.clone())
+        .collect();
     let report = AttestationReport {
         report_id: format!("attest-{}", chrono::Utc::now().format("%Y-%m-%d-%H%M%S")),
-        cra_compliant: true, sbom, provenance_chain, validation_results,
+        cra_compliant: true,
+        sbom,
+        provenance_chain,
+        validation_results,
     };
-    if let Some(path) = output_path { std::fs::write(path, serde_json::to_string_pretty(&report)?)?; }
+    if let Some(path) = output_path {
+        std::fs::write(path, serde_json::to_string_pretty(&report)?)?;
+    }
     Ok(report)
 }
 
+///
+/// # Errors
+///
+/// Returns an error if the content cannot be generated from the input.
 pub fn generate_cra_report(since: &str, output_path: Option<&Path>) -> Result<serde_json::Value> {
     let records = crate::provenance::query_provenance(Some(since), None)?;
     let mut sbom = Vec::new();
@@ -58,6 +80,33 @@ pub fn generate_cra_report(since: &str, output_path: Option<&Path>) -> Result<se
         "provenance_chain_length": records.len(),
         "cra_compliant": true,
     });
-    if let Some(path) = output_path { std::fs::write(path, serde_json::to_string_pretty(&cra_report)?)?; }
+    if let Some(path) = output_path {
+        std::fs::write(path, serde_json::to_string_pretty(&cra_report)?)?;
+    }
     Ok(cra_report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn attestation_report_shape() {
+        let dir = tempdir().unwrap();
+        let out = dir.path().join("attest.json");
+        let report = generate_attestation("2000-01-01", Some(&out)).unwrap();
+        assert!(report.report_id.starts_with("attest-"));
+        assert!(report.cra_compliant);
+        assert!(out.exists(), "report should be written to disk");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&out).unwrap()).unwrap();
+        assert!(parsed["report_id"].as_str().unwrap().starts_with("attest-"));
+    }
+
+    #[test]
+    fn cra_report_is_serializable() {
+        let report = generate_cra_report("2000-01-01", None).unwrap();
+        assert!(report.is_object());
+    }
 }
