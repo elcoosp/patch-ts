@@ -3,15 +3,18 @@ use tree_sitter::StreamingIterator;
 use tree_sitter::{Parser, Query, QueryCursor};
 
 /// Extract all identifiers from source code using tree-sitter.
+///
+/// # Errors
+///
+/// Returns an error if the input cannot be parsed.
 pub fn extract_identifiers(source: &str, language: &str) -> Result<HashSet<String>, String> {
     let mut parser = Parser::new();
     let lang = match language {
         "rs" => tree_sitter_rust::LANGUAGE.into(),
         _ => {
             return Err(format!(
-                "Identifier extraction not supported for {}",
-                language
-            ))
+                "Identifier extraction not supported for {language}"
+            ));
         }
     };
     parser.set_language(&lang).map_err(|e| e.to_string())?;
@@ -25,7 +28,7 @@ pub fn extract_identifiers(source: &str, language: &str) -> Result<HashSet<Strin
 
     let mut ids: HashSet<String> = HashSet::new();
     while let Some(match_item) = matches.next() {
-        for capture in match_item.captures {
+        for capture in match_item.captures() {
             if let Ok(text) = capture.node.utf8_text(source.as_bytes()) {
                 ids.insert(text.to_string() as String);
             }
@@ -35,14 +38,13 @@ pub fn extract_identifiers(source: &str, language: &str) -> Result<HashSet<Strin
 }
 
 /// Check which identifiers in `new_text` do not appear in `original_source`.
+#[must_use]
 pub fn missing_identifiers(original_source: &str, new_text: &str, language: &str) -> Vec<String> {
-    let orig_ids = match extract_identifiers(original_source, language) {
-        Ok(ids) => ids,
-        Err(_) => return vec![],
+    let Ok(orig_ids) = extract_identifiers(original_source, language) else {
+        return vec![];
     };
-    let new_ids = match extract_identifiers(new_text, language) {
-        Ok(ids) => ids,
-        Err(_) => return vec![],
+    let Ok(new_ids) = extract_identifiers(new_text, language) else {
+        return vec![];
     };
     new_ids.difference(&orig_ids).cloned().collect()
 }
