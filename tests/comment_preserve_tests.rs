@@ -3,7 +3,6 @@ use std::fs;
 use tempfile::tempdir;
 
 #[test]
-#[ignore]
 fn test_preserve_comments_literal_patch_rust() {
     let dir = tempdir().unwrap();
     let file = dir.path().join("sample.rs");
@@ -29,13 +28,11 @@ fn test_preserve_comments_literal_patch_rust() {
     let content = fs::read_to_string(&file).unwrap();
     assert!(
         content.contains("// print greeting"),
-        "Inline comment not preserved:\n{}",
-        content
+        "Inline comment not preserved:\n{content}"
     );
     assert!(
         content.contains("// This is the main function"),
-        "File‑level comment not preserved:\n{}",
-        content
+        "File‑level comment not preserved:\n{content}"
     );
 }
 
@@ -65,8 +62,7 @@ fn test_preserve_comments_doc_comment_rust() {
     let content = fs::read_to_string(&file).unwrap();
     assert!(
         content.contains("/// Adds two numbers"),
-        "Doc comment not preserved:\n{}",
-        content
+        "Doc comment not preserved:\n{content}"
     );
 }
 
@@ -92,8 +88,7 @@ fn test_preserve_comments_ts() {
     let content = fs::read_to_string(&file).unwrap();
     assert!(
         content.contains("// Config value"),
-        "TS comment not preserved:\n{}",
-        content
+        "TS comment not preserved:\n{content}"
     );
 }
 
