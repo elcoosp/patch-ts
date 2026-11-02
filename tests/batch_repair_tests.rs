@@ -3,7 +3,6 @@ use std::fs;
 use tempfile::tempdir;
 
 #[test]
-#[ignore = "new minimum‑cost repair needs higher max_cost for complex cases; revisit post‑v1.1"]
 fn test_balance_fixes_multiple_errors() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("sample.ts");
@@ -23,7 +22,6 @@ fn test_balance_fixes_multiple_errors() {
 }
 
 #[test]
-#[ignore = "new minimum‑cost repair needs higher max_cost for complex cases; revisit post‑v1.1"]
 fn test_balance_fixes_extra_and_missing() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("sample.js");
