@@ -1,8 +1,12 @@
-use anyhow::Result;
 use super::types::HealArgs;
 use crate::heal::{HealOptions, Heuristic, heal_file};
+use anyhow::Result;
 
-pub fn handle_heal(args: HealArgs) -> Result<()> {
+///
+/// # Errors
+///
+/// Returns an error if the patch cannot be applied to the file.
+pub fn handle_heal(args: &HealArgs) -> Result<()> {
     let file_path = std::path::Path::new(&args.file);
     let heuristic = match args.heuristic.as_str() {
         "language-aware" => Heuristic::LanguageAware,
@@ -24,22 +28,27 @@ pub fn handle_heal(args: HealArgs) -> Result<()> {
 
     if args.json {
         println!("{}", serde_json::to_string_pretty(&result)?);
-    } else {
-        if result.success {
-            println!("✅ Heal successful ({} actions, cost {})", result.actions.len(), result.total_cost);
-            for action in &result.actions {
-                match action {
-                    crate::repair::search::RepairAction::Insert { ch, pos } => {
-                        println!("  Insert '{}' at byte {}", ch, pos);
-                    }
-                    crate::repair::search::RepairAction::Delete { start, end: _ } => {
-                        println!("  Delete at byte {}", start);
-                    }
+    } else if result.success {
+        println!(
+            "✅ Heal successful ({} actions, cost {})",
+            result.actions.len(),
+            result.total_cost
+        );
+        for action in &result.actions {
+            match action {
+                crate::repair::search::RepairAction::Insert { ch, pos } => {
+                    println!("  Insert '{ch}' at byte {pos}");
+                }
+                crate::repair::search::RepairAction::Delete { start, end: _ } => {
+                    println!("  Delete at byte {start}");
                 }
             }
-        } else {
-            println!("❌ Heal failed: could not repair within max cost {}", args.max_cost);
         }
+    } else {
+        println!(
+            "❌ Heal failed: could not repair within max cost {}",
+            args.max_cost
+        );
     }
 
     Ok(())
