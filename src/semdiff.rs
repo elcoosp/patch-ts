@@ -28,6 +28,10 @@ pub struct EntityChange {
 }
 
 /// Extract entities (functions, structs, classes, etc.) from source code.
+///
+/// # Errors
+///
+/// Returns an error if the input cannot be parsed.
 pub fn extract_entities(source: &str, lang: &str) -> Result<Vec<Entity>, String> {
     let mut parser = Parser::new();
     let language = match lang {
@@ -47,7 +51,7 @@ pub fn extract_entities(source: &str, lang: &str) -> Result<Vec<Entity>, String>
         "swift" => tree_sitter_swift::LANGUAGE.into(),
         "scala" => tree_sitter_scala::LANGUAGE.into(),
         "zig" => tree_sitter_zig::LANGUAGE.into(),
-        _ => return Err(format!("Unsupported language: {}", lang)),
+        _ => return Err(format!("Unsupported language: {lang}")),
     };
     parser.set_language(&language).map_err(|e| e.to_string())?;
     let tree = parser.parse(source, None).ok_or("Failed to parse")?;
@@ -78,30 +82,30 @@ fn collect_entities(
     entities: &mut Vec<Entity>,
 ) {
     let kind = node.kind();
-    if entity_kinds.contains(&kind) {
-        if let Some(name_node) = node.child_by_field_name("name") {
-            if let Ok(name) = name_node.utf8_text(source.as_bytes()) {
-                // Build a simple signature from the node's text up to the body
-                let sig = node.utf8_text(source.as_bytes()).unwrap_or("");
-                let sig_trimmed = sig.lines().next().unwrap_or(sig).to_string();
-                entities.push(Entity {
-                    name: name.to_string(),
-                    kind: kind.to_string(),
-                    start_byte: node.start_byte(),
-                    end_byte: node.end_byte(),
-                    signature: sig_trimmed,
-                });
-            }
-        }
+    if entity_kinds.contains(&kind)
+        && let Some(name_node) = node.child_by_field_name("name")
+        && let Ok(name) = name_node.utf8_text(source.as_bytes())
+    {
+        // Build a simple signature from the node's text up to the body
+        let sig = node.utf8_text(source.as_bytes()).unwrap_or("");
+        let sig_trimmed = sig.lines().next().unwrap_or(sig).to_string();
+        entities.push(Entity {
+            name: name.to_string(),
+            kind: kind.to_string(),
+            start_byte: node.start_byte(),
+            end_byte: node.end_byte(),
+            signature: sig_trimmed,
+        });
     }
     for i in 0..node.child_count() {
-        if let Some(child) = node.child(i as u32) {
+        if let Some(child) = node.child(i) {
             collect_entities(&child, source, entity_kinds, entities);
         }
     }
 }
 
 /// Diff two lists of entities and return a list of changes.
+#[must_use]
 pub fn diff_entities(old: &[Entity], new: &[Entity]) -> Vec<EntityChange> {
     let mut changes = Vec::new();
     let old_map: HashMap<&str, &Entity> = old.iter().map(|e| (e.name.as_str(), e)).collect();
@@ -131,20 +135,46 @@ pub fn diff_entities(old: &[Entity], new: &[Entity]) -> Vec<EntityChange> {
     }
     // Modified (signature differs)
     for (name, new_entity) in &new_map {
-        if let Some(old_entity) = old_map.get(name) {
-            if new_entity.signature != old_entity.signature
-                || new_entity.start_byte != old_entity.start_byte
-            {
-                changes.push(EntityChange {
-                    change_type: ChangeType::Modified,
-                    entity: (*new_entity).clone(),
-                    old_entity: Some((*old_entity).clone()),
-                    diff: None,
-                });
-            }
+        if let Some(old_entity) = old_map.get(name)
+            && (new_entity.signature != old_entity.signature
+                || new_entity.start_byte != old_entity.start_byte)
+        {
+            changes.push(EntityChange {
+                change_type: ChangeType::Modified,
+                entity: (*new_entity).clone(),
+                old_entity: Some((*old_entity).clone()),
+                diff: None,
+            });
         }
     }
     // Moved (same name, same sig, different location) – already covered by Modified for now
+    changes
+}
+
+/// Compute a semantic diff between two versions of a file (or two strings).
+/// Returns a list of `EntityChange` with body comparison.
+#[must_use]
+pub fn compute_semantic_diff(
+    old_content: &str,
+    new_content: &str,
+    lang: &str,
+) -> Vec<EntityChange> {
+    let old_entities = extract_entities(old_content, lang).unwrap_or_default();
+    let new_entities = extract_entities(new_content, lang).unwrap_or_default();
+    let mut changes = diff_entities(&old_entities, &new_entities);
+    // For Modified/Moved, we can add a simple body diff placeholder.
+    for change in &mut changes {
+        if let ChangeType::Modified = change.change_type {
+            // Provide a diff of the signatures (or a simple string diff)
+            if let Some(old_entity) = &change.old_entity {
+                let old_sig = &old_entity.signature;
+                let new_sig = &change.entity.signature;
+                if old_sig != new_sig {
+                    change.diff = Some(format!("- {old_sig}\n+ {new_sig}"));
+                }
+            }
+        }
+    }
     changes
 }
 
@@ -180,34 +210,15 @@ mod tests {
         }];
         let changes = diff_entities(&old, &new);
         assert_eq!(changes.len(), 2);
-        assert!(changes
-            .iter()
-            .any(|c| matches!(c.change_type, ChangeType::Added)));
-        assert!(changes
-            .iter()
-            .any(|c| matches!(c.change_type, ChangeType::Removed)));
+        assert!(
+            changes
+                .iter()
+                .any(|c| matches!(c.change_type, ChangeType::Added))
+        );
+        assert!(
+            changes
+                .iter()
+                .any(|c| matches!(c.change_type, ChangeType::Removed))
+        );
     }
 }
-
-/// Compute a semantic diff between two versions of a file (or two strings).
-/// Returns a list of EntityChange with body comparison.
-pub fn compute_semantic_diff(old_content: &str, new_content: &str, lang: &str) -> Vec<EntityChange> {
-    let old_entities = extract_entities(old_content, lang).unwrap_or_default();
-    let new_entities = extract_entities(new_content, lang).unwrap_or_default();
-    let mut changes = diff_entities(&old_entities, &new_entities);
-    // For Modified/Moved, we can add a simple body diff placeholder.
-    for change in &mut changes {
-        if let ChangeType::Modified = change.change_type {
-            // Provide a diff of the signatures (or a simple string diff)
-            if let Some(old_entity) = &change.old_entity {
-                let old_sig = &old_entity.signature;
-                let new_sig = &change.entity.signature;
-                if old_sig != new_sig {
-                    change.diff = Some(format!("- {}\n+ {}", old_sig, new_sig));
-                }
-            }
-        }
-    }
-    changes
-}
-
