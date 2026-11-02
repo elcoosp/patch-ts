@@ -2,10 +2,10 @@ use patch_ts::marker::{find_marker, replace_marker_node};
 
 #[test]
 fn test_find_marker_single() {
-    let source = r#"
+    let source = r"
 // PATCH-ME: update
 fn old() {}
-"#;
+";
     let markers = find_marker(source, "update").unwrap();
     assert_eq!(markers.len(), 1);
     assert_eq!(markers[0].line, 2);
@@ -20,12 +20,12 @@ fn test_find_marker_not_found() {
 
 #[test]
 fn test_find_marker_multiple() {
-    let source = r#"
+    let source = r"
 // PATCH-ME: dup
 fn a() {}
 // PATCH-ME: dup
 fn b() {}
-"#;
+";
     let markers = find_marker(source, "dup").unwrap();
     assert_eq!(markers.len(), 2);
 }
