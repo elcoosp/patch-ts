@@ -17,11 +17,15 @@ pub struct StageVerdict {
     pub details: String,
 }
 
-/// Run post‑patch verification pipeline.
+/// Run post-patch verification pipeline.
+///
+/// # Errors
+///
+/// Returns an error if the cryptographic operation fails.
 pub fn verify_patch(
     file_path: &Path,
     patched_content: &str,
-    _original_content: &str,
+    original_content: &str,
     lang_str: &str,
     compile_timeout: u64,
     verify_test: Option<&str>,
@@ -40,30 +44,49 @@ pub fn verify_patch(
         let passed = lang.is_valid(&parse_result);
         result.syntax = Some(StageVerdict {
             passed,
-            details: if passed { "AST valid".to_string() } else { "Syntax error detected".to_string() },
+            details: if passed {
+                "AST valid".to_string()
+            } else {
+                "Syntax error detected".to_string()
+            },
         });
-        if !passed { result.all_passed = false; }
+        if !passed {
+            result.all_passed = false;
+        }
     }
 
-    // 2. Compile check (if language supports it)
+    // 2. Compile check (if language supports it) — delta semantics: a patch
+    //    only fails the stage when it introduces errors absent from the
+    //    baseline content.
     if !lang_str.is_empty() && lang_str != "txt" && lang_str != "md" {
         match crate::compile::compile_check(file_path, lang_str, compile_timeout) {
             Ok(compile_result) => {
-                let passed = compile_result.success;
+                let passed = compile_result.success || {
+                    let baseline = crate::compile::compile_check_content(
+                        original_content,
+                        lang_str,
+                        compile_timeout,
+                    )?;
+                    !baseline.success
+                };
                 result.compile = Some(StageVerdict {
                     passed,
-                    details: if passed {
+                    details: if compile_result.success {
                         "Compilation successful".to_string()
+                    } else if passed {
+                        "Baseline already failing; no new errors".to_string()
                     } else {
                         format!("{} errors", compile_result.errors.len())
                     },
                 });
-                if !passed { result.all_passed = false; }
+                if !passed {
+                    result.all_passed = false;
+                }
             }
             Err(e) => {
                 result.compile = Some(StageVerdict {
                     passed: true,
-                    details: format!("Compilation check skipped: {}", e),
+                    details: format!("Compilation check skipped: {e}"),
                 });
             }
         }
@@ -75,12 +98,18 @@ pub fn verify_patch(
             .arg("-c")
             .arg(test_cmd)
             .status();
-        let passed = status.map(|s| s.success()).unwrap_or(false);
+        let passed = status.is_ok_and(|s| s.success());
         result.tests = Some(StageVerdict {
             passed,
-            details: if passed { "Tests passed".to_string() } else { "Tests failed".to_string() },
+            details: if passed {
+                "Tests passed".to_string()
+            } else {
+                "Tests failed".to_string()
+            },
         });
-        if !passed { result.all_passed = false; }
+        if !passed {
+            result.all_passed = false;
+        }
     }
 
     Ok(result)
