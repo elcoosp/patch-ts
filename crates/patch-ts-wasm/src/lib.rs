@@ -1,5 +1,5 @@
-use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 #[derive(Deserialize)]
 pub struct PatchRequest {
@@ -22,7 +22,11 @@ pub fn apply_patch_wasm(request_json: &str) -> String {
     let _request: PatchRequest = match serde_json::from_str(request_json) {
         Ok(r) => r,
         Err(e) => {
-            let resp = PatchResponse { success: false, content: None, error: Some(format!("Invalid JSON: {}", e)) };
+            let resp = PatchResponse {
+                success: false,
+                content: None,
+                error: Some(format!("Invalid JSON: {}", e)),
+            };
             return serde_json::to_string(&resp).unwrap_or_default();
         }
     };
@@ -30,5 +34,6 @@ pub fn apply_patch_wasm(request_json: &str) -> String {
         success: true,
         content: Some("WASM patch applied (stub)".to_string()),
         error: None,
-    }).unwrap_or_default()
+    })
+    .unwrap_or_default()
 }
