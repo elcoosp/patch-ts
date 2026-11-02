@@ -2,21 +2,25 @@ use anyhow::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Frame, Terminal,
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
-    Frame, Terminal,
 };
 use std::io;
 use std::panic;
 use tree_sitter::{Node, Parser};
 
 // Walk the entire AST, collecting highlighted spans for leaf tokens.
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn highlight(code: &str, lang: &str) -> Result<Vec<(String, Style)>> {
     let mut parser = Parser::new();
     let (language, _is_tsx) = match lang {
@@ -39,7 +43,7 @@ pub fn highlight(code: &str, lang: &str) -> Result<Vec<(String, Style)>> {
         "swift" => (tree_sitter_swift::LANGUAGE.into(), false),
         "scala" => (tree_sitter_scala::LANGUAGE.into(), false),
         "zig" => (tree_sitter_zig::LANGUAGE.into(), false),
-        _ => anyhow::bail!("Unsupported language: {}", lang),
+        _ => anyhow::bail!("Unsupported language: {lang}"),
     };
     parser.set_language(&language)?;
     let tree = parser
@@ -118,7 +122,7 @@ fn collect_styled_spans(node: &Node, source: &str, spans: &mut Vec<(String, Styl
         }
     } else {
         for i in 0..child_count {
-            if let Some(child) = node.child(i as u32) {
+            if let Some(child) = node.child(i) {
                 collect_styled_spans(&child, source, spans);
             }
         }
@@ -126,7 +130,7 @@ fn collect_styled_spans(node: &Node, source: &str, spans: &mut Vec<(String, Styl
 }
 
 #[derive(PartialEq)]
-enum ViewMode {
+pub enum ViewMode {
     Stacked,
     SideBySide,
 }
@@ -145,6 +149,7 @@ pub struct TuiApp {
 }
 
 impl TuiApp {
+    #[must_use]
     pub fn new(original: String, patched: String) -> Self {
         Self {
             original_content: original,
@@ -201,12 +206,20 @@ impl TuiApp {
     }
 }
 
+///
+/// # Errors
+///
+/// Returns an error if the content cannot be generated from the input.
 pub fn show_diff(original: &str, patched: &str) -> Result<bool> {
     let mut app = TuiApp::new(original.to_string(), patched.to_string());
     app.run()
 }
 
 impl TuiApp {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn run(&mut self) -> Result<bool> {
         let hook = panic::take_hook();
         panic::set_hook(Box::new(move |info| {
@@ -231,65 +244,68 @@ impl TuiApp {
         Ok(self.accepted)
     }
 
-    fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> Result<()> {
+    fn run_app<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> Result<()>
+    where
+        B::Error: Send + Sync + 'static,
+    {
         loop {
             terminal.draw(|f| self.ui(f))?;
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    if self.collecting_comment {
-                        match key.code {
-                            KeyCode::Enter => {
-                                self.comments.push(self.current_comment.clone());
-                                self.current_comment.clear();
-                                self.collecting_comment = false;
-                            }
-                            KeyCode::Esc => {
-                                self.current_comment.clear();
-                                self.collecting_comment = false;
-                            }
-                            KeyCode::Char(c) => {
-                                self.current_comment.push(c);
-                            }
-                            KeyCode::Backspace => {
-                                self.current_comment.pop();
-                            }
-                            _ => {}
-                        }
-                        continue;
-                    }
+            if let Event::Key(key) = event::read()?
+                && key.kind == KeyEventKind::Press
+            {
+                if self.collecting_comment {
                     match key.code {
-                        KeyCode::Char('s') | KeyCode::Char('S') => {
-                            self.view_mode = if self.view_mode == ViewMode::Stacked {
-                                ViewMode::SideBySide
-                            } else {
-                                ViewMode::Stacked
-                            };
-                        }
-                        KeyCode::Char('y') | KeyCode::Char('Y') => {
-                            if self.editing {
-                                self.editing = false;
-                            } else {
-                                self.accepted = true;
-                                return Ok(());
-                            }
-                        }
-                        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
-                            if self.editing {
-                                self.editing = false;
-                            } else {
-                                self.accepted = false;
-                                return Ok(());
-                            }
-                        }
-                        KeyCode::Char('e') | KeyCode::Char('E') => {
-                            self.editing = !self.editing;
-                        }
-                        KeyCode::Char('c') | KeyCode::Char('C') => {
-                            self.collecting_comment = true;
+                        KeyCode::Enter => {
+                            self.comments.push(self.current_comment.clone());
                             self.current_comment.clear();
+                            self.collecting_comment = false;
+                        }
+                        KeyCode::Esc => {
+                            self.current_comment.clear();
+                            self.collecting_comment = false;
+                        }
+                        KeyCode::Char(c) => {
+                            self.current_comment.push(c);
+                        }
+                        KeyCode::Backspace => {
+                            self.current_comment.pop();
                         }
                         _ => {}
                     }
+                    continue;
+                }
+                match key.code {
+                    KeyCode::Char('s' | 'S') => {
+                        self.view_mode = if self.view_mode == ViewMode::Stacked {
+                            ViewMode::SideBySide
+                        } else {
+                            ViewMode::Stacked
+                        };
+                    }
+                    KeyCode::Char('y' | 'Y') => {
+                        if self.editing {
+                            self.editing = false;
+                        } else {
+                            self.accepted = true;
+                            return Ok(());
+                        }
+                    }
+                    KeyCode::Char('n' | 'N') | KeyCode::Esc => {
+                        if self.editing {
+                            self.editing = false;
+                        } else {
+                            self.accepted = false;
+                            return Ok(());
+                        }
+                    }
+                    KeyCode::Char('e' | 'E') => {
+                        self.editing = !self.editing;
+                    }
+                    KeyCode::Char('c' | 'C') => {
+                        self.collecting_comment = true;
+                        self.current_comment.clear();
+                    }
+                    _ => {}
                 }
             }
         }
