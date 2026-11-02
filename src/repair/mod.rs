@@ -1,8 +1,9 @@
+pub mod history;
 pub mod search;
 
 use crate::ast::DelimiterError;
 use crate::plugin::PluginHost;
-use crate::repair::search::{minimum_cost_repair, RepairAction};
+use crate::repair::search::{RepairAction, minimum_cost_repair};
 use anyhow::Result;
 use line_index::LineIndex;
 use std::fs;
@@ -18,23 +19,10 @@ fn compute_insertion_span(
     _content: &str,
     _index: &LineIndex,
 ) -> crate::ast::Span {
-    match error {
-        DelimiterError::Missing {
-            insert_at,
-            parent_kind,
-            ..
-        } => {
-            if let Some(kind) = parent_kind {
-                if kind == "block" || kind == "function_body" || kind == "statement_block" {
-                    return insert_at.clone();
-                }
-            }
-            insert_at.clone()
-        }
-        _ => unreachable!(),
-    }
+    error.span().clone()
 }
 
+#[must_use]
 pub fn apply_repair(content: &str, error: &DelimiterError, index: &LineIndex) -> String {
     match error {
         DelimiterError::Extra { span, .. } => {
@@ -52,6 +40,10 @@ pub fn apply_repair(content: &str, error: &DelimiterError, index: &LineIndex) ->
     }
 }
 
+///
+/// # Errors
+///
+/// Returns an error if the patch cannot be applied to the file.
 pub fn balance_file(
     file_path: &Path,
     function_name: Option<&str>,
@@ -72,7 +64,7 @@ pub fn balance_file(
             .find_function_body_range(&original_content, func_name)
             .is_none()
         {
-            anyhow::bail!("Function '{}' not found or ambiguous", func_name);
+            anyhow::bail!("Function '{func_name}' not found or ambiguous");
         }
     }
 
@@ -100,38 +92,34 @@ pub fn balance_file(
                 rolled_back: vec![],
                 error: None,
             });
-        } else {
-            anyhow::bail!("File has syntax errors but no delimiter errors were identified");
         }
+        anyhow::bail!("File has syntax errors but no delimiter errors were identified");
     }
 
     let search_result = minimum_cost_repair(&repaired_content, &errors, language, max_cost);
 
-    let (patched_content, actions, _cost) = match search_result {
-        Some((content, actions, cost)) => (content, actions, cost),
-        None => {
-            return Ok(BalanceResult {
-                success: false,
-                actions: vec![],
-                rolled_back: vec![],
-                error: Some(JsonError {
-                    code: "patch_ts::balance_max_cost_exceeded".to_string(),
-                    message: format!("Unable to find repair within max cost {}", max_cost),
-                    span: JsonSpan {
-                        file: file_path.to_string_lossy().to_string(),
-                        line: 0,
-                        column: 0,
-                    },
-                    context: String::new(),
-                    suggestion: Some("Try increasing max_cost or manually fix".to_string()),
-                    best_score: None,
-                    best_match_line: None,
-                    candidates: None,
-                    error_code: Some("E000".to_string()),
-                    retry_prompt: None,
-                }),
-            });
-        }
+    let Some((patched_content, actions, _cost)) = search_result else {
+        return Ok(BalanceResult {
+            success: false,
+            actions: vec![],
+            rolled_back: vec![],
+            error: Some(JsonError {
+                code: "patch_ts::balance_max_cost_exceeded".to_string(),
+                message: format!("Unable to find repair within max cost {max_cost}"),
+                span: JsonSpan {
+                    file: file_path.to_string_lossy().to_string(),
+                    line: 0,
+                    column: 0,
+                },
+                context: String::new(),
+                suggestion: Some("Try increasing max_cost or manually fix".to_string()),
+                best_score: None,
+                best_match_line: None,
+                candidates: None,
+                error_code: Some("E000".to_string()),
+                retry_prompt: None,
+            }),
+        });
     };
 
     let balance_actions: Vec<BalanceAction> = actions
@@ -144,7 +132,7 @@ pub fn balance_file(
                     delimiter: *ch,
                     line,
                     column: col,
-                    message: format!("Inserted missing '{}'", ch),
+                    message: format!("Inserted missing '{ch}'"),
                 }
             }
             RepairAction::Delete { start, end: _ } => {
@@ -155,14 +143,14 @@ pub fn balance_file(
                     delimiter,
                     line,
                     column: col,
-                    message: format!("Removed extra '{}'", delimiter),
+                    message: format!("Removed extra '{delimiter}'"),
                 }
             }
         })
         .collect();
 
     if dry_run {
-        println!("{}", patched_content);
+        println!("{patched_content}");
     } else {
         fs::write(file_path, &patched_content)?;
     }
@@ -178,7 +166,7 @@ pub fn balance_file(
 fn offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
     use line_index::{LineIndex, TextSize};
     let index = LineIndex::new(source);
-    let pos = index.line_col(TextSize::from(offset as u32));
+    let pos = index.line_col(TextSize::from(crate::num::to_u32(offset)));
     (pos.line as usize + 1, pos.col as usize + 1)
 }
 
@@ -194,7 +182,7 @@ fn find_delimiter_errors_in_function(
     let source = parse_result.text();
     let (start_byte, end_byte) = rust_lang
         .find_function_body_range(source, function_name)
-        .ok_or_else(|| anyhow::anyhow!("Function '{}' not found or ambiguous", function_name))?;
+        .ok_or_else(|| anyhow::anyhow!("Function '{function_name}' not found or ambiguous"))?;
     let all_errors = language.find_delimiter_errors(parse_result);
     let filtered: Vec<DelimiterError> = all_errors
         .into_iter()
@@ -204,7 +192,7 @@ fn find_delimiter_errors_in_function(
         })
         .collect();
     if filtered.is_empty() {
-        anyhow::bail!("No delimiter errors found in function '{}'", function_name);
+        anyhow::bail!("No delimiter errors found in function '{function_name}'");
     }
     Ok(filtered)
 }
@@ -218,6 +206,10 @@ pub fn quick_balance(content: &str, language: &mut dyn Language) -> Option<Strin
     minimum_cost_repair(content, &errors, language, 3).map(|(s, _, _)| s)
 }
 
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn explain_error(
     file_path: &Path,
     line: usize,
@@ -229,6 +221,10 @@ pub fn explain_error(
     Ok(language.explain_error(&parse_result, line))
 }
 
+///
+/// # Errors
+///
+/// Returns an error if the patch cannot be applied to the file.
 pub fn balance_files(
     files: &[PathBuf],
     function_name: Option<&str>,
@@ -240,4 +236,3 @@ pub fn balance_files(
         .map(|file| balance_file(file, function_name, dry_run, language, None, 10))
         .collect()
 }
-pub mod history;
