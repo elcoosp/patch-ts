@@ -24,8 +24,6 @@ struct LspRequest {
 #[derive(Debug, Deserialize)]
 struct LspResponse {
     #[serde(default)]
-    id: Option<u64>,
-    #[serde(default)]
     result: Option<Value>,
     #[serde(default)]
     error: Option<Value>,
@@ -37,7 +35,6 @@ struct LspResponse {
 
 #[derive(Debug, Deserialize)]
 struct PublishDiagnosticsParams {
-    uri: String,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -63,6 +60,14 @@ pub struct Position {
 }
 
 impl LspClient {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an internal `unwrap` fails (invariant violation).
     pub fn new(cmd: &str, args: &[&str], root_uri: &str) -> Result<Self> {
         let mut child = Command::new(cmd)
             .args(args)
@@ -70,7 +75,7 @@ impl LspClient {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .with_context(|| format!("Failed to spawn language server: {}", cmd))?;
+            .with_context(|| format!("Failed to spawn language server: {cmd}"))?;
 
         let writer = child.stdin.take().unwrap();
         let reader = BufReader::new(child.stdout.take().unwrap());
@@ -99,7 +104,7 @@ impl LspClient {
             }
         });
         let _resp = self.request("initialize", params)?;
-        self.send_notification("initialized", serde_json::json!({}));
+        self.send_notification("initialized", &serde_json::json!({}));
         Ok(())
     }
 
@@ -113,14 +118,21 @@ impl LspClient {
             params,
         };
         let req_json = serde_json::to_string(&req)?;
-        writeln!(self.writer, "Content-Length: {}\r\n\r\n{}", req_json.len(), req_json)?;
+        writeln!(
+            self.writer,
+            "Content-Length: {}\r\n\r\n{}",
+            req_json.len(),
+            req_json
+        )?;
         self.writer.flush()?;
 
         let mut content_length = 0usize;
         loop {
             let mut line = String::new();
             self.reader.read_line(&mut line)?;
-            if line == "\r\n" { break; }
+            if line == "\r\n" {
+                break;
+            }
             if line.to_lowercase().starts_with("content-length:") {
                 content_length = line.trim_start_matches("Content-Length:").trim().parse()?;
             }
@@ -130,22 +142,31 @@ impl LspClient {
         self.reader.read_exact(&mut body)?;
         let resp: LspResponse = serde_json::from_slice(&body)?;
         if let Some(e) = resp.error {
-            anyhow::bail!("LSP error: {:?}", e);
+            anyhow::bail!("LSP error: {e:?}");
         }
         Ok(resp.result.unwrap_or(Value::Null))
     }
 
-    fn send_notification(&mut self, method: &str, params: Value) {
+    fn send_notification(&mut self, method: &str, params: &Value) {
         let notif = serde_json::json!({
             "jsonrpc": "2.0",
             "method": method,
             "params": params,
         });
         let json = notif.to_string();
-        let _ = writeln!(self.writer, "Content-Length: {}\r\n\r\n{}", json.len(), json);
+        let _ = writeln!(
+            self.writer,
+            "Content-Length: {}\r\n\r\n{}",
+            json.len(),
+            json
+        );
         let _ = self.writer.flush();
     }
 
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn get_diagnostics(
         &mut self,
         uri: &str,
@@ -155,7 +176,7 @@ impl LspClient {
     ) -> Result<Vec<Diagnostic>> {
         self.send_notification(
             "textDocument/didOpen",
-            serde_json::json!({
+            &serde_json::json!({
                 "textDocument": {
                     "uri": uri,
                     "languageId": language_id,
@@ -171,10 +192,9 @@ impl LspClient {
             serde_json::json!({
                 "textDocument": { "uri": uri }
             }),
-        ) {
-            if let Some(items) = resp.get("items").and_then(|v| v.as_array()) {
-                return Ok(serde_json::from_value(Value::Array(items.clone()))?);
-            }
+        ) && let Some(items) = resp.get("items").and_then(|v| v.as_array())
+        {
+            return Ok(serde_json::from_value(Value::Array(items.clone()))?);
         }
 
         // Fallback: listen for publishDiagnostics notifications
@@ -190,26 +210,29 @@ impl LspClient {
                 break;
             }
             if line.starts_with("Content-Length:") {
-                let content_length: usize = line.trim_start_matches("Content-Length:").trim().parse()?;
+                let content_length: usize =
+                    line.trim_start_matches("Content-Length:").trim().parse()?;
                 // Read the empty line after header
                 let mut empty = String::new();
                 self.reader.read_line(&mut empty)?;
                 let mut body = vec![0u8; content_length];
                 self.reader.read_exact(&mut body)?;
-                if let Ok(msg) = serde_json::from_slice::<LspResponse>(&body) {
-                    if msg.method.as_deref() == Some("textDocument/publishDiagnostics") {
-                        if let Some(params) = msg.params {
-                            if let Ok(p) = serde_json::from_value::<PublishDiagnosticsParams>(params) {
-                                diagnostics.extend(p.diagnostics);
-                            }
-                        }
-                    }
+                if let Ok(msg) = serde_json::from_slice::<LspResponse>(&body)
+                    && msg.method.as_deref() == Some("textDocument/publishDiagnostics")
+                    && let Some(params) = msg.params
+                    && let Ok(p) = serde_json::from_value::<PublishDiagnosticsParams>(params)
+                {
+                    diagnostics.extend(p.diagnostics);
                 }
             }
         }
         Ok(diagnostics)
     }
 
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn shutdown(mut self) -> Result<()> {
         let _ = self.child.kill();
         let _ = self.child.wait();
