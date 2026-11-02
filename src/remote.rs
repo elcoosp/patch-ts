@@ -2,6 +2,10 @@ use anyhow::Result;
 use std::path::Path;
 
 /// Fetch a unified diff from an HTTP(S) URL.
+///
+/// # Errors
+///
+/// Returns an error if the remote resource cannot be fetched.
 pub fn fetch_http(url: &str) -> Result<String> {
     let client = reqwest::blocking::Client::builder().build()?;
     let resp = client.get(url).send()?;
@@ -15,6 +19,10 @@ pub fn fetch_http(url: &str) -> Result<String> {
 /// Fetch the diff introduced by a specific commit (or range) in a git repository.
 /// `repo_path` may be a local directory or a remote URL (we clone to temp dir).
 /// `commit` is a git reference like "abc123" or "HEAD~1..HEAD".
+///
+/// # Errors
+///
+/// Returns an error if the remote resource cannot be fetched.
 pub fn fetch_git_commit(repo_path: &str, commit: &str) -> Result<String> {
     use git2::Repository;
     // If repo_path is a URL, clone to a temp directory first
