@@ -126,6 +126,34 @@ Unsupported files (`.toml`, `.json`, etc.) fall back to full‑file string repla
 
 ---
 
+## 🦀 Library Usage (in‑memory API)
+
+`patch-ts` is not only a CLI: the `patch_ts::api` module exposes the core
+engines over plain strings so embedders (editors, bots, AI agents) never need
+to round‑trip content through temporary files.
+
+```rust
+use patch_ts::api;
+use patch_ts::ast::PythonLanguage;
+
+// Unique, ambiguity‑refusing search/replace.
+let patched = api::apply_search_replace("let a = 1;\n", "let a = 1;", "let a = 42;")?;
+
+// Repair unbalanced delimiters in memory (same engine as `balance`).
+let mut lang = PythonLanguage::new();
+let fixed = api::balance_content("x = (1 + 2\n", &mut lang, 3)?;
+assert_eq!(fixed.repaired, "x = (1 + 2)\n");
+
+// Validate without repairing.
+let report = api::validate_content("def f(:\n", &mut lang);
+assert!(!report.valid);
+
+// Build a language backend from a bare extension.
+let mut lang = api::language_from_extension("rs")?;
+```
+
+---
+
 ## 📖 Commands
 
 ### `patch`
