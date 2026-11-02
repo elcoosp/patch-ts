@@ -11,6 +11,14 @@ pub struct MarkerLocation {
 }
 
 /// Find all markers with given ID in source.
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
+///
+/// # Panics
+///
+/// Panics if an internal `unwrap` fails (invariant violation).
 pub fn find_marker(source: &str, marker_id: &str) -> Result<Vec<MarkerLocation>> {
     let _lang = RustLanguage::new();
     let mut parser = Parser::new();
@@ -21,12 +29,12 @@ pub fn find_marker(source: &str, marker_id: &str) -> Result<Vec<MarkerLocation>>
     let root = tree.root_node();
 
     let mut markers = Vec::new();
-    let pattern = format!("// PATCH-ME: {}", marker_id);
-    let block_pattern = format!("/* PATCH-ME: {} */", marker_id);
+    let pattern = format!("// PATCH-ME: {marker_id}");
+    let block_pattern = format!("/* PATCH-ME: {marker_id} */");
 
     find_markers_in_node(root, source, &pattern, &block_pattern, &mut markers);
     if markers.is_empty() {
-        anyhow::bail!("Marker '{}' not found", marker_id);
+        anyhow::bail!("Marker '{marker_id}' not found");
     }
     Ok(markers)
 }
@@ -38,17 +46,16 @@ fn find_markers_in_node(
     block_pattern: &str,
     markers: &mut Vec<MarkerLocation>,
 ) {
-    if node.kind() == "line_comment" || node.kind() == "block_comment" {
-        if let Ok(text) = node.utf8_text(source.as_bytes()) {
-            if text.contains(pattern) || text.contains(block_pattern) {
-                let start = node.start_position();
-                markers.push(MarkerLocation {
-                    line: start.row + 1,
-                    byte_range: (node.start_byte(), node.end_byte()),
-                    node_to_replace: None,
-                });
-            }
-        }
+    if (node.kind() == "line_comment" || node.kind() == "block_comment")
+        && let Ok(text) = node.utf8_text(source.as_bytes())
+        && (text.contains(pattern) || text.contains(block_pattern))
+    {
+        let start = node.start_position();
+        markers.push(MarkerLocation {
+            line: start.row + 1,
+            byte_range: (node.start_byte(), node.end_byte()),
+            node_to_replace: None,
+        });
     }
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
@@ -57,10 +64,14 @@ fn find_markers_in_node(
 }
 
 /// Replace the AST node associated with a marker.
+///
+/// # Errors
+///
+/// Returns an error if the patch cannot be applied to the file.
 pub fn replace_marker_node(source: &str, marker_id: &str, new_content: &str) -> Result<String> {
     let markers = find_marker(source, marker_id)?;
     if markers.len() > 1 {
-        anyhow::bail!("Multiple markers with ID '{}' found", marker_id);
+        anyhow::bail!("Multiple markers with ID '{marker_id}' found");
     }
     let marker = &markers[0];
 
