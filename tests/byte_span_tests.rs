@@ -17,7 +17,7 @@ fn byte_span_replace_across_lines() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "out of range for slice")]
 fn byte_span_out_of_bounds_panics() {
     let mut content = String::from("short");
     replace_byte_range(&mut content, 10..15, "boom");
