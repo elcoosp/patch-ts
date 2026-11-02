@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use patch_ts::ast::{DelimiterError, Span};
 use patch_ts::plugin::PluginHost;
 use std::fs;
 use std::path::Path;
@@ -9,7 +10,6 @@ fn test_plugin_host_loads_and_calls() {
     let plugin_path = Path::new("tests/fixtures/sample_plugin.wasm");
     let host = PluginHost::load(plugin_path).unwrap();
 
-    use patch_ts::ast::{DelimiterError, Span};
     let errors = vec![DelimiterError::Extra {
         span: Span {
             start_byte: 6,
