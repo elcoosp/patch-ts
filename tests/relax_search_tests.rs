@@ -12,9 +12,12 @@ fn test_content_patch_relaxed_whitespace() {
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     // Agent omits indentation in search block
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--old").arg("fn main() { let x = 1; }")
-        .arg("--new").arg("fn main() { let x = 2; }")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--old")
+        .arg("fn main() { let x = 1; }")
+        .arg("--new")
+        .arg("fn main() { let x = 2; }")
         .assert()
         .success();
 
@@ -31,9 +34,12 @@ fn test_content_patch_relaxed_comments() {
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     // Agent includes comment in search, but file also has comment (should still match)
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--old").arg("let x = 1; // important")
-        .arg("--new").arg("let x = 2;")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--old")
+        .arg("let x = 1; // important")
+        .arg("--new")
+        .arg("let x = 2;")
         .assert()
         .success();
 
@@ -49,9 +55,12 @@ fn test_content_patch_fails_with_unmatchable_search() {
 
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
-        .arg("--file").arg(file_path.to_str().unwrap())
-        .arg("--old").arg("completely different content")
-        .arg("--new").arg("something")
+        .arg("--file")
+        .arg(file_path.to_str().unwrap())
+        .arg("--old")
+        .arg("completely different content")
+        .arg("--new")
+        .arg("something")
         .assert()
         .failure();
 }
