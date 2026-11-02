@@ -18,20 +18,23 @@ pub struct ScittRecord {
 }
 
 /// Generate a new Ed25519 keypair using OS randomness.
+#[must_use]
 pub fn generate_keypair() -> (SigningKey, VerifyingKey) {
-    let mut csprng = rand::rngs::OsRng;
+    let mut csprng = rand::rand_core::UnwrapErr(rand::rngs::SysRng);
     let signing_key = SigningKey::generate(&mut csprng);
     let verifying_key = signing_key.verifying_key();
     (signing_key, verifying_key)
 }
 
 /// Sign a message and return the signature bytes as hex.
+#[must_use]
 pub fn sign_message(signing_key: &SigningKey, message: &[u8]) -> String {
     let signature: Signature = signing_key.sign(message);
     hex::encode(signature.to_bytes())
 }
 
 /// Compute SHA‑256 hash of data.
+#[must_use]
 pub fn hash_content(data: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data.as_bytes());
@@ -39,6 +42,10 @@ pub fn hash_content(data: &str) -> String {
 }
 
 /// Emit a SCITT‑compliant provenance record, maintaining a hash chain.
+///
+/// # Errors
+///
+/// Returns an error if the file or record cannot be written.
 pub fn emit_scitt_record(
     log_path: &Path,
     content: &str,
@@ -54,8 +61,7 @@ pub fn emit_scitt_record(
             .lines()
             .last()
             .and_then(|line| serde_json::from_str::<ScittRecord>(line).ok())
-            .map(|r| r.content_hash)
-            .unwrap_or_else(|| "genesis".to_string())
+            .map_or_else(|| "genesis".to_string(), |r| r.content_hash)
     } else {
         "genesis".to_string()
     };
@@ -65,8 +71,8 @@ pub fn emit_scitt_record(
         timestamp: timestamp.clone(),
         previous_hash,
         tool: "patch-ts".to_string(),
-        agent: agent.map(|s| s.to_string()),
-        model: model.map(|s| s.to_string()),
+        agent: agent.map(std::string::ToString::to_string),
+        model: model.map(std::string::ToString::to_string),
         signature: None,
     };
 
@@ -84,6 +90,10 @@ pub fn emit_scitt_record(
 }
 
 /// Verify the integrity of the SCITT log.
+///
+/// # Errors
+///
+/// Returns an error if the cryptographic operation fails.
 pub fn verify_log(log_path: &Path, verifying_key: Option<&VerifyingKey>) -> Result<Vec<String>> {
     let content = fs::read_to_string(log_path).unwrap_or_default();
     let mut tampered = Vec::new();
@@ -91,23 +101,23 @@ pub fn verify_log(log_path: &Path, verifying_key: Option<&VerifyingKey>) -> Resu
 
     for line in content.lines() {
         if let Ok(record) = serde_json::from_str::<ScittRecord>(line) {
-            if let Some(ref expected_prev) = prev_hash {
-                if record.previous_hash != *expected_prev {
-                    tampered.push(record.timestamp.clone());
-                }
+            if let Some(ref expected_prev) = prev_hash
+                && record.previous_hash != *expected_prev
+            {
+                tampered.push(record.timestamp.clone());
             }
 
-            if let Some(key) = verifying_key {
-                if let Some(ref sig_hex) = record.signature {
-                    let message = format!(
-                        "{}:{}:{}",
-                        record.content_hash, record.timestamp, record.previous_hash
-                    );
-                    if let Ok(sig_bytes) = hex::decode(sig_hex) {
-                        let signature = Signature::from_slice(&sig_bytes)?;
-                        if key.verify(message.as_bytes(), &signature).is_err() {
-                            tampered.push(record.timestamp.clone());
-                        }
+            if let Some(key) = verifying_key
+                && let Some(ref sig_hex) = record.signature
+            {
+                let message = format!(
+                    "{}:{}:{}",
+                    record.content_hash, record.timestamp, record.previous_hash
+                );
+                if let Ok(sig_bytes) = hex::decode(sig_hex) {
+                    let signature = Signature::from_slice(&sig_bytes)?;
+                    if key.verify(message.as_bytes(), &signature).is_err() {
+                        tampered.push(record.timestamp.clone());
                     }
                 }
             }
@@ -151,23 +161,51 @@ mod tests {
         assert_eq!(r2.previous_hash, r1.content_hash);
 
         let tampered = verify_log(&log_path, Some(&verifying_key)).unwrap();
-        assert!(tampered.is_empty());
+        assert_eq!(tampered, [] as [String; 0]);
     }
 
     #[test]
-    #[ignore = "fix in v1.8.1 – hash chain verification needs review"]
     fn test_detect_tampered() {
         let dir = tempdir().unwrap();
         let log_path = dir.path().join("provenance.jsonl");
         let (signing_key, _) = generate_keypair();
 
         emit_scitt_record(&log_path, "patch content 1", None, None, Some(&signing_key)).unwrap();
+        emit_scitt_record(&log_path, "patch content 2", None, None, Some(&signing_key)).unwrap();
 
-        let mut content = fs::read_to_string(&log_path).unwrap();
-        content = content.replace("patch content 1", "TAMPERED");
-        fs::write(&log_path, content).unwrap();
+        // Tamper with the second record's chain link: point it back at genesis
+        // instead of the first record's hash.
+        let content = fs::read_to_string(&log_path).unwrap();
+        let mut lines: Vec<String> = content
+            .lines()
+            .map(std::string::ToString::to_string)
+            .collect();
+        assert_eq!(lines.len(), 2);
+        let mut second: ScittRecord = serde_json::from_str(&lines[1]).unwrap();
+        second.previous_hash = "genesis".to_string();
+        lines[1] = serde_json::to_string(&second).unwrap();
+        fs::write(&log_path, lines.join("\n") + "\n").unwrap();
 
         let tampered = verify_log(&log_path, None).unwrap();
-        assert!(!tampered.is_empty());
+        assert!(!tampered.is_empty(), "chain break must be detected");
+    }
+
+    #[test]
+    fn test_detect_bad_signature() {
+        let dir = tempdir().unwrap();
+        let log_path = dir.path().join("provenance.jsonl");
+        let (signing_key, verifying_key) = generate_keypair();
+
+        emit_scitt_record(&log_path, "patch content 1", None, None, Some(&signing_key)).unwrap();
+
+        // Forge a validly-encoded but wrong signature on the single record.
+        let content = fs::read_to_string(&log_path).unwrap();
+        let mut record: ScittRecord =
+            serde_json::from_str(content.lines().next().unwrap()).unwrap();
+        record.signature = Some(hex::encode([0u8; 64]));
+        fs::write(&log_path, serde_json::to_string(&record).unwrap() + "\n").unwrap();
+
+        let tampered = verify_log(&log_path, Some(&verifying_key)).unwrap();
+        assert!(!tampered.is_empty(), "bad signature must be detected");
     }
 }
