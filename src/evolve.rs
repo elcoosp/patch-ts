@@ -1,4 +1,4 @@
-use crate::gate::{run_gate_parallel, GateResult};
+use crate::gate::{GateResult, run_gate_parallel};
 use serde::Serialize;
 use std::path::Path;
 
@@ -21,10 +21,19 @@ pub struct EvolutionConfig {
 
 impl Default for EvolutionConfig {
     fn default() -> Self {
-        Self { population_size: 10, max_generations: 3, timeout_secs: 30 }
+        Self {
+            population_size: 10,
+            max_generations: 3,
+            timeout_secs: 30,
+        }
     }
 }
 
+#[must_use]
+///
+/// # Panics
+///
+/// Panics if an internal `unwrap` fails (invariant violation).
 pub fn run_evolution(
     file_path: &Path,
     original: &str,
@@ -35,8 +44,8 @@ pub fn run_evolution(
     let mut population = Vec::new();
     for i in 0..config.population_size {
         let fuzz = (i % 5) + 1;
-        let confidence = 0.8 + (i as f64 * 0.02).min(0.18);
-        let uniqueness_weight = 0.1 + (i as f64 * 0.05).min(0.4);
+        let confidence = 0.8 + (crate::num::to_f64(i) * 0.02).min(0.18);
+        let uniqueness_weight = 0.1 + (crate::num::to_f64(i) * 0.05).min(0.4);
         population.push(PatchCandidate {
             old: old.to_string(),
             new: new.to_string(),
@@ -44,7 +53,10 @@ pub fn run_evolution(
             confidence,
             uniqueness_weight,
             fitness: 0.0,
-            gate_result: GateResult { passed: false, stages: vec![] },
+            gate_result: GateResult {
+                passed: false,
+                stages: vec![],
+            },
         });
     }
     for candidate in &mut population {
@@ -54,7 +66,11 @@ pub fn run_evolution(
             original,
             &candidate.new,
             30,
-        ).unwrap_or_else(|_| GateResult { passed: false, stages: vec![] });
+        )
+        .unwrap_or_else(|_| GateResult {
+            passed: false,
+            stages: vec![],
+        });
         candidate.fitness = compute_fitness(&gate_result);
         candidate.gate_result = gate_result;
     }
@@ -87,8 +103,16 @@ mod tests {
         let gate = GateResult {
             passed: true,
             stages: vec![
-                crate::gate::StageResult { name: "syntax".into(), passed: true, details: "ok".into() },
-                crate::gate::StageResult { name: "compile".into(), passed: true, details: "ok".into() },
+                crate::gate::StageResult {
+                    name: "syntax".into(),
+                    passed: true,
+                    details: "ok".into(),
+                },
+                crate::gate::StageResult {
+                    name: "compile".into(),
+                    passed: true,
+                    details: "ok".into(),
+                },
             ],
         };
         let fitness = compute_fitness(&gate);
@@ -100,8 +124,18 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file_path = dir.path().join("test.rs");
         std::fs::write(&file_path, "fn main() {}").unwrap();
-        let config = EvolutionConfig { population_size: 5, max_generations: 1, timeout_secs: 10 };
-        let best = run_evolution(&file_path, "fn main() {}", "fn main() {}", "fn main() { }", &config);
+        let config = EvolutionConfig {
+            population_size: 5,
+            max_generations: 1,
+            timeout_secs: 10,
+        };
+        let best = run_evolution(
+            &file_path,
+            "fn main() {}",
+            "fn main() {}",
+            "fn main() { }",
+            &config,
+        );
         assert!(best.fitness >= 0.0);
     }
 }
