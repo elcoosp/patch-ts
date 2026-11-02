@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::HashSet;
 use strsim::normalized_levenshtein;
 
@@ -14,9 +14,10 @@ pub struct MatchResult {
 }
 
 fn normalize_line(s: &str) -> String {
-    s.trim().split_whitespace().collect::<Vec<_>>().join(" ")
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+#[must_use]
 pub fn compute_uniqueness(line: &str, all_lines: &[&str]) -> f64 {
     let trimmed = line.trim();
     if trimmed.is_empty() {
@@ -26,7 +27,7 @@ pub fn compute_uniqueness(line: &str, all_lines: &[&str]) -> f64 {
     if count == 0 {
         1.0
     } else {
-        1.0 / (count as f64)
+        1.0 / crate::num::to_f64(count)
     }
 }
 
@@ -65,8 +66,8 @@ fn try_anchor_pair(
     if best_pair.len() < 2 {
         return None;
     }
-    let (i1, line1, _) = best_pair[0];
-    let (i2, line2, _) = best_pair[1];
+    let (i1, first, _) = best_pair[0];
+    let (i2, second, _) = best_pair[1];
     let (anchor1, anchor2) = if i1 < i2 { (i1, i2) } else { (i2, i1) };
     let gap = anchor2 - anchor1;
 
@@ -77,7 +78,7 @@ fn try_anchor_pair(
         if i + anchor1 >= lines.len() || i + anchor2 >= lines.len() {
             continue;
         }
-        if lines[i + anchor1] == line1 && lines[i + anchor2] == line2 {
+        if lines[i + anchor1] == first && lines[i + anchor2] == second {
             return Some(i);
         }
     }
@@ -152,6 +153,10 @@ fn try_ellipsis_match(
     None
 }
 
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn cascade_match(
     lines: &[&str],
     target_line: usize,
@@ -200,43 +205,43 @@ pub fn cascade_match(
     }
 
     // 2b. Multi‑line anchor fallback (try pair of unique lines)
-    if expected.lines().count() >= 2 {
-        if let Some(idx) = try_anchor_pair(
+    if expected.lines().count() >= 2
+        && let Some(idx) = try_anchor_pair(
             lines,
             &expected.lines().collect::<Vec<_>>(),
             fuzz_radius,
             10,
-        ) {
-            return Ok(MatchResult {
-                index: idx,
-                score: 0.98,
-                confidence: 0.98,
-                strategy: "anchor_pair".to_string(),
-                uniqueness_score: uniqueness,
-                match_byte_range: line_byte_range(lines, idx, content),
-            });
-        }
+        )
+    {
+        return Ok(MatchResult {
+            index: idx,
+            score: 0.98,
+            confidence: 0.98,
+            strategy: "anchor_pair".to_string(),
+            uniqueness_score: uniqueness,
+            match_byte_range: line_byte_range(lines, idx, content),
+        });
     }
 
     // 3. Ellipsis pattern (if applicable)
-    if expected.contains("\n...\n") || expected.lines().any(|l| l.trim() == "...") {
-        if let Some(m) = try_ellipsis_match(lines, expected, fuzz_radius, content) {
-            return Ok(m);
-        }
+    if (expected.contains("\n...\n") || expected.lines().any(|l| l.trim() == "..."))
+        && let Some(m) = try_ellipsis_match(lines, expected, fuzz_radius, content)
+    {
+        return Ok(m);
     }
 
     // 4. Similarity – token‑based Jaccard
     let expected_tokens: HashSet<&str> = expected.split_whitespace().collect();
     let mut best_conf = 0.0f64;
     let mut best_idx = start;
-    for i in start..=end {
-        let actual_tokens: HashSet<&str> = lines[i].split_whitespace().collect();
+    for (i, candidate_line) in lines.iter().enumerate().take(end + 1).skip(start) {
+        let actual_tokens: HashSet<&str> = candidate_line.split_whitespace().collect();
         let intersection = expected_tokens.intersection(&actual_tokens).count();
         let union = expected_tokens.union(&actual_tokens).count();
         let conf = if union == 0 {
             0.0
         } else {
-            intersection as f64 / union as f64
+            crate::num::to_f64(intersection) / crate::num::to_f64(union)
         };
         if conf > best_conf {
             best_conf = conf;
@@ -272,12 +277,15 @@ pub fn cascade_match(
     }
 
     anyhow::bail!(
-        "no match found with any strategy (best confidence {:.2}, threshold {:.2}, uniqueness {:.2})",
-        best_conf, effective_threshold, uniqueness
+        "no match found with any strategy (best confidence {best_conf:.2}, threshold {effective_threshold:.2}, uniqueness {uniqueness:.2})"
     )
 }
 
 #[allow(unused_variables)]
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn fuzzy_match_line(
     lines: &[&str],
     target_line: usize,
@@ -339,11 +347,15 @@ fn jaccard_similarity(tokens1: &[String], tokens2: &[String]) -> f64 {
     if union == 0 {
         1.0
     } else {
-        intersection as f64 / union as f64
+        crate::num::to_f64(intersection) / crate::num::to_f64(union)
     }
 }
 
 #[allow(unused_variables)]
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn find_best_block_match(
     lines: &[&str],
     expected: &str,
@@ -376,17 +388,11 @@ pub fn find_best_block_match(
     let idx = best_index.ok_or_else(|| anyhow!("no block match found"))?;
     if best_score < similarity_threshold {
         anyhow::bail!(
-            "block match score {:.2} below threshold {:.2}",
-            best_score,
-            similarity_threshold
+            "block match score {best_score:.2} below threshold {similarity_threshold:.2}"
         );
     }
     if tie_count > 1 {
-        anyhow::bail!(
-            "ambiguous block match: {} candidates with score {:.2}",
-            tie_count,
-            best_score
-        );
+        anyhow::bail!("ambiguous block match: {tie_count} candidates with score {best_score:.2}");
     }
     Ok(BlockMatchResult {
         start_index: idx,
