@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Keep GitHub Actions at the latest versions.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  # Keep Rust dependencies current (including breaking major bumps).
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
