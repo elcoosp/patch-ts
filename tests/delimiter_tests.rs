@@ -9,7 +9,7 @@ fn test_detect_extra_paren() {
     assert_eq!(errors.len(), 1);
     match &errors[0] {
         DelimiterError::Extra { delimiter, .. } => assert_eq!(*delimiter, ')'),
-        _ => panic!("Expected Extra error"),
+        DelimiterError::Missing { .. } => panic!("Expected Extra error"),
     }
 }
 
@@ -22,7 +22,7 @@ fn test_detect_missing_brace() {
     assert_eq!(errors.len(), 1);
     match &errors[0] {
         DelimiterError::Missing { expected, .. } => assert_eq!(*expected, '}'),
-        _ => panic!("Expected Missing error"),
+        DelimiterError::Extra { .. } => panic!("Expected Missing error"),
     }
 }
 
