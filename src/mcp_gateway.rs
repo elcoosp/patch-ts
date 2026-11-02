@@ -25,6 +25,10 @@ pub struct OWASPSection {
 }
 
 /// Load a policy from a TOML file.
+///
+/// # Errors
+///
+/// Returns an error if the file or record cannot be read.
 pub fn load_policy(path: &Path) -> Result<Policy> {
     let content = fs::read_to_string(path)
         .with_context(|| format!("Failed to read policy file: {}", path.display()))?;
@@ -34,6 +38,10 @@ pub fn load_policy(path: &Path) -> Result<Policy> {
 }
 
 /// Validate a tool call against the policy.
+///
+/// # Errors
+///
+/// Returns an error if validation fails.
 pub fn validate_tool_call(
     tool_name: &str,
     file_path: Option<&str>,
@@ -41,42 +49,43 @@ pub fn validate_tool_call(
     policy: &Policy,
 ) -> Result<Option<String>> {
     // Check allowed tools
-    if let Some(allowed) = &policy.policy.allowed_tools {
-        if !allowed.iter().any(|t| t == tool_name) {
-            return Ok(Some(format!("Tool '{}' is not allowed by policy", tool_name)));
-        }
+    if let Some(allowed) = &policy.policy.allowed_tools
+        && !allowed.iter().any(|t| t == tool_name)
+    {
+        return Ok(Some(format!("Tool '{tool_name}' is not allowed by policy")));
     }
 
     // Check blocked patterns
     if let Some(blocked) = &policy.policy.blocked_patterns {
         for pattern in blocked {
             if tool_name.contains(pattern) {
-                return Ok(Some(format!("Tool '{}' matches blocked pattern '{}'", tool_name, pattern)));
+                return Ok(Some(format!(
+                    "Tool '{tool_name}' matches blocked pattern '{pattern}'"
+                )));
             }
         }
     }
 
     // Check file path
-    if let Some(file) = file_path {
-        if let Some(allowed_files) = &policy.policy.allowed_files {
-            let is_allowed = allowed_files.iter().any(|glob| {
-                let regex_pattern = glob_to_regex(glob);
-                regex::Regex::new(&regex_pattern).map(|re| re.is_match(file)).unwrap_or(false)
-            });
-            if !is_allowed {
-                return Ok(Some(format!("File '{}' is not in allowed paths", file)));
-            }
+    if let Some(file) = file_path
+        && let Some(allowed_files) = &policy.policy.allowed_files
+    {
+        let is_allowed = allowed_files.iter().any(|glob| {
+            let regex_pattern = glob_to_regex(glob);
+            regex::Regex::new(&regex_pattern).is_ok_and(|re| re.is_match(file))
+        });
+        if !is_allowed {
+            return Ok(Some(format!("File '{file}' is not in allowed paths")));
         }
     }
 
     // Check max patch size
-    if let Some(max_size) = policy.policy.max_patch_size {
-        if patch_size > max_size {
-            return Ok(Some(format!(
-                "Patch size {} exceeds maximum allowed {} bytes",
-                patch_size, max_size
-            )));
-        }
+    if let Some(max_size) = policy.policy.max_patch_size
+        && patch_size > max_size
+    {
+        return Ok(Some(format!(
+            "Patch size {patch_size} exceeds maximum allowed {max_size} bytes"
+        )));
     }
 
     Ok(None) // No violation
@@ -98,4 +107,83 @@ fn glob_to_regex(glob: &str) -> String {
     }
     re.push('$');
     re
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn write_policy(dir: &std::path::Path, extra: &str) -> std::path::PathBuf {
+        let path = dir.join("policy.toml");
+        fs::write(&path, extra).unwrap();
+        path
+    }
+
+    #[test]
+    fn load_policy_parses_toml() {
+        let dir = tempdir().unwrap();
+        let path = write_policy(
+            dir.path(),
+            "[policy]\nallowed_tools = [\"patch\"]\nmax_patch_size = 100\n",
+        );
+        let policy = load_policy(&path).unwrap();
+        assert_eq!(
+            policy.policy.allowed_tools.as_deref(),
+            Some(&["patch".to_string()][..])
+        );
+        assert_eq!(policy.policy.max_patch_size, Some(100));
+    }
+
+    #[test]
+    fn load_policy_missing_file_errors() {
+        let dir = tempdir().unwrap();
+        assert!(load_policy(&dir.path().join("nope.toml")).is_err());
+    }
+
+    #[test]
+    fn validate_tool_call_allows_permitted_tool() {
+        let dir = tempdir().unwrap();
+        let path = write_policy(dir.path(), "[policy]\nallowed_tools = [\"patch\"]\n");
+        let policy = load_policy(&path).unwrap();
+        assert_eq!(
+            validate_tool_call("patch", None, 10, &policy).unwrap(),
+            None
+        );
+        let denied = validate_tool_call("delete-all", None, 10, &policy).unwrap();
+        assert!(denied.is_some());
+    }
+
+    #[test]
+    fn validate_tool_call_blocks_patterns() {
+        let dir = tempdir().unwrap();
+        let path = write_policy(dir.path(), "[policy]\nblocked_patterns = [\"danger\"]\n");
+        let policy = load_policy(&path).unwrap();
+        let violation = validate_tool_call("very-danger-tool", None, 0, &policy).unwrap();
+        assert!(violation.unwrap().contains("blocked pattern"));
+    }
+
+    #[test]
+    fn validate_tool_call_enforces_allowed_files_glob() {
+        let dir = tempdir().unwrap();
+        let path = write_policy(dir.path(), "[policy]\nallowed_files = [\"src/**\"]\n");
+        let policy = load_policy(&path).unwrap();
+        assert_eq!(
+            validate_tool_call("patch", Some("src/main.rs"), 0, &policy).unwrap(),
+            None
+        );
+        let violation = validate_tool_call("patch", Some("/etc/passwd"), 0, &policy).unwrap();
+        assert!(violation.unwrap().contains("allowed paths"));
+    }
+
+    #[test]
+    fn validate_tool_call_enforces_max_patch_size() {
+        let dir = tempdir().unwrap();
+        let path = write_policy(dir.path(), "[policy]\nmax_patch_size = 10\n");
+        let policy = load_policy(&path).unwrap();
+        let violation = validate_tool_call("patch", None, 500, &policy).unwrap();
+        assert!(violation.unwrap().contains("exceeds maximum"));
+        assert_eq!(validate_tool_call("patch", None, 5, &policy).unwrap(), None);
+    }
 }
