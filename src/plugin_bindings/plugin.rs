@@ -2,115 +2,136 @@
 // Options used:
 #[allow(dead_code, clippy::all, unsafe_op_in_unsafe_fn)]
 pub mod exports {
-  pub mod patch_ts {
-    pub mod plugin {
+    pub mod patch_ts {
+        pub mod plugin {
 
-      #[allow(dead_code, async_fn_in_trait, unused_imports, clippy::all)]
-      pub mod repair {
-        #[used]
-        #[doc(hidden)]
-        static __FORCE_SECTION_REF: fn() =
-        super::super::super::super::__link_custom_section_describing_imports;
-        
-        use super::super::super::super::_rt;
-        #[repr(C)]
-        #[derive(Clone, Copy)]
-        pub struct Span {
-          pub start_byte: u32,
-          pub end_byte: u32,
-        }
-        impl ::core::fmt::Debug for Span {
-          fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-            f.debug_struct("Span").field("start-byte", &self.start_byte).field("end-byte", &self.end_byte).finish()
-          }
-        }
-        #[derive(Clone, Copy)]
-        pub enum DelimiterError {
-          Extra((char,Span,)),
-          Missing((char,Span,)),
-        }
-        impl ::core::fmt::Debug for DelimiterError {
-          fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-            match self {
-              DelimiterError::Extra(e) => {
-                f.debug_tuple("DelimiterError::Extra").field(e).finish()
-              }
-              DelimiterError::Missing(e) => {
-                f.debug_tuple("DelimiterError::Missing").field(e).finish()
-              }
-            }
-          }
-        }
-        #[doc(hidden)]
-        #[allow(non_snake_case)]
-        pub unsafe fn _export_repair_cabi<T: Guest>(arg0: *mut u8,arg1: usize,arg2: *mut u8,arg3: usize,) -> *mut u8 {#[cfg(target_arch="wasm32")]
-        _rt::run_ctors_once();let base8 = arg0;
-        let len8 = arg1;
-        let mut result8 = _rt::Vec::with_capacity(len8);
-        for i in 0..len8 {
-          let base = base8.add(i * 16);
-          let e8 = {
-            let l0 = i32::from(*base.add(0).cast::<u8>());
-            let v7 = match l0 {
-              0 => {
-                let e7 = {
-                  let l1 = *base.add(4).cast::<i32>();
-                  let l2 = *base.add(8).cast::<i32>();
-                  let l3 = *base.add(12).cast::<i32>();
+            #[allow(dead_code, async_fn_in_trait, unused_imports, clippy::all)]
+            pub mod repair {
+                #[used]
+                #[doc(hidden)]
+                static __FORCE_SECTION_REF: fn() =
+                    super::super::super::super::__link_custom_section_describing_imports;
 
-                  (_rt::char_lift(l1 as u32), Span{
-                    start_byte: l2 as u32,
-                    end_byte: l3 as u32,
-                  })
-                };
-                DelimiterError::Extra(e7)
-              }
-              n => {
-                debug_assert_eq!(n, 1, "invalid enum discriminant");
-                let e7 = {
-                  let l4 = *base.add(4).cast::<i32>();
-                  let l5 = *base.add(8).cast::<i32>();
-                  let l6 = *base.add(12).cast::<i32>();
+                use super::super::super::super::_rt;
+                #[repr(C)]
+                #[derive(Clone, Copy)]
+                pub struct Span {
+                    pub start_byte: u32,
+                    pub end_byte: u32,
+                }
+                impl ::core::fmt::Debug for Span {
+                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                        f.debug_struct("Span")
+                            .field("start-byte", &self.start_byte)
+                            .field("end-byte", &self.end_byte)
+                            .finish()
+                    }
+                }
+                #[derive(Clone, Copy)]
+                pub enum DelimiterError {
+                    Extra((char, Span)),
+                    Missing((char, Span)),
+                }
+                impl ::core::fmt::Debug for DelimiterError {
+                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                        match self {
+                            DelimiterError::Extra(e) => {
+                                f.debug_tuple("DelimiterError::Extra").field(e).finish()
+                            }
+                            DelimiterError::Missing(e) => {
+                                f.debug_tuple("DelimiterError::Missing").field(e).finish()
+                            }
+                        }
+                    }
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn _export_repair_cabi<T: Guest>(
+                    arg0: *mut u8,
+                    arg1: usize,
+                    arg2: *mut u8,
+                    arg3: usize,
+                ) -> *mut u8 {
+                    #[cfg(target_arch = "wasm32")]
+                    _rt::run_ctors_once();
+                    let base8 = arg0;
+                    let len8 = arg1;
+                    let mut result8 = _rt::Vec::with_capacity(len8);
+                    for i in 0..len8 {
+                        let base = base8.add(i * 16);
+                        let e8 = {
+                            let l0 = i32::from(*base.add(0).cast::<u8>());
+                            let v7 = match l0 {
+                                0 => {
+                                    let e7 = {
+                                        let l1 = *base.add(4).cast::<i32>();
+                                        let l2 = *base.add(8).cast::<i32>();
+                                        let l3 = *base.add(12).cast::<i32>();
 
-                  (_rt::char_lift(l4 as u32), Span{
-                    start_byte: l5 as u32,
-                    end_byte: l6 as u32,
-                  })
-                };
-                DelimiterError::Missing(e7)
-              }
-            };
+                                        (
+                                            _rt::char_lift(l1 as u32),
+                                            Span {
+                                                start_byte: l2 as u32,
+                                                end_byte: l3 as u32,
+                                            },
+                                        )
+                                    };
+                                    DelimiterError::Extra(e7)
+                                }
+                                n => {
+                                    debug_assert_eq!(n, 1, "invalid enum discriminant");
+                                    let e7 = {
+                                        let l4 = *base.add(4).cast::<i32>();
+                                        let l5 = *base.add(8).cast::<i32>();
+                                        let l6 = *base.add(12).cast::<i32>();
 
-            v7
-          };
-          result8.push(e8);
-        }
-        _rt::cabi_dealloc(base8, len8 * 16, 4);
-        let len9 = arg3;
-        let bytes9 = _rt::Vec::from_raw_parts(arg2.cast(), len9, len9);
-        let result10 = T::repair(result8, _rt::string_lift(bytes9));
-        let ptr11 = (&raw mut _RET_AREA.0).cast::<u8>();
-        let vec12 = (result10.into_bytes()).into_boxed_slice();
-        let ptr12 = vec12.as_ptr().cast::<u8>();
-        let len12 = vec12.len();
-        ::core::mem::forget(vec12);
-        *ptr11.add(::core::mem::size_of::<*const u8>()).cast::<usize>() = len12;
-        *ptr11.add(0).cast::<*mut u8>() = ptr12.cast_mut();
-        ptr11
-      }
-      #[doc(hidden)]
-      #[allow(non_snake_case)]
-      pub unsafe fn __post_return_repair<T: Guest>(arg0: *mut u8,) {
-        let l0 = *arg0.add(0).cast::<*mut u8>();
-        let l1 = *arg0.add(::core::mem::size_of::<*const u8>()).cast::<usize>();
-        _rt::cabi_dealloc(l0, l1, 1);
-      }
-      pub trait Guest {
-        fn repair(errors: _rt::Vec::<DelimiterError>,source: _rt::String,) -> _rt::String;
-      }
-      #[doc(hidden)]
+                                        (
+                                            _rt::char_lift(l4 as u32),
+                                            Span {
+                                                start_byte: l5 as u32,
+                                                end_byte: l6 as u32,
+                                            },
+                                        )
+                                    };
+                                    DelimiterError::Missing(e7)
+                                }
+                            };
 
-      macro_rules! __export_patch_ts_plugin_repair_cabi{
+                            v7
+                        };
+                        result8.push(e8);
+                    }
+                    _rt::cabi_dealloc(base8, len8 * 16, 4);
+                    let len9 = arg3;
+                    let bytes9 = _rt::Vec::from_raw_parts(arg2.cast(), len9, len9);
+                    let result10 = T::repair(result8, _rt::string_lift(bytes9));
+                    let ptr11 = (&raw mut _RET_AREA.0).cast::<u8>();
+                    let vec12 = (result10.into_bytes()).into_boxed_slice();
+                    let ptr12 = vec12.as_ptr().cast::<u8>();
+                    let len12 = vec12.len();
+                    ::core::mem::forget(vec12);
+                    *ptr11
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>() = len12;
+                    *ptr11.add(0).cast::<*mut u8>() = ptr12.cast_mut();
+                    ptr11
+                }
+                #[doc(hidden)]
+                #[allow(non_snake_case)]
+                pub unsafe fn __post_return_repair<T: Guest>(arg0: *mut u8) {
+                    let l0 = *arg0.add(0).cast::<*mut u8>();
+                    let l1 = *arg0
+                        .add(::core::mem::size_of::<*const u8>())
+                        .cast::<usize>();
+                    _rt::cabi_dealloc(l0, l1, 1);
+                }
+                pub trait Guest {
+                    fn repair(errors: _rt::Vec<DelimiterError>, source: _rt::String)
+                    -> _rt::String;
+                }
+                #[doc(hidden)]
+
+                macro_rules! __export_patch_ts_plugin_repair_cabi{
         ($ty:ident with_types_in $($path_to_types:tt)*) => (const _: () = {
 
           #[unsafe(export_name = "patch-ts:plugin/repair#repair")]
@@ -123,53 +144,55 @@ pub mod exports {
           }
         };);
       }
-      #[doc(hidden)]
-      pub(crate) use __export_patch_ts_plugin_repair_cabi;
+                #[doc(hidden)]
+                pub(crate) use __export_patch_ts_plugin_repair_cabi;
 
-      #[cfg_attr(target_pointer_width="64", repr(align(8)))]
-      #[cfg_attr(target_pointer_width="32", repr(align(4)))]
-      struct _RetArea([::core::mem::MaybeUninit::<u8>; 2*::core::mem::size_of::<*const u8>()]);
-      static mut _RET_AREA: _RetArea = _RetArea([::core::mem::MaybeUninit::uninit(); 2*::core::mem::size_of::<*const u8>()]);
-
+                #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
+                #[cfg_attr(target_pointer_width = "32", repr(align(4)))]
+                struct _RetArea(
+                    [::core::mem::MaybeUninit<u8>; 2 * ::core::mem::size_of::<*const u8>()],
+                );
+                static mut _RET_AREA: _RetArea = _RetArea(
+                    [::core::mem::MaybeUninit::uninit(); 2 * ::core::mem::size_of::<*const u8>()],
+                );
+            }
+        }
     }
-
-  }
-}
 }
 #[allow(unsafe_op_in_unsafe_fn)]
 #[allow(unsafe_op_in_unsafe_fn)]
 mod _rt {
-  #![allow(dead_code, clippy::all)]
+    #![allow(dead_code, clippy::all)]
 
-  #[cfg(target_arch = "wasm32")]
-  pub fn run_ctors_once() {
-    wit_bindgen::rt::run_ctors_once();
-  }
-  pub unsafe fn char_lift(val: u32) -> char {
-    if cfg!(debug_assertions) {
-      core::char::from_u32(val).unwrap()
-    } else {
-      core::char::from_u32_unchecked(val)
+    #[cfg(target_arch = "wasm32")]
+    pub fn run_ctors_once() {
+        wit_bindgen::rt::run_ctors_once();
     }
-  }
-  pub use alloc_crate::vec::Vec;
-  pub unsafe fn cabi_dealloc(ptr: *mut u8, size: usize, align: usize) {
-    if size == 0 {
-      return;
+    pub unsafe fn char_lift(val: u32) -> char {
+        if cfg!(debug_assertions) {
+            core::char::from_u32(val).unwrap()
+        } else {
+            core::char::from_u32_unchecked(val)
+        }
     }
-    let layout = alloc::Layout::from_size_align_unchecked(size, align);
-    alloc::dealloc(ptr, layout);
-  }
-  pub unsafe fn string_lift(bytes: Vec<u8>) -> String {
-    if cfg!(debug_assertions) {
-      String::from_utf8(bytes).unwrap()
-    } else {
-      String::from_utf8_unchecked(bytes)
+    pub use alloc_crate::vec::Vec;
+    pub unsafe fn cabi_dealloc(ptr: *mut u8, size: usize, align: usize) {
+        if size == 0 {
+            return;
+        }
+        let layout = alloc::Layout::from_size_align_unchecked(size, align);
+        alloc::dealloc(ptr, layout);
     }
-  }
-  pub use alloc_crate::string::String;
-  extern crate alloc as alloc_crate;
-  pub use alloc_crate::alloc;
+    pub unsafe fn string_lift(bytes: Vec<u8>) -> String {
+        if cfg!(debug_assertions) {
+            String::from_utf8(bytes).unwrap()
+        } else {
+            String::from_utf8_unchecked(bytes)
+        }
+    }
+    pub use alloc_crate::string::String;
+    extern crate alloc as alloc_crate;
+    pub use alloc_crate::alloc;
 }
 
 /// Generates `#[unsafe(no_mangle)]` functions to export the specified type as
@@ -217,6 +240,5 @@ t\x070.227.1\x10wit-bindgen-rust\x060.41.0";
 #[inline(never)]
 #[doc(hidden)]
 pub fn __link_custom_section_describing_imports() {
-  wit_bindgen::rt::maybe_link_cabi_realloc();
+    wit_bindgen::rt::maybe_link_cabi_realloc();
 }
-
