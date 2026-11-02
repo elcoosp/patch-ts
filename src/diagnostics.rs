@@ -93,6 +93,7 @@ pub struct JsonSpan {
 }
 
 impl JsonDiagnostic {
+    #[must_use]
     pub fn success() -> Self {
         Self {
             success: true,
@@ -103,6 +104,7 @@ impl JsonDiagnostic {
         }
     }
 
+    #[must_use]
     pub fn error(error: JsonError) -> Self {
         Self {
             success: false,
@@ -114,6 +116,7 @@ impl JsonDiagnostic {
     }
 }
 
+#[must_use]
 pub fn anyhow_to_json(err: &anyhow::Error, file: &str) -> JsonError {
     let msg = err.to_string();
     let mut best_score = None;
@@ -207,4 +210,80 @@ pub struct BalanceAction {
     pub line: usize,
     pub column: usize,
     pub message: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_error() -> JsonError {
+        JsonError {
+            code: "patch_ts::test".to_string(),
+            message: "no match found with similarity 0.10 best was 3".to_string(),
+            span: JsonSpan {
+                file: "a.rs".to_string(),
+                line: 2,
+                column: 3,
+            },
+            context: String::new(),
+            suggestion: None,
+            best_score: None,
+            best_match_line: None,
+            candidates: None,
+            error_code: Some("E001".to_string()),
+            retry_prompt: None,
+        }
+    }
+
+    #[test]
+    fn success_diagnostic_shape() {
+        let diag = JsonDiagnostic::success();
+        assert!(diag.success);
+        assert!(diag.error.is_none());
+    }
+
+    #[test]
+    fn error_diagnostic_shape() {
+        let diag = JsonDiagnostic::error(sample_error());
+        assert!(!diag.success);
+        assert!(diag.error.is_some());
+    }
+
+    #[test]
+    fn anyhow_to_json_extracts_similarity_metadata() {
+        let err = anyhow::anyhow!("no match found with similarity 0.10 best was 0.42 at line 3");
+        let json_err = anyhow_to_json(&err, "a.rs");
+        assert_eq!(json_err.span.file, "a.rs");
+        assert!(json_err.suggestion.is_some());
+        assert_eq!(json_err.best_score, Some(0.42));
+        assert_eq!(json_err.best_match_line, Some(3));
+    }
+
+    #[test]
+    fn anyhow_to_json_handles_ambiguous_and_plain_errors() {
+        let ambiguous = anyhow_to_json(&anyhow::anyhow!("ambiguous match found"), "b.rs");
+        assert!(ambiguous.suggestion.is_some());
+        let plain = anyhow_to_json(&anyhow::anyhow!("plain failure"), "c.rs");
+        assert!(plain.suggestion.is_none());
+        assert_eq!(plain.message, "plain failure");
+    }
+
+    #[test]
+    fn balance_result_serializes() {
+        let result = BalanceResult {
+            success: true,
+            actions: vec![BalanceAction {
+                action_type: "insert".to_string(),
+                delimiter: '}',
+                line: 1,
+                column: 12,
+                message: "Inserted missing '}'".to_string(),
+            }],
+            rolled_back: vec![],
+            error: None,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("insert"));
+        assert!(json.contains('}'));
+    }
 }
