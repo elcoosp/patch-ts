@@ -1,3 +1,1 @@
-pub use patch_ts::{
-    cli, tui, lsp, watch,
-};
+pub use patch_ts::{cli, lsp, tui, watch};
