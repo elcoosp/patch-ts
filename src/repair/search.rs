@@ -72,11 +72,16 @@ fn generate_next_states(state: &RepairState, error: &DelimiterError) -> Vec<Repa
 /// Attempt to find a minimal-cost sequence of delimiter insertions/deletions
 /// that makes the source syntactically valid according to the language's parser.
 ///
+/// `initial_errors` are the delimiter errors already computed for `source` by
+/// the caller; they seed the search frontier so the first expansion needs no
+/// extra parse. If the caller's errors turn out to be false positives (the
+/// source parses cleanly), the source is returned unchanged at cost 0.
+///
 /// Returns `Some((patched_source, actions, cost))` if a repair is found within `max_cost`.
 /// Returns `None` if no repair is found.
 pub fn minimum_cost_repair(
     source: &str,
-    _initial_errors: &[DelimiterError],
+    initial_errors: &[DelimiterError],
     language: &mut dyn Language,
     max_cost: usize,
 ) -> Option<(String, Vec<RepairAction>, usize)> {
@@ -87,15 +92,35 @@ pub fn minimum_cost_repair(
     }
 
     let mut queue = VecDeque::new();
-    let initial_state = RepairState::new(source.to_string());
-    queue.push_back(initial_state);
-
     let mut visited = HashSet::new();
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     source.hash(&mut hasher);
     visited.insert(hasher.finish());
 
+    let push_if_new =
+        |state: RepairState, queue: &mut VecDeque<RepairState>, visited: &mut HashSet<u64>| {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            state.source.hash(&mut hasher);
+            if visited.insert(hasher.finish()) {
+                queue.push_back(state);
+            }
+        };
+
+    // Seed the frontier directly from the caller's precomputed errors: the
+    // initial state is known to be invalid, so there is nothing to re-parse.
+    let initial_state = RepairState::new(source.to_string());
+    for error in initial_errors {
+        for next_state in generate_next_states(&initial_state, error) {
+            push_if_new(next_state, &mut queue, &mut visited);
+        }
+    }
+
     while let Some(state) = queue.pop_front() {
+        // Solutions more expensive than the budget are never accepted, no
+        // matter that they parse cleanly.
+        if state.cost > max_cost {
+            continue;
+        }
         let parse_result = language.parse(&state.source);
         if language.is_valid(&parse_result) {
             return Some((state.source, state.actions, state.cost));
@@ -107,15 +132,8 @@ pub fn minimum_cost_repair(
 
         let errors = language.find_delimiter_errors(&parse_result);
         for error in errors {
-            let next_states = generate_next_states(&state, &error);
-            for next_state in next_states {
-                let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                next_state.source.hash(&mut hasher);
-                let hash = hasher.finish();
-                if !visited.contains(&hash) {
-                    visited.insert(hash);
-                    queue.push_back(next_state);
-                }
+            for next_state in generate_next_states(&state, &error) {
+                push_if_new(next_state, &mut queue, &mut visited);
             }
         }
     }
@@ -134,7 +152,7 @@ mod tests {
         let source = "fn main() {";
         let parse_result = lang.parse(source);
         let errors = lang.find_delimiter_errors(&parse_result);
-        assert!(!errors.is_empty());
+        assert_ne!(errors, [] as [DelimiterError; 0]);
 
         let result = minimum_cost_repair(source, &errors, &mut lang, 2);
         assert!(result.is_some());
@@ -144,7 +162,7 @@ mod tests {
         assert_eq!(actions.len(), 1);
         match &actions[0] {
             RepairAction::Insert { ch, pos: _ } => assert_eq!(*ch, '}'),
-            _ => panic!("Expected Insert action"),
+            RepairAction::Delete { .. } => panic!("Expected Insert action"),
         }
     }
 }
