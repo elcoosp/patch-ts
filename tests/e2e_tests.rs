@@ -6,7 +6,7 @@ use tempfile::tempdir;
 fn e2e_type_annotation_fix() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("state.rs");
-    let content = r#"
+    let content = r"
 impl RouterState {
     pub fn navigate(&mut self, loc: Location, options: NavigateOptions, cx: &mut App) {
         cx.spawn(|cx| async move {
@@ -14,14 +14,14 @@ impl RouterState {
         }).detach();
     }
 }
-"#;
+";
     fs::write(&file_path, content).unwrap();
 
-    let heredoc = r#"<<<
+    let heredoc = r"<<<
         cx.spawn(|cx| async move {
 ---
         cx.spawn(|_cx: &mut App| async move {
-"#;
+";
     let mut cmd = Command::cargo_bin("patch-ts").unwrap();
     cmd.arg("patch")
         .arg("--file")
