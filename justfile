@@ -8,15 +8,15 @@ default:
 release:
     cargo build --release
 
-# run tests
+# run the full workspace test suite
 test:
-    cargo nextest run
+    cargo test --workspace
 
 # run tests with output (no capture)
 test-verbose:
-    cargo test -- --nocapture
+    cargo test --workspace -- --nocapture
 
-# run benchmarks (requires nightly)
+# run benchmarks (criterion)
 bench:
     cargo bench
 
@@ -24,9 +24,17 @@ bench:
 fmt:
     cargo fmt
 
-# lint with clippy
+# lint with clippy: pedantic is denied workspace-wide, warnings are errors
 lint:
-    cargo clippy -- -D warnings
+    cargo clippy --workspace --all-targets -- -D warnings
+
+# measure line coverage (requires cargo-llvm-cov + llvm-tools-preview)
+coverage:
+    cargo llvm-cov --workspace --summary-only
+
+# emit lcov coverage report for CI consumption
+coverage-lcov:
+    cargo llvm-cov --workspace --lcov --output-path lcov.info
 
 # clean build artifacts
 clean:
@@ -43,6 +51,3 @@ install:
 # show help
 help:
     @just --list
-
-wr:
-    watchexec -w ./wr.sh --clear -r "sh ./wr.sh"
