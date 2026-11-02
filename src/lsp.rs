@@ -4,7 +4,14 @@ use anyhow::Result;
 use std::sync::Mutex;
 use tokio::io::{stdin, stdout};
 use tower_lsp::jsonrpc::Result as LspResult;
-use tower_lsp::lsp_types::*;
+use tower_lsp::lsp_types::{
+    CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams,
+    CodeActionProviderCapability, CodeActionResponse, Command, Diagnostic, DiagnosticSeverity,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
+    ExecuteCommandOptions, ExecuteCommandParams, InitializeParams, InitializeResult,
+    InitializedParams, MessageType, Position, Range, ServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Url,
+};
 use tower_lsp::{LanguageServer, LspService, Server};
 
 struct Backend {
@@ -57,10 +64,10 @@ impl LanguageServer for Backend {
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         let uri = params.text_document.uri;
         // Use synchronous std::fs to avoid async file system issues
-        if let Ok(path) = uri.to_file_path() {
-            if let Ok(content) = std::fs::read_to_string(&path) {
-                self.publish_diagnostics(uri, &content).await;
-            }
+        if let Ok(path) = uri.to_file_path()
+            && let Ok(content) = std::fs::read_to_string(&path)
+        {
+            self.publish_diagnostics(uri, &content).await;
         }
     }
 
@@ -90,29 +97,23 @@ impl LanguageServer for Backend {
     ) -> LspResult<Option<serde_json::Value>> {
         if params.command == "patch-ts.balance" {
             for arg in &params.arguments {
-                if let Some(uri_str) = arg.get("uri").and_then(|v| v.as_str()) {
-                    if let Ok(uri) = uri_str.parse::<Url>() {
-                        if let Ok(path) = uri.to_file_path() {
-                            let mut lang = RustLanguage::new();
-                            if let Ok(result) =
-                                balance_file(&path, None, false, &mut lang, None, 10)
-                            {
-                                if result.success {
-                                    self.client
-                                        .log_message(
-                                            MessageType::INFO,
-                                            "File balanced successfully",
-                                        )
-                                        .await;
-                                    if let Ok(content) = std::fs::read_to_string(&path) {
-                                        self.publish_diagnostics(uri, &content).await;
-                                    }
-                                } else {
-                                    self.client
-                                        .show_message(MessageType::ERROR, "Balance failed")
-                                        .await;
-                                }
+                if let Some(uri_str) = arg.get("uri").and_then(|v| v.as_str())
+                    && let Ok(uri) = uri_str.parse::<Url>()
+                    && let Ok(path) = uri.to_file_path()
+                {
+                    let mut lang = RustLanguage::new();
+                    if let Ok(result) = balance_file(&path, None, false, &mut lang, None, 10) {
+                        if result.success {
+                            self.client
+                                .log_message(MessageType::INFO, "File balanced successfully")
+                                .await;
+                            if let Ok(content) = std::fs::read_to_string(&path) {
+                                self.publish_diagnostics(uri, &content).await;
                             }
+                        } else {
+                            self.client
+                                .show_message(MessageType::ERROR, "Balance failed")
+                                .await;
                         }
                     }
                 }
@@ -140,16 +141,22 @@ impl Backend {
             .map(|e| {
                 let (message, span) = match e {
                     DelimiterError::Extra { span, delimiter } => {
-                        (format!("Extra '{}'", delimiter), span)
+                        (format!("Extra '{delimiter}'"), span)
                     }
                     DelimiterError::Missing {
                         expected,
                         insert_at,
                         ..
-                    } => (format!("Missing '{}'", expected), insert_at),
+                    } => (format!("Missing '{expected}'"), insert_at),
                 };
-                let start = Position::new(span.start_line as u32 - 1, span.start_column as u32 - 1);
-                let end = Position::new(span.end_line as u32 - 1, span.end_column as u32 - 1);
+                let start = Position::new(
+                    crate::num::to_u32(span.start_line - 1),
+                    crate::num::to_u32(span.start_column - 1),
+                );
+                let end = Position::new(
+                    crate::num::to_u32(span.end_line - 1),
+                    crate::num::to_u32(span.end_column - 1),
+                );
                 Diagnostic {
                     range: Range { start, end },
                     severity: Some(DiagnosticSeverity::ERROR),
@@ -160,18 +167,22 @@ impl Backend {
             })
             .collect();
 
-        *self.diagnostics.lock().unwrap() = diagnostics.clone();
+        diagnostics.clone_into(&mut self.diagnostics.lock().unwrap());
         self.client
             .publish_diagnostics(uri, diagnostics, None)
             .await;
     }
 }
 
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub async fn run_lsp() -> Result<()> {
     let stdin = stdin();
     let stdout = stdout();
 
-    let (service, socket) = LspService::new(|client| Backend::new(client));
+    let (service, socket) = LspService::new(Backend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
     Ok(())
 }
