@@ -4,10 +4,14 @@ use strsim::normalized_levenshtein;
 // ------------------------------------------------------------------
 // Content‑based search
 // ------------------------------------------------------------------
+#[must_use]
 pub fn find_content_block(content: &str, search: &str) -> Option<std::ops::Range<usize>> {
-    content.find(search).map(|start| start..start + search.len())
+    content
+        .find(search)
+        .map(|start| start..start + search.len())
 }
 
+#[must_use]
 pub fn normalize_whitespace(s: &str) -> String {
     let mut r = String::with_capacity(s.len());
     let mut last_was_space = false;
@@ -25,6 +29,7 @@ pub fn normalize_whitespace(s: &str) -> String {
     r.trim().to_string()
 }
 
+#[must_use]
 pub fn strip_line_comments(line: &str) -> String {
     if let Some(pos) = line.find("//") {
         line[..pos].to_string()
@@ -35,6 +40,7 @@ pub fn strip_line_comments(line: &str) -> String {
     }
 }
 
+#[must_use]
 pub fn find_content_block_relaxed(content: &str, search: &str) -> Option<std::ops::Range<usize>> {
     if let Some(range) = find_content_block(content, search) {
         return Some(range);
@@ -44,11 +50,11 @@ pub fn find_content_block_relaxed(content: &str, search: &str) -> Option<std::op
     let normalized_content = normalize_whitespace(content);
     if normalized_content.find(&normalized_search).is_some() {
         let first_line = search.lines().next().unwrap_or("");
-        if !first_line.is_empty() {
-            if let Some(start) = content.find(first_line) {
-                let end = (start + search.len()).min(content.len());
-                return Some(start..end);
-            }
+        if !first_line.is_empty()
+            && let Some(start) = content.find(first_line)
+        {
+            let end = (start + search.len()).min(content.len());
+            return Some(start..end);
         }
         return Some(0..content.len());
     }
@@ -56,15 +62,15 @@ pub fn find_content_block_relaxed(content: &str, search: &str) -> Option<std::op
     let stripped_search = strip_line_comments(search);
     let stripped_content: String = content
         .lines()
-        .map(|l| strip_line_comments(l))
+        .map(strip_line_comments)
         .collect::<Vec<_>>()
         .join("\n");
     if let Some(_pos) = stripped_content.find(&stripped_search) {
         let first_line = stripped_search.lines().next().unwrap_or("");
-        if !first_line.is_empty() {
-            if let Some(start) = content.find(first_line) {
-                return Some(start..(start + stripped_search.len()).min(content.len()));
-            }
+        if !first_line.is_empty()
+            && let Some(start) = content.find(first_line)
+        {
+            return Some(start..(start + stripped_search.len()).min(content.len()));
         }
         return Some(0..content.len());
     }
@@ -72,11 +78,7 @@ pub fn find_content_block_relaxed(content: &str, search: &str) -> Option<std::op
     jaccard_match(content, search, 0.7)
 }
 
-fn jaccard_match(
-    content: &str,
-    search: &str,
-    threshold: f64,
-) -> Option<std::ops::Range<usize>> {
+fn jaccard_match(content: &str, search: &str, threshold: f64) -> Option<std::ops::Range<usize>> {
     let search_tokens: HashSet<&str> = search.split_whitespace().collect();
     if search_tokens.is_empty() {
         return None;
@@ -94,10 +96,17 @@ fn jaccard_match(
         let candidate_tokens: HashSet<&str> = candidate.split_whitespace().collect();
         let intersection = search_tokens.intersection(&candidate_tokens).count();
         let union = search_tokens.union(&candidate_tokens).count();
-        let score = if union == 0 { 0.0 } else { intersection as f64 / union as f64 };
+        let score = if union == 0 {
+            0.0
+        } else {
+            crate::num::to_f64(intersection) / crate::num::to_f64(union)
+        };
         if score > best_score {
             best_score = score;
-            best_start = content_lines[..i].iter().map(|l| l.len() + 1).sum::<usize>();
+            best_start = content_lines[..i]
+                .iter()
+                .map(|l| l.len() + 1)
+                .sum::<usize>();
             best_end = best_start + candidate.len();
         }
     }
@@ -111,6 +120,7 @@ fn jaccard_match(
 // ------------------------------------------------------------------
 // Hunk‑level fuzzy matching for unified diffs
 // ------------------------------------------------------------------
+#[must_use]
 pub fn match_hunk_by_context(
     file_content: &str,
     context_lines: &[&str],
@@ -154,6 +164,7 @@ pub fn match_hunk_by_context(
     }
 }
 
+#[must_use]
 pub fn correct_hunk_line_numbers(
     file_content: &str,
     hunk_header: &str,
@@ -167,22 +178,26 @@ pub fn correct_hunk_line_numbers(
     let header_body = hunk_header.strip_prefix("@@")?.strip_suffix("@@")?;
     let parts: Vec<&str> = header_body.split_whitespace().collect();
     let old_len = if let Some(comma) = parts[0].find(',') {
-        parts[0][comma + 1..].trim_end_matches(|c: char| !c.is_ascii_digit()).to_string()
+        parts[0][comma + 1..]
+            .trim_end_matches(|c: char| !c.is_ascii_digit())
+            .to_string()
     } else {
         "1".to_string()
     };
     let new_len = if let Some(comma) = parts[1].find(',') {
-        parts[1][comma + 1..].trim_end_matches(|c: char| !c.is_ascii_digit()).to_string()
+        parts[1][comma + 1..]
+            .trim_end_matches(|c: char| !c.is_ascii_digit())
+            .to_string()
     } else {
         "1".to_string()
     };
 
     Some(format!(
-        "@@ -{},{} +{},{} @@",
-        new_old_start, old_len, new_new_start, new_len,
+        "@@ -{new_old_start},{old_len} +{new_new_start},{new_len} @@",
     ))
 }
 
+#[must_use]
 pub fn fix_all_hunk_headers(diff_text: &str, file_content: &str, fuzz: usize) -> String {
     let mut result = String::new();
     let lines: Vec<&str> = diff_text.lines().collect();
