@@ -6,6 +6,10 @@ use anyhow::Result;
 /// <search block>
 /// ---
 /// <replace block>
+///
+/// # Errors
+///
+/// Returns an error if the input cannot be parsed.
 pub fn parse_search_replace_block(input: &str) -> Result<(String, String)> {
     let input = input.trim();
     // Remove optional fence markers
@@ -26,7 +30,9 @@ pub fn parse_search_replace_block(input: &str) -> Result<(String, String)> {
     // Split into search and replace at "\n---\n"
     let parts: Vec<&str> = body.splitn(2, "\n---\n").collect();
     if parts.len() != 2 {
-        anyhow::bail!("SEARCH/REPLACE block must contain a '---' separator between search and replace sections");
+        anyhow::bail!(
+            "SEARCH/REPLACE block must contain a '---' separator between search and replace sections"
+        );
     }
 
     let search = parts[0].trim().to_string();
