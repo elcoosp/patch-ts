@@ -8,16 +8,25 @@ pub struct FileManager {
 }
 
 impl FileManager {
+    #[must_use]
     pub fn new(backup: bool) -> Self {
         Self { backup }
     }
 
     /// Read entire file to string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file or record cannot be read.
     pub fn read(&self, path: &Path) -> Result<String> {
         fs::read_to_string(path).with_context(|| format!("Failed to read file: {}", path.display()))
     }
 
     /// Write content atomically using tempfile + rename.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file or record cannot be written.
     pub fn write_atomic(&self, path: &Path, content: &str) -> Result<()> {
         // Create backup if enabled
         if self.backup && path.exists() {
@@ -36,7 +45,7 @@ impl FileManager {
         // Persist (atomic rename)
         temp_file
             .persist(path)
-            .map_err(|e| anyhow::anyhow!("Failed to persist file: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to persist file: {e}"))?;
 
         Ok(())
     }
