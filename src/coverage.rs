@@ -8,12 +8,15 @@ pub struct CoverageResult {
     pub suggestions: Vec<String>,
 }
 
+#[must_use]
 pub fn detect_changed_lines(old: &str, new: &str) -> Vec<usize> {
     let old_lines: Vec<&str> = old.lines().collect();
     let new_lines: Vec<&str> = new.lines().collect();
     let mut changed = Vec::new();
     for (i, (o, n)) in old_lines.iter().zip(new_lines.iter()).enumerate() {
-        if o != n { changed.push(i + 1); }
+        if o != n {
+            changed.push(i + 1);
+        }
     }
     if new_lines.len() > old_lines.len() {
         for i in old_lines.len()..new_lines.len() {
@@ -23,10 +26,12 @@ pub fn detect_changed_lines(old: &str, new: &str) -> Vec<usize> {
     changed
 }
 
+#[must_use]
 pub fn run_coverage(_project_root: &Path) -> std::collections::HashMap<String, Vec<usize>> {
     std::collections::HashMap::new()
 }
 
+#[must_use]
 pub fn coverage_stage(_file_path: &Path, old: &str, new: &str) -> CoverageResult {
     let changed = detect_changed_lines(old, new);
     let coverage = run_coverage(Path::new("."));
@@ -38,16 +43,21 @@ pub fn coverage_stage(_file_path: &Path, old: &str, new: &str) -> CoverageResult
     }
     let mut suggestions = Vec::new();
     for line in &uncovered {
-        let func_name = new.lines().nth(line.saturating_sub(1))
+        let func_name = new
+            .lines()
+            .nth(line.saturating_sub(1))
             .and_then(|l| l.split("fn ").nth(1))
             .and_then(|s| s.split('(').next())
             .unwrap_or("function_name");
         suggestions.push(format!(
-            "#[test]\nfn test_{}() {{\n    // TODO: test the change at line {}\n    assert!(true);\n}}\n",
-            func_name, line
+            "#[test]\nfn test_{func_name}() {{\n    // TODO: test the change at line {line}\n    assert!(true);\n}}\n"
         ));
     }
-    CoverageResult { changed_lines: changed, uncovered_lines: uncovered, suggestions }
+    CoverageResult {
+        changed_lines: changed,
+        uncovered_lines: uncovered,
+        suggestions,
+    }
 }
 
 #[cfg(test)]
