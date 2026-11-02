@@ -7,6 +7,10 @@ pub enum PipelineStage {
     Commit,
 }
 
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 pub fn run_pipeline(stages: &[PipelineStage], dry_run: bool) -> Result<()> {
     for stage in stages {
         match stage {
@@ -40,10 +44,10 @@ pub fn run_pipeline(stages: &[PipelineStage], dry_run: bool) -> Result<()> {
                     println!("[DRY RUN] Would commit changes.");
                 } else {
                     std::process::Command::new("git")
-                        .args(&["add", "-A"])
+                        .args(["add", "-A"])
                         .status()?;
                     std::process::Command::new("git")
-                        .args(&["commit", "-m", "Auto-commit from patch-ts pipeline"])
+                        .args(["commit", "-m", "Auto-commit from patch-ts pipeline"])
                         .status()?;
                     println!("✅ Commit stage passed.");
                 }
@@ -51,4 +55,30 @@ pub fn run_pipeline(stages: &[PipelineStage], dry_run: bool) -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dry_run_pipeline_prints_without_side_effects() {
+        run_pipeline(
+            &[
+                PipelineStage::Patch,
+                PipelineStage::Validate,
+                PipelineStage::Test,
+                PipelineStage::Commit,
+            ],
+            true,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn mocked_stages_pass_without_side_effects() {
+        // Patch and Validate are mocked in non-dry mode; Test/Commit would
+        // shell out, so they are only exercised in dry-run mode.
+        run_pipeline(&[PipelineStage::Patch, PipelineStage::Validate], false).unwrap();
+    }
 }
