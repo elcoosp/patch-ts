@@ -2,6 +2,11 @@ use regex::Regex;
 
 /// Extract unified diff blocks from free‑form text (prose, fences, mixed).
 /// Returns a vector of extracted diff strings.
+#[must_use]
+///
+/// # Panics
+///
+/// Panics if an internal `unwrap` fails (invariant violation).
 pub fn extract_diffs(input: &str) -> Vec<String> {
     let re = Regex::new(r"(?m)^(@@\s+-\d+(?:,\d+)?\s+\+\d+(?:,\d+)?\s+@@.*(?:\n.*)+)").unwrap();
     let mut diffs = Vec::new();
@@ -23,6 +28,7 @@ pub fn extract_diffs(input: &str) -> Vec<String> {
 }
 
 /// Wrapper: sanitize LLM output and extract the first diff.
+#[must_use]
 pub fn sanitize_and_extract_diff(input: &str) -> Option<String> {
     // First try to extract a fenced block
     if let Some((_, content)) = crate::sanitize::extract_fenced_block(input) {
@@ -45,7 +51,7 @@ mod tests {
     fn test_extract_single_hunk() {
         let input = "Here's a fix:\n@@ -1,3 +1,3 @@\n line1\n-old\n+new\n line3\n";
         let diffs = extract_diffs(input);
-        assert!(!diffs.is_empty());
+        assert_ne!(diffs, [] as [String; 0]);
         assert!(diffs[0].contains("@@"));
     }
 
