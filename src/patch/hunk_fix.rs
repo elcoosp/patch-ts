@@ -3,10 +3,16 @@ use regex::Regex;
 
 /// Correct hallucinated line numbers in unified diff headers.
 /// Returns the corrected unified diff string.
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
+///
+/// # Panics
+///
+/// Panics if an internal `unwrap` fails (invariant violation).
 pub fn fix_hunk_headers(diff_text: &str, file_content: &str, fuzz: usize) -> Result<String> {
-    let hunk_re = Regex::new(
-        r"(?m)^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)\n?"
-    ).unwrap();
+    let hunk_re = Regex::new(r"(?m)^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)\n?").unwrap();
 
     let file_lines: Vec<&str> = file_content.lines().collect();
     let mut corrected = String::new();
@@ -16,14 +22,14 @@ pub fn fix_hunk_headers(diff_text: &str, file_content: &str, fuzz: usize) -> Res
         // Copy any text between previous hunk and this one
         corrected.push_str(&diff_text[last_match_end..cap.get(0).unwrap().start()]);
 
-        let old_start: usize = cap[1].parse().unwrap_or(1);
-        let new_start: usize = cap[3].parse().unwrap_or(1);
-        let _context = cap.get(5).map(|m| m.as_str()).unwrap_or("");
+        let _old_start: usize = cap[1].parse().unwrap_or(1);
+        let _new_start: usize = cap[3].parse().unwrap_or(1);
+        let _context = cap.get(5).map_or("", |m| m.as_str());
 
         // Find the end of this hunk: the next `@@` line or end of string.
         let hunk_header_end = cap.get(0).unwrap().end();
         let next_hunk = hunk_re.find_at(diff_text, hunk_header_end);
-        let hunk_body_end = next_hunk.map(|m| m.start()).unwrap_or(diff_text.len());
+        let hunk_body_end = next_hunk.map_or(diff_text.len(), |m| m.start());
 
         // Extract the body lines (everything after the header line)
         let body_text = &diff_text[hunk_header_end..hunk_body_end];
@@ -51,16 +57,18 @@ pub fn fix_hunk_headers(diff_text: &str, file_content: &str, fuzz: usize) -> Res
             let new_count = context_lines.len();
             let new_header = format!(
                 "@@ -{},{} +{},{} @@{}",
-                corrected_old_start, old_count,
-                corrected_new_start, new_count,
-                cap.get(5).map(|m| m.as_str()).unwrap_or("")
+                corrected_old_start,
+                old_count,
+                corrected_new_start,
+                new_count,
+                cap.get(5).map_or("", |m| m.as_str())
             );
             corrected.push_str(&new_header);
-            corrected.push_str("\n");
+            corrected.push('\n');
         } else {
             // Keep original header
             corrected.push_str(&cap[0]);
-            corrected.push_str("\n");
+            corrected.push('\n');
         }
 
         // Append the body (unchanged)
@@ -116,6 +124,9 @@ mod tests {
         let diff = "@@ -10,3 +10,3 @@\n context line 1\n context line 2\n context line 3\n";
         let file = "line0\n context line 1\n context line 2\n context line 3\nline5\n";
         let corrected = fix_hunk_headers(diff, file, 2).unwrap();
-        assert!(corrected.contains("@@ -2,3 +2,3 @@"), "Expected corrected header, got: {}", corrected);
+        assert!(
+            corrected.contains("@@ -2,3 +2,3 @@"),
+            "Expected corrected header, got: {corrected}"
+        );
     }
 }
