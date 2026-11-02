@@ -17,7 +17,7 @@ fn test_c_patch_exact() {
     cmd.arg("patch")
         .arg("--file")
         .arg(file_path.to_str().unwrap())
-        .arg("--line")        // required for stdin heredoc
+        .arg("--line") // required for stdin heredoc
         .arg("1")
         .arg("--no-compile-check")
         .write_stdin(input)
