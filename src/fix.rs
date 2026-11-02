@@ -23,6 +23,11 @@ pub struct PatchSuggestion {
 }
 
 /// Parse a compiler error from output text.
+#[must_use]
+///
+/// # Panics
+///
+/// Panics if an internal `unwrap` fails (invariant violation).
 pub fn parse_compiler_error(output: &str) -> Option<CompilerError> {
     // Rust: error[E0308]: src/main.rs:10:5
     let rust_re = Regex::new(r"error\[(.*?)\]: (.*):(\d+):(\d+)").unwrap();
@@ -53,7 +58,7 @@ pub fn parse_compiler_error(output: &str) -> Option<CompilerError> {
     if let Some(caps) = py_re.captures(output) {
         return Some(CompilerError {
             error_code: "SyntaxError".to_string(),
-            file: "".to_string(),
+            file: String::new(),
             line: caps[1].parse().unwrap_or(0),
             column: 0,
             message: output.lines().next().unwrap_or("").to_string(),
@@ -65,7 +70,7 @@ pub fn parse_compiler_error(output: &str) -> Option<CompilerError> {
     if js_re.is_match(output) {
         return Some(CompilerError {
             error_code: "SyntaxError".to_string(),
-            file: "".to_string(),
+            file: String::new(),
             line: 0,
             column: 0,
             message: output.lines().next().unwrap_or("").to_string(),
