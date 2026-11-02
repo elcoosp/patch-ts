@@ -17,12 +17,17 @@ pub struct HistoryManager {
 }
 
 impl HistoryManager {
+    #[must_use]
     pub fn new() -> Self {
         let history_dir = PathBuf::from(".patch-ts");
         fs::create_dir_all(&history_dir).ok();
         Self { history_dir }
     }
 
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file or record cannot be written.
     pub fn save(&self, file: &str, original: &str, patched: &str) -> Result<()> {
         let record = PatchRecord {
             timestamp: Utc::now().to_rfc3339(),
@@ -39,6 +44,10 @@ impl HistoryManager {
         Ok(())
     }
 
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn list(&self) -> Result<Vec<PatchRecord>> {
         let history_file = self.history_dir.join("history.jsonl");
         let content = fs::read_to_string(&history_file).unwrap_or_default();
@@ -51,6 +60,14 @@ impl HistoryManager {
         Ok(records)
     }
 
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an internal `unwrap` fails (invariant violation).
     pub fn undo_last(&self) -> Result<Option<PatchRecord>> {
         let mut records = self.list()?;
         if records.is_empty() {
@@ -66,5 +83,11 @@ impl HistoryManager {
         }
         fs::write(&history_file, new_content)?;
         Ok(Some(last))
+    }
+}
+
+impl Default for HistoryManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
