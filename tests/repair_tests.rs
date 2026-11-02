@@ -94,11 +94,10 @@ fn test_apply_repair_missing() {
 }
 
 #[test]
-#[ignore = "pre‑existing regression after AST changes"]
 fn test_balance_function_scoped() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("sample.rs");
-    let content = r#"
+    let content = r"
 fn foo() {
     if true {
         let x = 1;
@@ -107,7 +106,7 @@ fn foo() {
 fn bar() {
     let y = (3 + 4));
 }
-"#;
+";
     fs::write(&file_path, content).unwrap();
 
     let mut lang = RustLanguage::new();
@@ -119,14 +118,13 @@ fn bar() {
 }
 
 #[test]
-#[ignore = "pre‑existing regression after AST changes"]
 fn test_balance_function_ambiguous() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("sample.rs");
-    let content = r#"
+    let content = r"
 fn foo() { let x = (1 + 2; }
 fn foo() { let y = (3 + 4; }
-"#;
+";
     fs::write(&file_path, content).unwrap();
 
     let mut lang = RustLanguage::new();
