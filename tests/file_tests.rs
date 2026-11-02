@@ -55,8 +55,10 @@ fn test_read_missing_file() {
     let manager = FileManager::new(false);
     let result = manager.read(Path::new("/definitely/not/a/real/file.rs"));
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Failed to read file"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to read file")
+    );
 }
