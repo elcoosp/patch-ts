@@ -3,7 +3,7 @@ use glob::Pattern;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
 
 pub struct FileWatcher {
@@ -17,9 +17,17 @@ pub struct FileWatcher {
 }
 
 impl FileWatcher {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an internal `unwrap` fails (invariant violation).
     pub fn new(
         debounce_delay: Duration,
-        ignore_patterns: Vec<String>,
+        ignore_patterns: &[String],
         hook_command: Option<&str>,
     ) -> Result<Self> {
         let (tx, rx) = channel();
@@ -37,11 +45,15 @@ impl FileWatcher {
             watched_paths: Vec::new(),
             debounce_delay,
             ignore_patterns: patterns,
-            hook_command: hook_command.map(|s| s.to_string()),
+            hook_command: hook_command.map(std::string::ToString::to_string),
             last_event_time: Instant::now(),
         })
     }
 
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn watch<P: AsRef<Path>>(&mut self, path: P) -> Result<()> {
         let path = path.as_ref();
         self.watcher
@@ -51,6 +63,10 @@ impl FileWatcher {
         Ok(())
     }
 
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn wait_for_change(&mut self) -> Result<notify::Event> {
         loop {
             match self.rx.recv() {
@@ -81,16 +97,16 @@ impl FileWatcher {
                                 .arg("-c")
                                 .arg(&cmd)
                                 .status()
-                                .with_context(|| format!("Failed to run hook: {}", cmd))?;
+                                .with_context(|| format!("Failed to run hook: {cmd}"))?;
                             if !status.success() {
-                                eprintln!("Warning: hook exited with {}", status);
+                                eprintln!("Warning: hook exited with {status}");
                             }
                         }
                         return Ok(event);
                     }
                 }
-                Ok(Err(e)) => anyhow::bail!("Watch error: {}", e),
-                Err(e) => anyhow::bail!("Channel error: {}", e),
+                Ok(Err(e)) => anyhow::bail!("Watch error: {e}"),
+                Err(e) => anyhow::bail!("Channel error: {e}"),
             }
         }
     }
